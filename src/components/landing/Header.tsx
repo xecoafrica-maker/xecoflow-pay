@@ -1,4 +1,3 @@
-// src/components/landing/Header.tsx
 import Link from 'next/link';
 
 export default function Header() {
@@ -19,14 +18,10 @@ export default function Header() {
               <span className="text-[#10B981]">Flow</span>
             </Link>
 
-            {/* 
-              ✅ CHANGE 1: Added 'flex-wrap' and 'justify-end'
-              This ensures that if the screen gets tight (like at 125% zoom),
-              the nav items simply wrap to the next line instead of overflowing.
-            */}
+            {/* NAVIGATION LINKS */}
             <div className="hidden lg:flex items-center justify-end gap-6 xl:gap-8 text-[17px] font-medium text-[#0a2540] h-full flex-wrap">
               
-              {/* 1. PRODUCTS MEGA DROPDOWN */}
+              {/* 1. PRODUCTS DROPDOWN */}
               <div className="relative group/nav h-full flex items-center cursor-pointer">
                 <span className="group flex items-center gap-1 text-[#0a2540] hover:text-[#635bff] transition-colors">
                   Products
@@ -63,7 +58,7 @@ export default function Header() {
                   <div>
                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Platforms & Marketplaces</h4>
                     <div className="space-y-4">
-                      <a href="#" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">Wi-Fi Billing Sytem</p><p className="text-xs text-gray-400 font-normal">Automated captive portals & MikroTik token provisioning</p></a>
+                      <a href="#" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">Wi-Fi Billing System</p><p className="text-xs text-gray-400 font-normal">Automated captive portals & MikroTik token provisioning</p></a>
                       <a href="#" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">Tax & Compliance Engine</p><p className="text-xs text-gray-400 font-normal">Automated return filings, KRA PIN lookups & TCC checks</p></a>
                       <a href="#" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">KYC & Identity Verification</p><p className="text-xs text-gray-400 font-normal">Instant business checks & merchant identity validation</p></a>
                     </div>
@@ -71,7 +66,7 @@ export default function Header() {
                 </div>
               </div>
 
-              {/* 2. SOLUTIONS MEGA DROPDOWN */}
+              {/* 2. SOLUTIONS DROPDOWN */}
               <div className="relative group/nav h-full flex items-center cursor-pointer">
                 <span className="group flex items-center gap-1 text-[#0a2540] hover:text-[#635bff] transition-colors">
                   Solutions
@@ -122,7 +117,7 @@ export default function Header() {
                 </div>
               </div>
 
-              {/* 3. DEVELOPERS MEGA DROPDOWN */}
+              {/* 3. DEVELOPERS DROPDOWN */}
               <div className="relative group/nav h-full flex items-center cursor-pointer">
                 <span className="group flex items-center gap-1 text-[#0a2540] hover:text-[#635bff] transition-colors">
                   Developers
@@ -162,7 +157,7 @@ export default function Header() {
                 </div>
               </div>
 
-              {/* 4. RESOURCES MEGA DROPDOWN */}
+              {/* 4. RESOURCES DROPDOWN */}
               <div className="relative group/nav h-full flex items-center cursor-pointer">
                 <span className="group flex items-center gap-1 text-[#0a2540] hover:text-[#635bff] transition-colors">
                   Resources
