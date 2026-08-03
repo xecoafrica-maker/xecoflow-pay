@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150" viewBox="0 0 300 150">
+  <rect width="300" height="150" fill="#f8f9fa" rx="16" ry="16" stroke="#e9ecef" stroke-width="3" />
+  <text x="150" y="85" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#E60000" text-anchor="middle" dominant-baseline="middle">
+    airtel
+  </text>
+</svg>
