@@ -1,11 +1,13 @@
 ﻿'use client';
 
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Mail, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 
-export default function VerifyOTPPage() {
+// ⚠️ This is the exact same code you had, but the Content is wrapped inside a separate component
+function VerifyOTPContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get('email') || '';
@@ -204,5 +206,21 @@ export default function VerifyOTPPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// 🚀 This is the main export. It wraps your logic in a Suspense boundary.
+export default function Page() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-indigo-600 mx-auto" />
+          <p className="mt-4 text-gray-600">Loading page...</p>
+        </div>
+      </div>
+    }>
+      <VerifyOTPContent />
+    </Suspense>
   );
 }
