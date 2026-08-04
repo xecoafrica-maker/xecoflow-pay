@@ -1,6 +1,7 @@
 ﻿// src/lib/auth-api.ts
 
-const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL || 'http://localhost:3001';
+// ✅ UPDATED: Default to the live monolith URL instead of localhost
+const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL || 'https://xecoflow-2gen.onrender.com';
 
 export interface RegisterRequest {
   email: string;
