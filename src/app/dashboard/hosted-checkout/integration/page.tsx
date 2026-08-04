@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
+import crypto from 'crypto';
 import {
   Lock,
   Smartphone,
@@ -174,21 +175,43 @@ export default function HostedCheckoutIntegration() {
     setErrorMessage('');
 
     try {
-      const requestBody = {
+      // 1. Build the request body as per Unified Gateway documentation
+      const body = {
+        action: 'charge',
+        method: 'mpesa',
         phone: phone,
         amount: Number(amount),
-        method: 'mpesa',
-        action: 'charge',
         shortcode: merchantId,
-        transactionDesc: 'Payment ' + businessName,
-        apiKey: apiKey,
-        apiSecret: apiSecret,
+        idempotencyKey: 'key-' + crypto.randomBytes(8).toString('hex'),
       };
 
-      const response = await fetch('/api/payments/charge', {
+      // 2. Sort keys alphabetically and stringify for signature
+      const sorted: Record<string, any> = {};
+      Object.keys(body).sort().forEach((k) => {
+        sorted[k] = body[k as keyof typeof body];
+      });
+      const bodyString = JSON.stringify(sorted);
+
+      // 3. Generate HMAC-SHA256 signature
+      const signature = crypto
+        .createHmac('sha256', apiSecret)
+        .update(bodyString)
+        .digest('hex');
+
+      const timestamp = Math.floor(Date.now() / 1000);
+      const nonce = crypto.randomBytes(16).toString('hex');
+
+      // 4. Send the request to the Unified Gateway
+      const response = await fetch('/v1/payments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'x-signature': signature,
+          'x-timestamp': String(timestamp),
+          'x-nonce': nonce,
+        },
+        body: bodyString,
       });
 
       const data = await response.json();
