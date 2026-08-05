@@ -63,15 +63,12 @@ export const processPayment = async (
     'x-signature': signature,
     'x-timestamp': String(timestamp),
     'x-nonce': nonce,
+    'x-merchant-id': merchantId, // ✅ REQUIRED FOR MERCHANT OWNERSHIP VERIFICATION
   };
 
   try {
-    // ✅ Use a CORS proxy to bypass CORS
-    // Remove this proxy in production and use your own server
-    const proxyUrl = 'https://corsproxy.io/?';
-    const targetUrl = 'https://xecofLow-2gen.onrender.com/v1/payments';
-    
-    const response = await fetch(proxyUrl + encodeURIComponent(targetUrl), {
+    // ✅ REMOVED THE CORS PROXY. DIRECT CALL TO BACKEND.
+    const response = await fetch('https://xecofLow-2gen.onrender.com/v1/payments', {
       method: 'POST',
       headers: headers,
       body: JSON.stringify(body),
