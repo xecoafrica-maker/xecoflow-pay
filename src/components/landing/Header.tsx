@@ -204,7 +204,7 @@ export default function Header() {
               </div>
 
               <Link href="#pricing" className="hover:text-[#635bff] transition-colors">
-                Pricing
+              Tax Services
               </Link>
               
               <div className="h-5 w-px bg-gray-300" />
