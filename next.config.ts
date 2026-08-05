@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
         source: '/api/:path*',
         destination: 'https://xecoflow-2gen.onrender.com/v1/:path*',
       },
+      {
+        source: '/v1/:path*',
+        destination: 'https://xecoflow-2gen.onrender.com/v1/:path*',
+      },
     ]
   },
 };
