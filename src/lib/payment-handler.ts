@@ -68,7 +68,7 @@ export const processPayment = async (
 
   try {
     // ✅ REMOVED THE CORS PROXY. DIRECT CALL TO BACKEND.
-    const response = await fetch('https://xecofLow-2gen.onrender.com/v1/payments', {
+    const response = await fetch('/api/payments', {
       method: 'POST',
       headers: headers,
       body: JSON.stringify(body),
