@@ -157,7 +157,7 @@ export default function Header() {
                 </div>
               </div>
 
-              {/* 4. RESOURCES DROPDOWN */}
+              {/* 4. RESOURCES DROPDOWN - MERGED WITH COMPANY */}
               <div className="relative group/nav h-full flex items-center cursor-pointer">
                 <span className="group flex items-center gap-1 text-[#0a2540] hover:text-[#635bff] transition-colors">
                   Resources
@@ -166,7 +166,7 @@ export default function Header() {
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-1/2 -translate-x-2/3 w-[850px] bg-white border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-4 gap-8 rounded-2xl mt-1">
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[950px] bg-white border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-4 gap-8 rounded-2xl mt-1">
                   <div>
                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Learn</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
@@ -186,11 +186,11 @@ export default function Header() {
                   <div>
                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Company</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
+                      <li><Link href="/about" className="hover:text-[#635bff] transition-colors">About Us</Link></li>
+                      <li><Link href="/careers" className="hover:text-[#635bff] transition-colors">Careers</Link></li>
+                      <li><Link href="/help-centre" className="hover:text-[#635bff] transition-colors">Help Centre</Link></li>
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Product roadmap</a></li>
-                      <li><a href="#" className="hover:text-[#635bff] transition-colors">Sessions annual conference</a></li>
-                      <li><a href="#" className="hover:text-[#635bff] transition-colors">Jobs</a></li>
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Newsroom</a></li>
-                      <li><a href="#" className="hover:text-[#635bff] transition-colors">Stripe Press</a></li>
                     </ul>
                   </div>
                   <div>
@@ -203,27 +203,10 @@ export default function Header() {
                 </div>
               </div>
 
-              <Link href="#pricing" className="hover:text-[#635bff] transition-colors">
+              {/* 5. TAX AUTOMATION - Standalone link */}
+              <Link href="/tax-automation" className="hover:text-[#635bff] transition-colors whitespace-nowrap">
                 Tax Automation
               </Link>
-              
-              {/* COMPANY DROPDOWN */}
-              <div className="relative group/nav h-full flex items-center cursor-pointer">
-                <span className="group flex items-center gap-1 text-[#0a2540] hover:text-[#635bff] transition-colors">
-                  Company
-                  <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover/nav:rotate-180" viewBox="0 0 12 12" fill="none">
-                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </span>
-
-                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[280px] bg-white border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-6 rounded-2xl mt-1">
-                  <ul className="space-y-3 text-[15px] font-medium text-gray-600">
-                    <li><Link href="/help-centre" className="block hover:text-[#635bff] transition-colors">Help Centre</Link></li>
-                    <li><Link href="/about" className="block hover:text-[#635bff] transition-colors">About Us</Link></li>
-                    <li><Link href="/careers" className="block hover:text-[#635bff] transition-colors">Careers</Link></li>
-                  </ul>
-                </div>
-              </div>
             </div>
           </div>
 
