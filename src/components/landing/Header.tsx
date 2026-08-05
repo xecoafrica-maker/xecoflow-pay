@@ -204,10 +204,8 @@ export default function Header() {
               </div>
 
               <Link href="#pricing" className="hover:text-[#635bff] transition-colors">
-              Tax Automation
+                Tax Automation
               </Link>
-              
-              <div className="h-5 w-px bg-gray-300" />
               
               {/* COMPANY DROPDOWN */}
               <div className="relative group/nav h-full flex items-center cursor-pointer">
