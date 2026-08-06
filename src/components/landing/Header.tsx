@@ -203,10 +203,45 @@ export default function Header() {
                 </div>
               </div>
 
-              {/* 5. TAX AUTOMATION - Standalone link */}
-              <Link href="/tax-automation" className="hover:text-[#635bff] transition-colors whitespace-nowrap">
-                Tax Automation
-              </Link>
+              {/* 5. TAX AUTOMATION DROPDOWN */}
+              <div className="relative group/nav h-full flex items-center cursor-pointer">
+                <span className="group flex items-center gap-1 text-[#0a2540] hover:text-[#635bff] transition-colors">
+                  Tax Automation
+                  <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover/nav:rotate-180" viewBox="0 0 12 12" fill="none">
+                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </span>
+
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[800px] bg-white border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-8 rounded-2xl mt-1">
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Tax Filing</h4>
+                    <ul className="space-y-3 text-[15px] font-medium text-gray-600">
+                      <li><Link href="/tax/returns" className="hover:text-[#635bff] transition-colors">Automated Returns</Link></li>
+                      <li><Link href="/tax/vat" className="hover:text-[#635bff] transition-colors">VAT Management</Link></li>
+                      <li><Link href="/tax/withholding" className="hover:text-[#635bff] transition-colors">Withholding Tax</Link></li>
+                      <li><Link href="/tax/payroll" className="hover:text-[#635bff] transition-colors">Payroll Taxes</Link></li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Compliance</h4>
+                    <ul className="space-y-3 text-[15px] font-medium text-gray-600">
+                      <li><Link href="/tax/kra-pin" className="hover:text-[#635bff] transition-colors">KRA PIN Lookup</Link></li>
+                      <li><Link href="/tax/tcc" className="hover:text-[#635bff] transition-colors">TCC Verification</Link></li>
+                      <li><Link href="/tax/filing-deadlines" className="hover:text-[#635bff] transition-colors">Filing Deadlines</Link></li>
+                      <li><Link href="/tax/audit-trail" className="hover:text-[#635bff] transition-colors">Audit Trail</Link></li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Resources</h4>
+                    <ul className="space-y-3 text-[15px] font-medium text-gray-600">
+                      <li><Link href="/tax/guides" className="hover:text-[#635bff] transition-colors">Tax Guides</Link></li>
+                      <li><Link href="/tax/calculators" className="hover:text-[#635bff] transition-colors">Tax Calculators</Link></li>
+                      <li><Link href="/tax/faq" className="hover:text-[#635bff] transition-colors">FAQ</Link></li>
+                      <li><Link href="/tax/support" className="hover:text-[#635bff] transition-colors">Get Support</Link></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
