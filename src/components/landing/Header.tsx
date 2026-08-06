@@ -3,11 +3,32 @@ import Link from 'next/link';
 export default function Header() {
   return (
     <header className="sticky top-0 z-50">
-      {/* Stripe-like gradient background layer */}
-      <div className="absolute inset-0 bg-gradient-to-r from-sky-100/40 via-violet-100/40 to-orange-100/40 pointer-events-none" />
+      {/* ANNOUNCEMENT BAR */}
+      <div className="relative bg-[#0a2540] text-white py-2.5 px-4 text-center text-sm font-medium">
+        <div className="max-w-[1350px] mx-auto flex items-center justify-center gap-2 flex-wrap">
+          <span className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1">
+              🚀 Launching across East Africa
+              <span className="ml-1">🇰🇪</span>
+              <span>🇺🇬</span>
+              <span>🇹🇿</span>
+            </span>
+          </span>
+          <Link 
+            href="/documentation" 
+            className="text-[#A3E5F3] hover:text-white transition-colors inline-flex items-center gap-1 ml-2 font-medium"
+          >
+            View documentation
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </Link>
+        </div>
+      </div>
 
-      <nav className="relative bg-white/70 backdrop-blur-xl border-b border-gray-200/40">
-        <div className="max-w-[1350px] mx-auto px-8 h-[84px] flex items-center justify-between">
+      {/* NAVBAR */}
+      <nav className="relative bg-[rgba(255,255,255,0.82)] backdrop-blur-[18px] border-b border-gray-200/40">
+        <div className="max-w-[1350px] mx-auto px-8 h-[80px] flex items-center justify-between">
 
           {/* LEFT SIDE: LOGO & NAVIGATION GROUPED */}
           <div className="flex items-center gap-8 xl:gap-12 h-full">
