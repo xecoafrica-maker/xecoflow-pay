@@ -51,37 +51,70 @@ export default function Header() {
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-[-100px] w-[1040px] bg-white/95 backdrop-blur-[18px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-6 rounded-2xl mt-1">
+                <div className="absolute top-full left-[-100px] w-[1040px] bg-white/95 backdrop-blur-[24px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-6 rounded-3xl mt-1">
                   
                   {/* Payments Column */}
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Accept Payments</h4>
-                    <div className="space-y-4">
-                      <a href="/products/payment-links" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">Payment Links</p><p className="text-xs text-gray-400 font-normal">Generate instant payment links with zero code</p></a>
-                      <a href="/products/checkout" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">Checkout</p><p className="text-xs text-gray-400 font-normal">Pre-built payment UI for web & mobile apps</p></a>
-                      <a href="/products/pos" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">Xeco POS</p><p className="text-xs text-gray-400 font-normal">Collect in-person & over-the-counter payments</p></a>
-                      <a href="/products/invoicing" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">Smart Invoicing</p><p className="text-xs text-gray-400 font-normal">Send invoices with embedded payment buttons</p></a>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Accept Payments</h4>
+                    <div className="space-y-6">
+                      <a href="/products/payment-links" className="block group/item">
+                        <p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff] transition-colors">Payment Links</p>
+                        <p className="text-xs text-gray-400 font-normal mt-0.5">Generate instant payment links with zero code</p>
+                      </a>
+                      <a href="/products/checkout" className="block group/item">
+                        <p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff] transition-colors">Checkout</p>
+                        <p className="text-xs text-gray-400 font-normal mt-0.5">Pre-built payment UI for web & mobile apps</p>
+                      </a>
+                      <a href="/products/pos" className="block group/item">
+                        <p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff] transition-colors">Xeco POS</p>
+                        <p className="text-xs text-gray-400 font-normal mt-0.5">Collect in-person & over-the-counter payments</p>
+                      </a>
+                      <a href="/products/invoicing" className="block group/item">
+                        <p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff] transition-colors">Smart Invoicing</p>
+                        <p className="text-xs text-gray-400 font-normal mt-0.5">Send invoices with embedded payment buttons</p>
+                      </a>
                     </div>
                   </div>
 
                   {/* Revenue Column */}
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Payouts & Transfers</h4>
-                    <div className="space-y-4">
-                      <a href="#" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">Instant Payouts</p><p className="text-xs text-gray-400 font-normal">Bulk payouts to M-Pesa & local bank accounts</p></a>
-                      <a href="#" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">Airtime & Utility APIs</p><p className="text-xs text-gray-400 font-normal">Automated multi-network airtime & data distribution</p></a>
-                      <a href="#" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">Split Payments</p><p className="text-xs text-gray-400 font-normal">Automated multi-party settlements & commissions</p></a>
-                      <a href="#" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">Scheduled Disbursements</p><p className="text-xs text-gray-400 font-normal">Automate payroll & recurring vendor settlements</p></a>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Payouts & Transfers</h4>
+                    <div className="space-y-6">
+                      <a href="#" className="block group/item">
+                        <p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff] transition-colors">Instant Payouts</p>
+                        <p className="text-xs text-gray-400 font-normal mt-0.5">Bulk payouts to M-Pesa & local bank accounts</p>
+                      </a>
+                      <a href="#" className="block group/item">
+                        <p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff] transition-colors">Airtime & Utility APIs</p>
+                        <p className="text-xs text-gray-400 font-normal mt-0.5">Automated multi-network airtime & data distribution</p>
+                      </a>
+                      <a href="#" className="block group/item">
+                        <p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff] transition-colors">Split Payments</p>
+                        <p className="text-xs text-gray-400 font-normal mt-0.5">Automated multi-party settlements & commissions</p>
+                      </a>
+                      <a href="#" className="block group/item">
+                        <p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff] transition-colors">Scheduled Disbursements</p>
+                        <p className="text-xs text-gray-400 font-normal mt-0.5">Automate payroll & recurring vendor settlements</p>
+                      </a>
                     </div>
                   </div>
 
                   {/* Platforms Column */}
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Platforms & Marketplaces</h4>
-                    <div className="space-y-4">
-                      <a href="#" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">Wi-Fi Billing System</p><p className="text-xs text-gray-400 font-normal">Automated captive portals & MikroTik token provisioning</p></a>
-                      <a href="#" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">Tax & Compliance Engine</p><p className="text-xs text-gray-400 font-normal">Automated return filings, KRA PIN lookups & TCC checks</p></a>
-                      <a href="#" className="block group/item"><p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff]">KYC & Identity Verification</p><p className="text-xs text-gray-400 font-normal">Instant business checks & merchant identity validation</p></a>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Platforms & Marketplaces</h4>
+                    <div className="space-y-6">
+                      <a href="#" className="block group/item">
+                        <p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff] transition-colors">ISP Billing</p>
+                        <p className="text-xs text-gray-400 font-normal mt-0.5">Automated captive portals & MikroTik token provisioning</p>
+                      </a>
+                      <a href="#" className="block group/item">
+                        <p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff] transition-colors">Tax & Compliance Engine</p>
+                        <p className="text-xs text-gray-400 font-normal mt-0.5">Automated return filings, KRA PIN lookups & TCC checks</p>
+                      </a>
+                      <a href="#" className="block group/item">
+                        <p className="text-[15px] font-semibold text-gray-800 group-hover/item:text-[#635bff] transition-colors">KYC & Identity Verification</p>
+                        <p className="text-xs text-gray-400 font-normal mt-0.5">Instant business checks & merchant identity validation</p>
+                      </a>
                     </div>
                   </div>
                 </div>
@@ -96,16 +129,16 @@ export default function Header() {
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-1/2 -translate-x-1/3 w-[880px] bg-white/95 backdrop-blur-[18px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-4 gap-8 rounded-2xl mt-1">
+                <div className="absolute top-full left-1/2 -translate-x-1/3 w-[880px] bg-white/95 backdrop-blur-[24px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-4 gap-8 rounded-3xl mt-1">
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">By stage</h4>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">By stage</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Enterprises</a></li>
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Startups</a></li>
                     </ul>
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">By use case</h4>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">By use case</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Agentic commerce</a></li>
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Crypto</a></li>
@@ -116,7 +149,7 @@ export default function Header() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">By industry</h4>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">By industry</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">AI companies</a></li>
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Creator economy</a></li>
@@ -129,7 +162,7 @@ export default function Header() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Ecosystem</h4>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Ecosystem</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Partners</a></li>
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Stripe App Marketplace</a></li>
@@ -147,9 +180,9 @@ export default function Header() {
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[850px] bg-white/95 backdrop-blur-[18px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-8 rounded-2xl mt-1">
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[850px] bg-white/95 backdrop-blur-[24px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-8 rounded-3xl mt-1">
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Get Started</h4>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Get Started</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
                       <li><Link href="/introduction" className="hover:text-[#635bff] transition-colors">Introduction</Link></li>
                       <li><Link href="/quickstart" className="hover:text-[#635bff] transition-colors">Quick Start Guide</Link></li>
@@ -158,7 +191,7 @@ export default function Header() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Core Documentation</h4>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Core Documentation</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
                       <li><Link href="/payment-methods" className="hover:text-[#635bff] transition-colors">Payment Methods</Link></li>
                       <li><Link href="/payment-solutions" className="hover:text-[#635bff] transition-colors">Payment Solutions</Link></li>
@@ -167,7 +200,7 @@ export default function Header() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Reference</h4>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Reference</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
                       <li><Link href="/api-docs/reference" className="hover:text-[#635bff] transition-colors">API Reference</Link></li>
                       <li><Link href="/plugins" className="hover:text-[#635bff] transition-colors">SDKs & Plugins</Link></li>
@@ -187,9 +220,9 @@ export default function Header() {
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[950px] bg-white/95 backdrop-blur-[18px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-4 gap-8 rounded-2xl mt-1">
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[950px] bg-white/95 backdrop-blur-[24px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-4 gap-8 rounded-3xl mt-1">
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Learn</h4>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Learn</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Blog</a></li>
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Customer stories</a></li>
@@ -197,7 +230,7 @@ export default function Header() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Support</h4>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Support</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Get support</a></li>
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Managed support plans</a></li>
@@ -205,7 +238,7 @@ export default function Header() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Company</h4>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Company</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
                       <li><Link href="/about" className="hover:text-[#635bff] transition-colors">About Us</Link></li>
                       <li><Link href="/careers" className="hover:text-[#635bff] transition-colors">Careers</Link></li>
@@ -215,7 +248,7 @@ export default function Header() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Contact</h4>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Contact</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Contact sales</a></li>
                       <li><a href="#" className="hover:text-[#635bff] transition-colors">Become a partner</a></li>
@@ -233,9 +266,9 @@ export default function Header() {
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[800px] bg-white/95 backdrop-blur-[18px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-8 rounded-2xl mt-1">
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[800px] bg-white/95 backdrop-blur-[24px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-8 rounded-3xl mt-1">
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Tax Filing</h4>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Tax Filing</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
                       <li><Link href="/tax/returns" className="hover:text-[#635bff] transition-colors">Automated Returns</Link></li>
                       <li><Link href="/tax/vat" className="hover:text-[#635bff] transition-colors">VAT Management</Link></li>
@@ -244,7 +277,7 @@ export default function Header() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Compliance</h4>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Compliance</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
                       <li><Link href="/tax/kra-pin" className="hover:text-[#635bff] transition-colors">KRA PIN Lookup</Link></li>
                       <li><Link href="/tax/tcc" className="hover:text-[#635bff] transition-colors">TCC Verification</Link></li>
@@ -253,7 +286,7 @@ export default function Header() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Resources</h4>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Resources</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
                       <li><Link href="/tax/guides" className="hover:text-[#635bff] transition-colors">Tax Guides</Link></li>
                       <li><Link href="/tax/calculators" className="hover:text-[#635bff] transition-colors">Tax Calculators</Link></li>
