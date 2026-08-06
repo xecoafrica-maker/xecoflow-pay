@@ -132,6 +132,26 @@ export default function LandingPage() {
                   />
                 </div>
 
+                {/* Payment Logos on Circle Edge with Floating Animation */}
+                <style jsx>{`
+                  @keyframes float {
+                    0%, 100% { transform: translateY(0px); }
+                    50% { transform: translateY(-6px); }
+                  }
+                  @keyframes float-delayed {
+                    0%, 100% { transform: translateY(0px); }
+                    50% { transform: translateY(-8px); }
+                  }
+                  @keyframes float-slow {
+                    0%, 100% { transform: translateY(0px); }
+                    50% { transform: translateY(-4px); }
+                  }
+                  .float-1 { animation: float 4s ease-in-out infinite; }
+                  .float-2 { animation: float-delayed 4.5s ease-in-out infinite; }
+                  .float-3 { animation: float-slow 5s ease-in-out infinite; }
+                  .float-4 { animation: float 3.5s ease-in-out infinite reverse; }
+                `}</style>
+
                 <div className="absolute top-[1.5%] left-1/2 -translate-x-1/2 z-20 float-1">
                   <div className="bg-white rounded-full shadow-xl border border-gray-100/80 w-[4.5rem] h-[4.5rem] flex flex-col items-center justify-center transition-transform hover:scale-110">
                     <span className="text-yellow-600 font-black text-xs leading-none">MTN</span>
@@ -191,6 +211,19 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Add the gradient animation CSS */}
+      <style jsx>{`
+        @keyframes gradient {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        .animate-gradient {
+          background-size: 200% 200%;
+          animation: gradient 6s ease-in-out infinite;
+        }
+      `}</style>
 
       {/* ════════════════════════════════════════════════════════════════
           TRUSTED BY - ANIMATED SCROLLING LOGOS
@@ -275,6 +308,20 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      <style jsx>{`
+        @keyframes scroll-right-to-left {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .animate-scroll-right-to-left {
+          animation: scroll-right-to-left 25s linear infinite;
+          width: fit-content;
+        }
+        .animate-scroll-right-to-left:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
 
       {/* ════════════════════════════════════════════════════════════════
           PRODUCTS
@@ -485,51 +532,6 @@ export default function LandingPage() {
       </section>
 
       <Footer />
-
-      {/* ── Consolidated Styles ── */}
-      <style jsx>{`
-        /* Gradient animation for "Africa" */
-        @keyframes gradient {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        .animate-gradient {
-          background-size: 200% 200%;
-          animation: gradient 6s ease-in-out infinite;
-        }
-
-        /* Floating animations for payment logos */
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-6px); }
-        }
-        @keyframes float-delayed {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-8px); }
-        }
-        @keyframes float-slow {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-4px); }
-        }
-        .float-1 { animation: float 4s ease-in-out infinite; }
-        .float-2 { animation: float-delayed 4.5s ease-in-out infinite; }
-        .float-3 { animation: float-slow 5s ease-in-out infinite; }
-        .float-4 { animation: float 3.5s ease-in-out infinite reverse; }
-
-        /* Scrolling logos animation */
-        @keyframes scroll-right-to-left {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .animate-scroll-right-to-left {
-          animation: scroll-right-to-left 25s linear infinite;
-          width: fit-content;
-        }
-        .animate-scroll-right-to-left:hover {
-          animation-play-state: paused;
-        }
-      `}</style>
     </div>
   );
 }
