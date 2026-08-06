@@ -193,110 +193,20 @@ export default function LandingPage() {
       </section>
 
       {/* ════════════════════════════════════════════════════════════════
-          TRUSTED BY - ANIMATED SCROLLING LOGOS
+          TRUSTED BY
           ════════════════════════════════════════════════════════════════ */}
-      <section className="border-y border-gray-100 bg-gray-50/50 py-10 overflow-hidden">
-        <div className="max-w-[1350px] mx-auto px-8">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-8 text-center">
-            Powering enterprise commerce across East Africa
-          </p>
-          
-          {/* Scrolling logos container - Right to Left */}
-          <div className="relative">
-            <div className="flex animate-scroll-right-to-left gap-12 md:gap-16 items-center">
-              {/* First set */}
-              <div className="flex items-center gap-12 md:gap-16 flex-shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">S</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Safaricom</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-600 to-amber-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">E</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Enashipai Resort</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-rose-600 to-rose-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">S</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Speke Resort</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">K</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">KCB Bank</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">E</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Equity Bank</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-teal-600 to-teal-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">N</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Nairobi Hospital</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">M</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">M-KOPA</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-600 to-cyan-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">T</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Twiga Foods</span>
-                </div>
-              </div>
-              {/* Duplicate for seamless loop */}
-              <div className="flex items-center gap-12 md:gap-16 flex-shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">S</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Safaricom</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-600 to-amber-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">E</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Enashipai Resort</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-rose-600 to-rose-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">S</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Speke Resort</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">K</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">KCB Bank</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">E</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Equity Bank</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-teal-600 to-teal-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">N</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Nairobi Hospital</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">M</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">M-KOPA</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-600 to-cyan-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">T</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Twiga Foods</span>
-                </div>
-              </div>
-            </div>
+      <section className="border-y border-gray-100 bg-gray-50/50 py-10">
+        <div className="max-w-[1350px] mx-auto px-8 text-center">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">Powering enterprise commerce across East Africa</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-8 justify-center items-center opacity-60">
+            {['Safaricom', 'Enashipai Resort', 'Speke Resort', 'KCB Bank', 'Equity Bank', 'Nairobi Hospital'].map((name) => (
+              <span key={name} className="text-gray-500 font-extrabold text-[15px] tracking-tight hover:text-[#0a2540] transition-colors cursor-default text-center">
+                {name}
+              </span>
+            ))}
           </div>
         </div>
       </section>
-
-      {/* Add the animation CSS */}
-      <style jsx>{`
-        @keyframes scroll-right-to-left {
-          0% {
-            transform: translateX(0);
-          }
-          100% {
-            transform: translateX(-50%);
-          }
-        }
-        .animate-scroll-right-to-left {
-          animation: scroll-right-to-left 25s linear infinite;
-          width: fit-content;
-        }
-        .animate-scroll-right-to-left:hover {
-          animation-play-state: paused;
-        }
-      `}</style>
 
       {/* ════════════════════════════════════════════════════════════════
           PRODUCTS
