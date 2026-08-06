@@ -84,28 +84,27 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-12 gap-16 lg:gap-8 items-center">
             
             {/* Left Column */}
-            <div className="lg:col-span-6 space-y-6 text-left">
+            <div className="lg:col-span-6 space-y-8 text-left">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-indigo-50/60 border border-indigo-100/80 rounded-full text-sm font-semibold text-[#635bff]">
                 <span className="w-2 h-2 rounded-full bg-[#635bff] animate-pulse" />
                 Live across East Africa — 8+ payment networks
               </div>
               
-              <h1 className="font-black tracking-tight text-[#0a2540] leading-[0.9]">
-                <span className="text-[clamp(2.5rem,8vw,4.875rem)] block">Payments</span>
-                <span className="text-[clamp(2.3rem,7.5vw,4.5rem)] block">Infrastructure</span>
-                <span className="bg-gradient-to-r from-emerald-400 via-teal-400 to-indigo-400 bg-clip-text text-transparent animate-gradient text-[clamp(2.4rem,7.8vw,4.625rem)] block font-black">
-                  built for Africa.
+              <h1 className="text-5xl sm:text-6xl md:text-7xl font-black tracking-tight text-[#0a2540] leading-[1.02]">
+                Payments infrastructure <br />
+                <span className="bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-500 bg-clip-text text-transparent">
+                  built for Africa
                 </span>
               </h1>
               
-              <p className="text-lg md:text-xl text-gray-500 max-w-[600px] leading-relaxed font-normal">
+              <p className="text-lg md:text-xl text-gray-500 max-w-2xl leading-relaxed font-normal">
                 XecoFlow helps businesses accept payments through M-PESA, Airtel Money, Visa, Mastercard, and bank transfers with a single integration. Scale across Africa with reliable payment processing, automated settlements, and enterprise-grade security.
               </p>
               
-              <div className="flex flex-wrap gap-4 pt-4">
+              <div className="flex flex-wrap gap-4 pt-2">
                 <Link 
                   href="/login" 
-                  className="px-7 py-4 bg-[#635bff] hover:bg-[#534bd6] text-white rounded-xl font-semibold text-[16px] transition-all duration-150 shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 flex items-center gap-2 group"
+                  className="px-7 py-4 bg-[#635bff] hover:bg-[#534bd6] text-white rounded-xl font-semibold text-[16px] transition-all duration-150 shadow-lg shadow-indigo-600/10 flex items-center gap-2 group"
                 >
                   Start accepting payments
                   <ArrowRight className="w-4 h-4 transform group-hover:translate-x-0.5 transition-transform" />
@@ -121,7 +120,7 @@ export default function LandingPage() {
 
             {/* Right Column – Circular Image with Logos */}
             <div className="lg:col-span-6 flex justify-center lg:justify-end relative px-4 sm:px-8">
-              <div className="relative w-full max-w-[580px] aspect-square flex items-center justify-center scale-[1.05]">
+              <div className="relative w-full max-w-[550px] aspect-square flex items-center justify-center">
                 
                 <div className="relative w-[95%] h-[95%] rounded-full overflow-hidden shadow-2xl border-[6px] border-gray-100 bg-gray-50 group">
                   <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/10 z-10" />
@@ -132,74 +131,55 @@ export default function LandingPage() {
                   />
                 </div>
 
-                {/* Payment Logos on Circle Edge with Floating Animation */}
-                <style jsx>{`
-                  @keyframes float {
-                    0%, 100% { transform: translateY(0px); }
-                    50% { transform: translateY(-6px); }
-                  }
-                  @keyframes float-delayed {
-                    0%, 100% { transform: translateY(0px); }
-                    50% { transform: translateY(-8px); }
-                  }
-                  @keyframes float-slow {
-                    0%, 100% { transform: translateY(0px); }
-                    50% { transform: translateY(-4px); }
-                  }
-                  .float-1 { animation: float 4s ease-in-out infinite; }
-                  .float-2 { animation: float-delayed 4.5s ease-in-out infinite; }
-                  .float-3 { animation: float-slow 5s ease-in-out infinite; }
-                  .float-4 { animation: float 3.5s ease-in-out infinite reverse; }
-                `}</style>
-
-                <div className="absolute top-[1.5%] left-1/2 -translate-x-1/2 z-20 float-1">
+                {/* Payment Logos on Circle Edge */}
+                <div className="absolute top-[1.5%] left-1/2 -translate-x-1/2 z-20">
                   <div className="bg-white rounded-full shadow-xl border border-gray-100/80 w-[4.5rem] h-[4.5rem] flex flex-col items-center justify-center transition-transform hover:scale-110">
                     <span className="text-yellow-600 font-black text-xs leading-none">MTN</span>
                     <span className="text-yellow-600 font-bold text-[9px]">MoMo</span>
                   </div>
                 </div>
 
-                <div className="absolute top-[12%] right-[12%] z-20 float-2">
+                <div className="absolute top-[12%] right-[12%] z-20">
                   <div className="bg-white rounded-full shadow-xl border border-gray-100/80 w-[4.5rem] h-[4.5rem] flex flex-col items-center justify-center transition-transform hover:scale-110">
                     <span className="text-red-600 font-extrabold text-xs leading-none">airtel</span>
                     <span className="text-red-600 font-normal text-[8px]">money</span>
                   </div>
                 </div>
 
-                <div className="absolute top-1/2 right-[1.5%] -translate-y-1/2 z-20 float-3">
+                <div className="absolute top-1/2 right-[1.5%] -translate-y-1/2 z-20">
                   <div className="bg-white rounded-full shadow-xl border border-gray-100/80 w-[4.5rem] h-[4.5rem] flex flex-col items-center justify-center transition-transform hover:scale-110">
                     <div className="w-4 h-2 border-t-2 border-x-2 border-amber-800 rounded-t-sm mb-0.5" />
                     <span className="text-[#7A2021] font-black text-[10px] tracking-wider">EQUITY</span>
                   </div>
                 </div>
 
-                <div className="absolute bottom-[12%] right-[12%] z-20 float-4">
+                <div className="absolute bottom-[12%] right-[12%] z-20">
                   <div className="bg-white rounded-full shadow-xl border border-gray-100/80 w-[4.5rem] h-[4.5rem] flex items-center justify-center gap-0.5 transition-transform hover:scale-110">
                     <div className="w-4 h-4 rounded-full bg-red-500 opacity-90 translate-x-1" />
                     <div className="w-4 h-4 rounded-full bg-amber-500 opacity-90 -translate-x-1" />
                   </div>
                 </div>
 
-                <div className="absolute bottom-[1.5%] left-1/2 -translate-x-1/2 z-20 float-1">
+                <div className="absolute bottom-[1.5%] left-1/2 -translate-x-1/2 z-20">
                   <div className="bg-white rounded-full shadow-xl border border-gray-100/80 w-[4.5rem] h-[4.5rem] flex items-center justify-center transition-transform hover:scale-110">
                     <span className="text-blue-800 font-extrabold text-[15px] tracking-tight">VISA</span>
                   </div>
                 </div>
 
-                <div className="absolute bottom-[12%] left-[12%] z-20 float-2">
+                <div className="absolute bottom-[12%] left-[12%] z-20">
                   <div className="bg-white rounded-full shadow-xl border border-gray-100/80 w-[4.5rem] h-[4.5rem] flex items-center justify-center transition-transform hover:scale-110">
                     <span className="text-blue-900 font-black text-[11px] italic tracking-tight">PesaLink</span>
                   </div>
                 </div>
 
-                <div className="absolute top-1/2 left-[1.5%] -translate-y-1/2 z-20 float-3">
+                <div className="absolute top-1/2 left-[1.5%] -translate-y-1/2 z-20">
                   <div className="bg-white rounded-full shadow-xl border border-gray-100/80 w-[4.5rem] h-[4.5rem] flex flex-col items-center justify-center transition-transform hover:scale-110">
                     <span className="text-blue-700 font-black text-xs leading-none">Tigo</span>
                     <span className="text-blue-700 font-bold text-[8px]">Pesa</span>
                   </div>
                 </div>
 
-                <div className="absolute top-[12%] left-[12%] z-20 float-4">
+                <div className="absolute top-[12%] left-[12%] z-20">
                   <div className="bg-white rounded-full shadow-xl border border-gray-100/80 w-[4.5rem] h-[4.5rem] flex items-center justify-center transition-transform hover:scale-110">
                     <span className="text-[#009A49] font-black text-[14px] tracking-tighter">M-PESA</span>
                   </div>
@@ -212,116 +192,21 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Add the gradient animation CSS */}
-      <style jsx>{`
-        @keyframes gradient {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        .animate-gradient {
-          background-size: 200% 200%;
-          animation: gradient 6s ease-in-out infinite;
-        }
-      `}</style>
-
       {/* ════════════════════════════════════════════════════════════════
-          TRUSTED BY - ANIMATED SCROLLING LOGOS
+          TRUSTED BY
           ════════════════════════════════════════════════════════════════ */}
-      <section className="border-y border-gray-100 bg-gray-50/50 py-10 overflow-hidden">
-        <div className="max-w-[1350px] mx-auto px-8">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-8 text-center">
-            Powering enterprise commerce across East Africa
-          </p>
-          
-          <div className="relative">
-            <div className="flex animate-scroll-right-to-left gap-12 md:gap-16 items-center">
-              <div className="flex items-center gap-12 md:gap-16 flex-shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">S</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Safaricom</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-600 to-amber-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">E</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Enashipai Resort</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-rose-600 to-rose-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">S</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Speke Resort</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">K</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">KCB Bank</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">E</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Equity Bank</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-teal-600 to-teal-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">N</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Nairobi Hospital</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">M</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">M-KOPA</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-600 to-cyan-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">T</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Twiga Foods</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-12 md:gap-16 flex-shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">S</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Safaricom</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-600 to-amber-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">E</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Enashipai Resort</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-rose-600 to-rose-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">S</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Speke Resort</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">K</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">KCB Bank</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-600 to-purple-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">E</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Equity Bank</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-teal-600 to-teal-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">N</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Nairobi Hospital</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">M</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">M-KOPA</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-600 to-cyan-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">T</div>
-                  <span className="font-bold text-gray-700 text-base whitespace-nowrap">Twiga Foods</span>
-                </div>
-              </div>
-            </div>
+      <section className="border-y border-gray-100 bg-gray-50/50 py-10">
+        <div className="max-w-[1350px] mx-auto px-8 text-center">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">Powering enterprise commerce across East Africa</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-8 justify-center items-center opacity-60">
+            {['Safaricom', 'Enashipai Resort', 'Speke Resort', 'KCB Bank', 'Equity Bank', 'Nairobi Hospital'].map((name) => (
+              <span key={name} className="text-gray-500 font-extrabold text-[15px] tracking-tight hover:text-[#0a2540] transition-colors cursor-default text-center">
+                {name}
+              </span>
+            ))}
           </div>
         </div>
       </section>
-
-      <style jsx>{`
-        @keyframes scroll-right-to-left {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .animate-scroll-right-to-left {
-          animation: scroll-right-to-left 25s linear infinite;
-          width: fit-content;
-        }
-        .animate-scroll-right-to-left:hover {
-          animation-play-state: paused;
-        }
-      `}</style>
 
       {/* ════════════════════════════════════════════════════════════════
           PRODUCTS
