@@ -26,8 +26,8 @@ export default function Header() {
         </div>
       </div>
 
-      {/* NAVBAR */}
-      <nav className="relative bg-[rgba(255,255,255,0.82)] backdrop-blur-[18px] border-b border-gray-200/40">
+      {/* NAVBAR - Glass effect with scroll */}
+      <nav className="relative bg-[rgba(255,255,255,0.82)] backdrop-blur-[18px] border-b border-[rgba(0,0,0,0.06)]">
         <div className="max-w-[1350px] mx-auto px-8 h-[80px] flex items-center justify-between">
 
           {/* LEFT SIDE: LOGO & NAVIGATION GROUPED */}
@@ -40,18 +40,18 @@ export default function Header() {
             </Link>
 
             {/* NAVIGATION LINKS */}
-            <div className="hidden lg:flex items-center justify-end gap-6 xl:gap-8 text-[17px] font-medium text-[#0a2540] h-full flex-wrap">
+            <div className="hidden lg:flex items-center justify-end gap-1 text-[17px] font-medium text-[#0a2540] h-full flex-wrap">
               
               {/* 1. PRODUCTS DROPDOWN */}
               <div className="relative group/nav h-full flex items-center cursor-pointer">
-                <span className="group flex items-center gap-1 text-[#0a2540] hover:text-[#635bff] transition-colors">
+                <span className="group flex items-center gap-1.5 px-4 py-2 rounded-xl text-[#0a2540] hover:text-[#635bff] hover:bg-gray-100/80 transition-all duration-250">
                   Products
-                  <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover/nav:rotate-180" viewBox="0 0 12 12" fill="none">
+                  <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover:rotate-180" viewBox="0 0 12 12" fill="none">
                     <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-[-100px] w-[1040px] bg-white border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-6 rounded-2xl mt-1">
+                <div className="absolute top-full left-[-100px] w-[1040px] bg-white/95 backdrop-blur-[18px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-6 rounded-2xl mt-1">
                   
                   {/* Payments Column */}
                   <div>
@@ -89,14 +89,14 @@ export default function Header() {
 
               {/* 2. SOLUTIONS DROPDOWN */}
               <div className="relative group/nav h-full flex items-center cursor-pointer">
-                <span className="group flex items-center gap-1 text-[#0a2540] hover:text-[#635bff] transition-colors">
+                <span className="group flex items-center gap-1.5 px-4 py-2 rounded-xl text-[#0a2540] hover:text-[#635bff] hover:bg-gray-100/80 transition-all duration-250">
                   Solutions
-                  <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover/nav:rotate-180" viewBox="0 0 12 12" fill="none">
+                  <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover:rotate-180" viewBox="0 0 12 12" fill="none">
                     <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-1/2 -translate-x-1/3 w-[880px] bg-white border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-4 gap-8 rounded-2xl mt-1">
+                <div className="absolute top-full left-1/2 -translate-x-1/3 w-[880px] bg-white/95 backdrop-blur-[18px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-4 gap-8 rounded-2xl mt-1">
                   <div>
                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">By stage</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
@@ -140,14 +140,14 @@ export default function Header() {
 
               {/* 3. DEVELOPERS DROPDOWN */}
               <div className="relative group/nav h-full flex items-center cursor-pointer">
-                <span className="group flex items-center gap-1 text-[#0a2540] hover:text-[#635bff] transition-colors">
+                <span className="group flex items-center gap-1.5 px-4 py-2 rounded-xl text-[#0a2540] hover:text-[#635bff] hover:bg-gray-100/80 transition-all duration-250">
                   Developers
-                  <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover/nav:rotate-180" viewBox="0 0 12 12" fill="none">
+                  <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover:rotate-180" viewBox="0 0 12 12" fill="none">
                     <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[850px] bg-white border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-8 rounded-2xl mt-1">
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[850px] bg-white/95 backdrop-blur-[18px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-8 rounded-2xl mt-1">
                   <div>
                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Get Started</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
@@ -180,14 +180,14 @@ export default function Header() {
 
               {/* 4. RESOURCES DROPDOWN - MERGED WITH COMPANY */}
               <div className="relative group/nav h-full flex items-center cursor-pointer">
-                <span className="group flex items-center gap-1 text-[#0a2540] hover:text-[#635bff] transition-colors">
+                <span className="group flex items-center gap-1.5 px-4 py-2 rounded-xl text-[#0a2540] hover:text-[#635bff] hover:bg-gray-100/80 transition-all duration-250">
                   Resources
-                  <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover/nav:rotate-180" viewBox="0 0 12 12" fill="none">
+                  <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover:rotate-180" viewBox="0 0 12 12" fill="none">
                     <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[950px] bg-white border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-4 gap-8 rounded-2xl mt-1">
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[950px] bg-white/95 backdrop-blur-[18px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-4 gap-8 rounded-2xl mt-1">
                   <div>
                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Learn</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
@@ -226,14 +226,14 @@ export default function Header() {
 
               {/* 5. TAX AUTOMATION DROPDOWN */}
               <div className="relative group/nav h-full flex items-center cursor-pointer">
-                <span className="group flex items-center gap-1 text-[#0a2540] hover:text-[#635bff] transition-colors">
+                <span className="group flex items-center gap-1.5 px-4 py-2 rounded-xl text-[#0a2540] hover:text-[#635bff] hover:bg-gray-100/80 transition-all duration-250">
                   Tax Automation
-                  <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover/nav:rotate-180" viewBox="0 0 12 12" fill="none">
+                  <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover:rotate-180" viewBox="0 0 12 12" fill="none">
                     <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[800px] bg-white border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-8 rounded-2xl mt-1">
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[800px] bg-white/95 backdrop-blur-[18px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-8 rounded-2xl mt-1">
                   <div>
                     <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Tax Filing</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
