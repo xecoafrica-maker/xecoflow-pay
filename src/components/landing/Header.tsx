@@ -51,7 +51,7 @@ export default function Header() {
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-[-100px] w-[1040px] bg-white/95 backdrop-blur-[24px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-6 rounded-3xl mt-1">
+                <div className="absolute top-full left-[-100px] w-[1040px] bg-white border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-6 rounded-3xl mt-1">
                   
                   {/* Payments Column */}
                   <div>
@@ -129,7 +129,7 @@ export default function Header() {
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-1/2 -translate-x-1/3 w-[880px] bg-white/95 backdrop-blur-[24px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-4 gap-8 rounded-3xl mt-1">
+                <div className="absolute top-full left-1/2 -translate-x-1/3 w-[880px] bg-white border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-4 gap-8 rounded-3xl mt-1">
                   <div>
                     <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">By stage</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
@@ -180,7 +180,7 @@ export default function Header() {
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[850px] bg-white/95 backdrop-blur-[24px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-8 rounded-3xl mt-1">
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[850px] bg-white border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-8 rounded-3xl mt-1">
                   <div>
                     <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Get Started</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
@@ -220,7 +220,7 @@ export default function Header() {
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[950px] bg-white/95 backdrop-blur-[24px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-4 gap-8 rounded-3xl mt-1">
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[950px] bg-white border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-4 gap-8 rounded-3xl mt-1">
                   <div>
                     <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Learn</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
@@ -266,7 +266,7 @@ export default function Header() {
                   </svg>
                 </span>
 
-                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[800px] bg-white/95 backdrop-blur-[24px] border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-8 rounded-3xl mt-1">
+                <div className="absolute top-full left-1/2 -translate-x-1/2 w-[800px] bg-white border border-gray-200/80 shadow-2xl opacity-0 invisible translate-y-2 group-hover/nav:opacity-100 group-hover/nav:visible group-hover/nav:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover/nav:pointer-events-auto p-9 grid grid-cols-3 gap-8 rounded-3xl mt-1">
                   <div>
                     <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-5">Tax Filing</h4>
                     <ul className="space-y-3 text-[15px] font-medium text-gray-600">
