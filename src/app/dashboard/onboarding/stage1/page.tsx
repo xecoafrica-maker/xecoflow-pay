@@ -168,7 +168,8 @@ export default function OnboardingStage1() {
         // Force Next.js to re-fetch server data
         router.refresh();
 
-        setTimeout(() => router.push('/dashboard/onboarding/stage2'), 2000);
+        // ✅ FIX: Use replace() so Back button skips this page after completion
+        setTimeout(() => router.replace('/dashboard/onboarding/stage2'), 2000);
       } else {
         setError(data.message || 'Failed to save business details');
       }
