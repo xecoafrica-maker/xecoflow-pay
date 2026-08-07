@@ -10,7 +10,7 @@ import {
   Phone, 
   CheckCircle,
   CreditCard,
-  FileText // ✅ Added missing import
+  FileText
 } from 'lucide-react';
 import { getStoredMerchant, getToken } from '@/lib/auth';
 import { getMerchantProfile } from '@/lib/auth-api';
@@ -90,7 +90,8 @@ export default function SettlementPreferencesPage() {
     }
 
     try {
-      const res = await fetch('http://localhost:3001/v1/auth/update-profile', {
+      // ✅ FIXED: Relative path (NO localhost:3001)
+      const res = await fetch('/v1/auth/update-profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
