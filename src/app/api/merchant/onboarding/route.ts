@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     // 1. Fetch Merchant details
     const { data: merchant, error: merchError } = await supabase
       .from('merchants')
-      .select('*') // Fetch all fields so we can check completion accurately
+      .select('*') // Fetch all fields
       .eq('merchant_id', merchantId)
       .single();
 
@@ -33,25 +33,33 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 2. Build the 4-step Onboarding Array with Professional Labels
+    // 2. Build the 4-step Onboarding Array
     const steps = [
       {
         id: 1,
         label: '01 — Business Profile',
         href: '/dashboard/onboarding/stage1',
-        completed: !!(merchant.business_type && merchant.business_location && merchant.business_registration_number),
+        // ✅ FIXED: Checks ALL Stage 1 required fields collected in the form
+        completed: !!(
+          merchant.business_type && 
+          merchant.business_location && 
+          merchant.business_registration_number &&
+          merchant.country &&
+          merchant.phone
+          // Note: 'phone' in merchants table corresponds to 'business_phone' in Stage 1 form
+        ),
       },
       {
         id: 2,
         label: '02 — Owners & Documents',
         href: '/dashboard/onboarding/stage2',
-        completed: false, // This will be true once we query the KYC table
+        completed: false, // Future KYC table check
       },
       {
         id: 3,
         label: '03 — Tax & Compliance',
         href: '/dashboard/onboarding/stage3',
-        completed: false, // Future KYC check
+        completed: false,
       },
       {
         id: 4,
