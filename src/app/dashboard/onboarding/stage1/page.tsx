@@ -92,13 +92,6 @@ export default function OnboardingStage1() {
     fetchProfile();
   }, [router]);
 
-  // ─── 🛡️ REDIRECT GUARD: If they already finished Stage 1, kick them out! ───
-  useEffect(() => {
-    if (!loading && formData.business_type && formData.business_registration_number && formData.country) {
-      router.replace('/dashboard/onboarding/stage2');
-    }
-  }, [loading, formData, router]);
-
   // ─── Handle Input Changes ────────────────────────────────────────
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as any;
@@ -168,7 +161,6 @@ export default function OnboardingStage1() {
         // Force Next.js to re-fetch server data
         router.refresh();
 
-        // ✅ FIX: Use replace() so Back button skips this page after completion
         setTimeout(() => router.replace('/dashboard/onboarding/stage2'), 2000);
       } else {
         setError(data.message || 'Failed to save business details');

@@ -64,13 +64,6 @@ export default function OnboardingStage3() {
     fetchProfile();
   }, [router]);
 
-  // ─── 🛡️ REDIRECT GUARD: If Stage 3 already completed, skip to Stage 4 ───
-  useEffect(() => {
-    if (!loading && (formData.vat_number || formData.filing_preference)) {
-      router.replace('/dashboard/onboarding/stage4');
-    }
-  }, [loading, formData, router]);
-
   // ─── Handle Input Changes ────────────────────────────────────────
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;

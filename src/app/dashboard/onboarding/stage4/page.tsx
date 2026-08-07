@@ -67,13 +67,6 @@ export default function OnboardingStage4() {
     fetchProfile();
   }, [router]);
 
-  // ─── 🛡️ REDIRECT GUARD: If Stage 4 already completed, skip to Dashboard ───
-  useEffect(() => {
-    if (!loading && formData.settlement_method && (formData.settlement_phone || formData.bank_name)) {
-      router.replace('/dashboard');
-    }
-  }, [loading, formData, router]);
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
