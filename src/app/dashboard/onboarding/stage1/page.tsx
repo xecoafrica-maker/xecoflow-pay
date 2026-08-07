@@ -229,12 +229,13 @@ export default function OnboardingStage1() {
                 Legal Business Name <span className="text-red-500">*</span>
               </label>
               <input
-                type="text"
-                name="business_name"
-                value={formData.business_name}
-                disabled={true} // Read-only for now
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-sm text-gray-600 cursor-not-allowed"
-              />
+  type="text"
+  name="business_name"
+  value={formData.business_name}
+  onChange={handleChange} // ✅ Ensure you add this back!
+  placeholder="Enter your legal business name"
+  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+/>
               <p className="text-xs text-gray-400 mt-1">The exact name registered with the relevant authority.</p>
             </div>
 
