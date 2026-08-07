@@ -13,7 +13,7 @@ import {
 import { getStoredMerchant, getToken } from '@/lib/auth';
 import { getMerchantProfile } from '@/lib/auth-api';
 
-export default function BusinessSettingsPage() {
+export default function OnboardingStage1() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -86,7 +86,6 @@ export default function BusinessSettingsPage() {
     }
 
     try {
-      // ✅ FIXED: Removed the hardcoded localhost
       const res = await fetch('/v1/auth/update-profile', {
         method: 'PUT',
         headers: {
@@ -111,7 +110,8 @@ export default function BusinessSettingsPage() {
             business_type: formData.business_type,
           }));
         }
-        setTimeout(() => router.push('/dashboard/settings/settlement'), 2000);
+        // ✅ UPDATED: Redirect to Stage 2 instead of Settlement
+        setTimeout(() => router.push('/dashboard/onboarding/stage2'), 2000);
       } else {
         setError(data.message || 'Failed to save business details');
       }
@@ -233,7 +233,7 @@ export default function BusinessSettingsPage() {
           {saved && (
             <div className="bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm p-3 rounded-xl flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
-              <span>Business details saved! Redirecting to Settlement...</span>
+              <span>Business details saved! Moving to Stage 2...</span>
             </div>
           )}
 

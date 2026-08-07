@@ -1,4 +1,3 @@
-// src/app/api/merchant/onboarding/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -22,7 +21,7 @@ export async function GET(request: NextRequest) {
     // 1. Fetch Merchant details
     const { data: merchant, error: merchError } = await supabase
       .from('merchants')
-      .select('email_verified, settlement_phone, business_type, business_location')
+      .select('*') // Fetch all fields so we can check completion accurately
       .eq('merchant_id', merchantId)
       .single();
 
@@ -34,22 +33,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 2. Build the steps array (ONLY 2 STEPS)
+    // 2. Build the 4-step Onboarding Array
     const steps = [
       {
         id: 1,
-        label: 'Verify Business',
-        href: '/dashboard/settings/verify',
-        completed: merchant.email_verified === true,
+        label: 'Business Details',
+        href: '/dashboard/onboarding/stage1',
+        completed: merchant.business_type && merchant.business_location && merchant.business_registration_number,
       },
       {
         id: 2,
-        label: 'Settlement Details',
-        href: '/dashboard/settings/business', // 👈 We will create this page next
-        completed: merchant.settlement_phone && 
-                    merchant.settlement_phone.length > 0 &&
-                    merchant.business_type &&
-                    merchant.business_location,
+        label: 'Directors & Documents',
+        href: '/dashboard/onboarding/stage2',
+        completed: false, // This will be true once we query the KYC table
+      },
+      {
+        id: 3,
+        label: 'Tax & Compliance',
+        href: '/dashboard/onboarding/stage3',
+        completed: false, // Future KYC check
+      },
+      {
+        id: 4,
+        label: 'Settlement',
+        href: '/dashboard/onboarding/stage4',
+        completed: merchant.settlement_phone && merchant.settlement_phone.length > 0,
       },
     ];
 
