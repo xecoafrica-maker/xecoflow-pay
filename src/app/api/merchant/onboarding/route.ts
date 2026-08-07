@@ -33,31 +33,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 2. Build the 4-step Onboarding Array
+    // 2. Build the 4-step Onboarding Array with Professional Labels
     const steps = [
       {
         id: 1,
-        label: 'Business Details',
+        label: '01 — Business Profile',
         href: '/dashboard/onboarding/stage1',
-        completed: merchant.business_type && merchant.business_location && merchant.business_registration_number,
+        completed: !!(merchant.business_type && merchant.business_location && merchant.business_registration_number),
       },
       {
         id: 2,
-        label: 'Directors & Documents',
+        label: '02 — Owners & Documents',
         href: '/dashboard/onboarding/stage2',
         completed: false, // This will be true once we query the KYC table
       },
       {
         id: 3,
-        label: 'Tax & Compliance',
+        label: '03 — Tax & Compliance',
         href: '/dashboard/onboarding/stage3',
         completed: false, // Future KYC check
       },
       {
         id: 4,
-        label: 'Settlement',
+        label: '04 — Settlement',
         href: '/dashboard/onboarding/stage4',
-        completed: merchant.settlement_phone && merchant.settlement_phone.length > 0,
+        completed: !!(merchant.settlement_phone && merchant.settlement_phone.length > 0),
       },
     ];
 

@@ -28,6 +28,7 @@ import {
   Coins,
   LogOut,
   ArrowUpRight,
+  AlertCircle,
 } from 'lucide-react';
 import {
   BarChart,
@@ -135,7 +136,7 @@ export default function DashboardOverview() {
         const mappedSteps = data.data.steps.map((step: any) => ({
           ...step,
           // Assign icons based on label
-          icon: step.label === 'Verify Business' ? Building : Landmark,
+          icon: step.label === '01 — Business Profile' ? Building : Landmark,
           active: !step.completed && (step.id === 1 || data.data.steps[0]?.completed === true)
         }));
         setOnboardingSteps(mappedSteps);
@@ -473,6 +474,14 @@ export default function DashboardOverview() {
   const completedSteps = onboardingSteps.filter(s => s.completed).length;
   const totalSteps = onboardingSteps.length;
   const isFullyOnboarded = totalSteps > 0 && completedSteps === totalSteps;
+  
+  // Determine the contextual button text
+  const getActionButtonText = () => {
+    if (completedSteps === totalSteps && totalSteps > 0) return 'Setup complete ✓';
+    if (completedSteps === 0) return 'Start setup →';
+    if (completedSteps > 0 && completedSteps < totalSteps) return 'Continue setup →';
+    return 'Complete Setup';
+  };
 
   if (loading) {
     return (
@@ -514,73 +523,106 @@ export default function DashboardOverview() {
         </button>
       </div>
 
-      {/* ─── MODERN GETTING STARTED WIZARD ─────────────────────────── */}
-      {showOnboarding && !isFullyOnboarded && onboardingSteps.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          {/* Left: Steps */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4 flex-1">
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
-                {completedSteps} of {totalSteps}
-              </span>
-              <span className="text-sm font-medium text-gray-600">steps left</span>
+      {/* ─── COLLAPSIBLE ACTIVATION CENTER ──────────────────────────── */}
+      {!showOnboarding && !isFullyOnboarded && onboardingSteps.length > 0 && (
+        <div 
+          className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors group"
+          onClick={() => setShowOnboarding(true)}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
+              <AlertCircle size={16} />
             </div>
+            <div>
+              <p className="text-sm font-medium text-gray-800">Setup incomplete · {totalSteps - completedSteps} steps remaining</p>
+            </div>
+          </div>
+          <span className="text-xs font-medium text-indigo-600 group-hover:text-indigo-700 flex items-center gap-1">
+            Resume setup <ChevronRight size={14} />
+          </span>
+        </div>
+      )}
 
-            <div className="flex flex-wrap items-center gap-6">
-              {onboardingSteps.map((step, index) => {
-                const isLast = index === onboardingSteps.length - 1;
-                return (
-                  <div key={step.id} className="flex items-center gap-3">
-                    {/* Step Circle */}
-                    <div
-                      className={`flex items-center justify-center w-10 h-10 rounded-full text-sm font-semibold transition-all ${
-                        step.completed
-                          ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-200'
-                          : step.active
-                          ? 'bg-indigo-50 text-indigo-600 border-2 border-indigo-200'
-                          : 'bg-gray-100 text-gray-400'
-                      }`}
-                    >
-                      {step.completed ? (
-                        <CheckCircle className="w-5 h-5 text-white" />
-                      ) : (
-                        <span className={`text-sm font-bold ${step.active ? 'text-indigo-600' : 'text-gray-400'}`}>
-                          {step.id}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Step Label */}
-                    <span className={`text-sm font-medium ${
-                      step.completed ? 'text-gray-500' : step.active ? 'text-gray-900' : 'text-gray-400'
-                    }`}>
-                      {step.label}
-                    </span>
-
-                    {/* Connector Line (Only if not the last step) */}
-                    {!isLast && (
-                      <div className="hidden sm:block w-8 h-[2px] bg-gray-200" />
-                    )}
-                  </div>
-                );
-              })}
+      {showOnboarding && !isFullyOnboarded && onboardingSteps.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm relative">
+          {/* ─── Header ────────────────────────────────────────────── */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <Building className="w-4 h-4 text-indigo-600" />
+                Activate your XecoFlow Business
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Complete the steps below to start accepting payments securely.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
+                {completedSteps} / {totalSteps}
+              </span>
+              <span className="text-sm font-medium text-gray-800">Completed</span>
             </div>
           </div>
 
-          {/* Right: Action Button & Close */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* ─── Steps Grid ────────────────────────────────────────── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            {onboardingSteps.map((step, index) => {
+              const Icon = step.icon;
+              return (
+                <div
+                  key={step.id}
+                  className={`flex items-center gap-3 p-3 rounded-lg border ${
+                    step.completed
+                      ? 'bg-emerald-50 border-emerald-200'
+                      : step.active
+                      ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-200'
+                      : 'bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                      step.completed
+                        ? 'bg-emerald-500 text-white'
+                        : step.active
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-gray-300 text-gray-500'
+                    }`}
+                  >
+                    {step.completed ? (
+                      <CheckCircle size={14} />
+                    ) : (
+                      <span className="text-xs font-bold">{step.id}</span>
+                    )}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className={`text-xs font-semibold truncate ${
+                      step.completed ? 'text-emerald-700' : step.active ? 'text-indigo-700' : 'text-gray-500'
+                    }`}>
+                      {step.label}
+                    </span>
+                    <span className="text-[10px] text-gray-400 mt-0.5">
+                      {step.completed ? '✓ Completed' : 'Required'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ─── Footer Action ────────────────────────────────────── */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-gray-100">
             <Link
               href={onboardingSteps.find(s => !s.completed)?.href || '/dashboard'}
-              className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1 whitespace-nowrap shadow-sm shadow-emerald-200"
+              className="inline-flex items-center gap-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-all duration-200 w-full sm:w-auto justify-center"
             >
-              {completedSteps === totalSteps ? 'Dashboard' : 'Complete Setup'}
-              <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" />
+              {getActionButtonText()}
             </Link>
             <button
               onClick={() => setShowOnboarding(false)}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-gray-600 flex-shrink-0"
+              className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors justify-center sm:justify-start"
             >
-              <X size={18} />
+              <span>Remind me later</span>
+              <ChevronRight size={12} />
             </button>
           </div>
         </div>
