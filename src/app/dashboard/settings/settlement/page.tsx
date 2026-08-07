@@ -55,8 +55,9 @@ export default function SettlementPreferencesPage() {
             bank_account_holder: profile.bank_account_holder || '',
           });
         }
-      } catch (err) {
-        console.error('Failed to load profile:', err);
+      } catch (err: any) {
+        // ✅ Log the exact error reason to the browser console
+        console.error('❌ REAL ERROR REASON:', err.message);
         setError('Failed to load profile. Please refresh the page.');
       } finally {
         setLoading(false);
