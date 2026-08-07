@@ -280,10 +280,10 @@ export default function OnboardingStage2() {
         {/* ─── Actions ────────────────────────────────────────────────── */}
         <div className="border-t border-gray-200 pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           
-          {/* ✅ LEFT: Back Button - Hardcoded to Stage 1 */}
+          {/* ✅ LEFT: Back Button - Uses window.location.href for full reload */}
           <button
             type="button"
-            onClick={() => router.push('/dashboard/onboarding/stage1')}
+            onClick={() => window.location.href = '/dashboard/onboarding/stage1'}
             className="flex items-center justify-center gap-2 px-5 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
