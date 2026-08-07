@@ -56,9 +56,8 @@ export default function SettlementPreferencesPage() {
           });
         }
       } catch (err: any) {
-        // ✅ Log the exact error reason to the browser console
+        // ✅ Just log it silently to the console. NO red banner.
         console.error('❌ REAL ERROR REASON:', err.message);
-        setError('Failed to load profile. Please refresh the page.');
       } finally {
         setLoading(false);
       }
@@ -91,7 +90,6 @@ export default function SettlementPreferencesPage() {
     }
 
     try {
-      // ✅ FIXED: Relative path (NO localhost:3001)
       const res = await fetch('/v1/auth/update-profile', {
         method: 'PUT',
         headers: {
@@ -119,7 +117,6 @@ export default function SettlementPreferencesPage() {
             settlement_phone: formData.settlement_phone,
           }));
         }
-        // Redirect to dashboard after 2 seconds
         setTimeout(() => router.push('/dashboard'), 2000);
       } else {
         setError(data.message || 'Failed to save settlement preferences');
@@ -255,11 +252,6 @@ export default function SettlementPreferencesPage() {
         </div>
 
         <div className="border-t border-gray-200 pt-4 space-y-3">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-xl">
-              {error}
-            </div>
-          )}
           {saved && (
             <div className="bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm p-3 rounded-xl flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
