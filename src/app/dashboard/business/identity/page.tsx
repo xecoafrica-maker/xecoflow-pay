@@ -1,7 +1,7 @@
-// src/app/dashboard/business/identity/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Building2,
   FileText,
@@ -23,71 +23,39 @@ import {
   Copy,
   Check,
   AlertCircle,
+  Loader2,
 } from 'lucide-react';
-
-// ─── Business Data ──────────────────────────────────────────────────
-const businessData = {
-  // Business Identity
-  identity: {
-    name: 'Jojean Furniture',
-    registrationNumber: 'PVT-2026-0045',
-    taxId: 'A123456789Z',
-    businessType: 'Private Limited Company',
-    industry: 'Retail & E-commerce',
-    subIndustry: 'Furniture & Home Decor',
-    registrationDate: '2026-01-15',
-    yearsInBusiness: 5,
-    employeeCount: 12,
-    annualRevenue: 'KES 15,000,000',
-    website: 'https://jojeanfurniture.com',
-    description: 'Premium furniture retailer offering quality home and office furniture solutions.',
-    logo: 'JF',
-    status: 'VERIFIED',
-    verificationLevel: 'FULL',
-  },
-  // Business Contact
-  contact: {
-    physicalAddress: '123 Moi Avenue, Nairobi, Kenya',
-    postalAddress: 'P.O. Box 12345-00100, Nairobi',
-    city: 'Nairobi',
-    state: 'Nairobi County',
-    country: 'Kenya',
-    supportEmail: 'support@jojeanfurniture.com',
-    supportPhone: '+254 700 123 456',
-    businessHours: 'Mon-Fri 8:00 AM - 6:00 PM',
-  },
-  // Banking & Settlement
-  banking: {
-    bankName: 'KCB Bank Kenya',
-    accountName: 'Jojean Furniture Limited',
-    accountNumber: '1234567890',
-    branch: 'Moi Avenue Branch',
-    swiftCode: 'KCBLKENX',
-    currency: 'KES',
-    settlementMethod: 'Bank Transfer',
-    settlementSchedule: 'Daily',
-    settlementTime: '12:00 AM EAT',
-    minBalance: 'KES 1,000.00',
-  },
-  // Mobile Money
-  mobileMoney: {
-    provider: 'M-PESA',
-    number: '254712345678',
-    name: 'Jojean Furniture',
-    status: 'VERIFIED',
-  },
-};
+import { getStoredMerchant, getToken } from '@/lib/auth';
+import { getMerchantProfile } from '@/lib/auth-api';
 
 export default function BusinessIdentityPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('identity');
   const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
 
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard?.writeText(text);
-    setCopied(id);
-    setTimeout(() => setCopied(null), 2000);
-  };
+  // ─── Form Data (Connected to Real Database) ──────────────────────
+  const [formData, setFormData] = useState({
+    business_name: '',
+    first_name: '',
+    last_name: '',
+    business_type: '',
+    business_location: '',
+    business_registration_number: '',
+    // Contact Info
+    phone: '',
+    email: '',
+    // Banking
+    bank_name: '',
+    bank_account_number: '',
+    bank_account_holder: '',
+    settlement_method: 'mpesa',
+    settlement_phone: '',
+  });
 
   const tabs = [
     { id: 'identity', label: 'Business Identity', icon: Building2 },
@@ -95,30 +63,150 @@ export default function BusinessIdentityPage() {
     { id: 'banking', label: 'Banking & Settlement', icon: Landmark },
   ];
 
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard?.writeText(text);
+    setCopied(id);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  // ─── Load Profile Data ────────────────────────────────────────────
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const token = getToken();
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      setLoading(true);
+      setError('');
+
+      try {
+        const profile = await getMerchantProfile(token);
+        if (profile) {
+          setFormData({
+            business_name: profile.business_name || '',
+            first_name: profile.first_name || '',
+            last_name: profile.last_name || '',
+            business_type: profile.business_type || '',
+            business_location: profile.business_location || '',
+            business_registration_number: profile.business_registration_number || '',
+            phone: profile.phone || '',
+            email: profile.email || '',
+            bank_name: profile.bank_name || '',
+            bank_account_number: profile.bank_account_number || '',
+            bank_account_holder: profile.bank_account_holder || '',
+            settlement_method: profile.settlement_method || 'mpesa',
+            settlement_phone: profile.settlement_phone || '',
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load profile:', err);
+        setError('Failed to load profile. Please refresh.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [router]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setSaved(false);
+  };
+
+  // ─── Save Data ────────────────────────────────────────────────────
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    setSaved(false);
+
+    const token = getToken();
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    try {
+      const res = await fetch('/v1/auth/update-profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          business_type: formData.business_type,
+          business_location: formData.business_location,
+          business_registration_number: formData.business_registration_number,
+          phone: formData.phone,
+          bank_name: formData.bank_name,
+          bank_account_number: formData.bank_account_number,
+          bank_account_holder: formData.bank_account_holder,
+          settlement_method: formData.settlement_method,
+          settlement_phone: formData.settlement_phone,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setSaved(true);
+        setIsEditing(false);
+        const cached = getStoredMerchant();
+        if (cached) {
+          localStorage.setItem('merchant', JSON.stringify({
+            ...cached,
+            ...formData,
+          }));
+        }
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        setError(data.message || 'Failed to save details');
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred while saving.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
+
+  // ─── TAB RENDERERS ──────────────────────────────────────────────────
+
   const renderIdentityTab = () => (
     <div className="space-y-6">
-      {/* Business Overview Cards */}
+      {/* Business Overview Cards (Dynamically pulled from real data) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Status</p>
           <div className="mt-1">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
               <Shield className="w-3 h-3" />
-              {businessData.identity.status}
+              ACTIVE
             </span>
           </div>
         </div>
         <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-          <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Verification Level</p>
-          <p className="text-sm font-semibold text-gray-900 mt-1">{businessData.identity.verificationLevel}</p>
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Merchant ID</p>
+          <p className="text-sm font-semibold text-gray-900 mt-1">{getStoredMerchant()?.merchantId || '—'}</p>
         </div>
         <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-          <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Years in Business</p>
-          <p className="text-sm font-semibold text-gray-900 mt-1">{businessData.identity.yearsInBusiness} years</p>
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Business Type</p>
+          <p className="text-sm font-semibold text-gray-900 mt-1">{formData.business_type || '—'}</p>
         </div>
         <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-          <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Employees</p>
-          <p className="text-sm font-semibold text-gray-900 mt-1">{businessData.identity.employeeCount}</p>
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Location</p>
+          <p className="text-sm font-semibold text-gray-900 mt-1">{formData.business_location || '—'}</p>
         </div>
       </div>
 
@@ -130,8 +218,8 @@ export default function BusinessIdentityPage() {
           </label>
           <input
             type="text"
-            value={businessData.identity.name}
-            disabled={!isEditing}
+            value={formData.business_name}
+            disabled={true} // Business Name is read-only in this view
             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
           />
         </div>
@@ -141,19 +229,21 @@ export default function BusinessIdentityPage() {
           </label>
           <input
             type="text"
-            value={businessData.identity.registrationNumber}
+            name="business_registration_number"
+            value={formData.business_registration_number}
+            onChange={handleChange}
             disabled={!isEditing}
             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
           />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Tax ID / PIN <span className="text-red-500">*</span>
+            Tax ID / PIN
           </label>
           <input
             type="text"
-            value={businessData.identity.taxId}
-            disabled={!isEditing}
+            value={formData.business_registration_number} // Using same field as KRA PIN in DB
+            disabled={true}
             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
           />
         </div>
@@ -162,68 +252,31 @@ export default function BusinessIdentityPage() {
             Business Type <span className="text-red-500">*</span>
           </label>
           <select
+            name="business_type"
+            value={formData.business_type}
+            onChange={handleChange}
             disabled={!isEditing}
             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
           >
-            <option>Private Limited Company</option>
-            <option>Public Limited Company</option>
-            <option>Sole Proprietorship</option>
-            <option>Partnership</option>
+            <option value="">Select Business Type</option>
+            <option value="Sole Proprietorship">Sole Proprietorship</option>
+            <option value="Partnership">Partnership</option>
+            <option value="LLC">Limited Liability Company (LLC)</option>
+            <option value="Corporation">Corporation</option>
+            <option value="Non-Profit">Non-Profit</option>
           </select>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Industry <span className="text-red-500">*</span>
+            Business Location <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
-            value={businessData.identity.industry}
+            name="business_location"
+            value={formData.business_location}
+            onChange={handleChange}
             disabled={!isEditing}
             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Sub Industry
-          </label>
-          <input
-            type="text"
-            value={businessData.identity.subIndustry}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Website
-          </label>
-          <input
-            type="url"
-            value={businessData.identity.website}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Annual Revenue
-          </label>
-          <input
-            type="text"
-            value={businessData.identity.annualRevenue}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Business Description
-          </label>
-          <textarea
-            rows={3}
-            value={businessData.identity.description}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none resize-none disabled:opacity-60"
           />
         </div>
       </div>
@@ -236,16 +289,18 @@ export default function BusinessIdentityPage() {
             className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
           >
             <Edit2 className="w-4 h-4" />
-            Edit Business Details
+            Edit Details
           </button>
         ) : (
           <>
             <button
               type="submit"
+              onClick={handleSave}
+              disabled={saving}
               className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
             >
-              <Save className="w-4 h-4" />
-              Save Changes
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {saving ? 'Saving...' : 'Save Changes'}
             </button>
             <button
               type="button"
@@ -266,123 +321,41 @@ export default function BusinessIdentityPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Physical Address <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={businessData.contact.physicalAddress}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            City <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={businessData.contact.city}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            State/County <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={businessData.contact.state}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Country <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={businessData.contact.country}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Postal Address
-          </label>
-          <input
-            type="text"
-            value={businessData.contact.postalAddress}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Support Email <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="email"
-            value={businessData.contact.supportEmail}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Support Phone <span className="text-red-500">*</span>
+            Phone Number <span className="text-red-500">*</span>
           </label>
           <input
             type="tel"
-            value={businessData.contact.supportPhone}
+            name="phone"
+            value={formData.phone}
+            onChange={handleChange}
             disabled={!isEditing}
             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
           />
         </div>
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Business Hours <span className="text-red-500">*</span>
+            Email Address <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="email"
+            value={formData.email}
+            disabled={true} // Email is read-only
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
+          />
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Business Location <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
-            value={businessData.contact.businessHours}
+            name="business_location"
+            value={formData.business_location}
+            onChange={handleChange}
             disabled={!isEditing}
             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
           />
         </div>
-      </div>
-
-      <div className="flex gap-3">
-        {!isEditing ? (
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-          >
-            <Edit2 className="w-4 h-4" />
-            Edit Contact Details
-          </button>
-        ) : (
-          <>
-            <button
-              type="submit"
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              Save Changes
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsEditing(false)}
-              className="px-6 py-2.5 border border-gray-300 hover:bg-gray-50 rounded-lg text-sm font-medium text-gray-700 transition-all flex items-center gap-2"
-            >
-              <X className="w-4 h-4" />
-              Cancel
-            </button>
-          </>
-        )}
       </div>
     </div>
   );
@@ -392,192 +365,71 @@ export default function BusinessIdentityPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Bank Name <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={businessData.banking.bankName}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Account Name <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={businessData.banking.accountName}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Account Number <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              value={businessData.banking.accountNumber}
-              disabled={!isEditing}
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60 pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => copyToClipboard(businessData.banking.accountNumber, 'account')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              {copied === 'account' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-            </button>
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Branch <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={businessData.banking.branch}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            SWIFT Code <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={businessData.banking.swiftCode}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
             Settlement Method <span className="text-red-500">*</span>
           </label>
           <select
+            name="settlement_method"
+            value={formData.settlement_method}
+            onChange={handleChange}
             disabled={!isEditing}
             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
           >
-            <option>Bank Transfer</option>
-            <option>Mobile Money</option>
-            <option>Both</option>
+            <option value="mpesa">M-PESA</option>
+            <option value="bank">Bank Transfer</option>
           </select>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Settlement Schedule <span className="text-red-500">*</span>
-          </label>
-          <select
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          >
-            <option>Daily</option>
-            <option>Weekly</option>
-            <option>Bi-Weekly</option>
-            <option>Monthly</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Settlement Time
+            Settlement Phone <span className="text-red-500">*</span>
           </label>
           <input
-            type="text"
-            value={businessData.banking.settlementTime}
+            type="tel"
+            name="settlement_phone"
+            value={formData.settlement_phone}
+            onChange={handleChange}
             disabled={!isEditing}
             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
           />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Minimum Balance
+            Bank Name
           </label>
           <input
             type="text"
-            value={businessData.banking.minBalance}
+            name="bank_name"
+            value={formData.bank_name}
+            onChange={handleChange}
             disabled={!isEditing}
             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
           />
         </div>
-      </div>
-
-      {/* Mobile Money Section */}
-      <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-        <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
-          <Smartphone className="w-4 h-4 text-emerald-500" />
-          Mobile Money Details
-        </h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs text-gray-500 font-medium uppercase tracking-wider">Provider</label>
-            <p className="text-sm font-medium text-gray-900 mt-1">{businessData.mobileMoney.provider}</p>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 font-medium uppercase tracking-wider">Phone Number</label>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-sm font-medium text-gray-900">{businessData.mobileMoney.number}</span>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(businessData.mobileMoney.number, 'mobile')}
-                className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                {copied === 'mobile' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 font-medium uppercase tracking-wider">Status</label>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 mt-1">
-              <CheckCircle className="w-3 h-3" />
-              {businessData.mobileMoney.status}
-            </span>
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Account Number
+          </label>
+          <input
+            type="text"
+            name="bank_account_number"
+            value={formData.bank_account_number}
+            onChange={handleChange}
+            disabled={!isEditing}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
+          />
         </div>
-      </div>
-
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-        <div className="flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-amber-800">Important</p>
-            <p className="text-xs text-amber-700 mt-1">Settlements are processed nightly at 12:00 AM EAT. Ensure your bank and M-PESA details are accurate.</p>
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Account Holder Name
+          </label>
+          <input
+            type="text"
+            name="bank_account_holder"
+            value={formData.bank_account_holder}
+            onChange={handleChange}
+            disabled={!isEditing}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
+          />
         </div>
-      </div>
-
-      <div className="flex gap-3">
-        {!isEditing ? (
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-          >
-            <Edit2 className="w-4 h-4" />
-            Edit Banking Details
-          </button>
-        ) : (
-          <>
-            <button
-              type="submit"
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              Save Changes
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsEditing(false)}
-              className="px-6 py-2.5 border border-gray-300 hover:bg-gray-50 rounded-lg text-sm font-medium text-gray-700 transition-all flex items-center gap-2"
-            >
-              <X className="w-4 h-4" />
-              Cancel
-            </button>
-          </>
-        )}
       </div>
     </div>
   );
@@ -594,6 +446,19 @@ export default function BusinessIdentityPage() {
           <p className="text-sm text-gray-500">Manage your business profile, contact, and banking details</p>
         </div>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-xl">
+          {error}
+        </div>
+      )}
+
+      {saved && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm p-3 rounded-xl flex items-center gap-2">
+          <CheckCircle className="w-4 h-4" />
+          <span>Details saved successfully!</span>
+        </div>
+      )}
 
       {/* ─── Tabs ────────────────────────────────────────────────────── */}
       <div className="border-b border-gray-200">
