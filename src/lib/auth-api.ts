@@ -82,12 +82,20 @@ export interface MerchantProfile {
   bank_account_number?: string;
   bank_account_holder?: string;
 
-  // ✅ NEW TAX & COMPLIANCE FIELDS (STAGE 3)
+  // ✅ TAX & COMPLIANCE FIELDS (Stage 3)
   vat_registered?: boolean;
   vat_number?: string;
   filing_preference?: 'auto' | 'manual';
   tax_agent_name?: string;
   tax_agent_pin?: string;
+
+  // ✅ NEW DIRECTORS FIELD (Stage 2)
+  directors?: Array<{
+    id: string;
+    fullName: string;
+    idNumber: string;
+    role: string;
+  }>;
 }
 
 export async function registerMerchant(data: RegisterRequest): Promise<RegisterResponse> {

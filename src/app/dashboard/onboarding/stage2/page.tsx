@@ -56,9 +56,13 @@ export default function OnboardingStage2() {
       setLoading(true);
       try {
         const profile = await getMerchantProfile(token);
-        // If you already saved directors in the KYC table, you can load them here.
-        // For now, we keep it empty.
-        console.log('📥 Stage 2 loaded for:', profile.business_name);
+        if (profile) {
+          // ✅ TypeScript safe check for profile.directors
+          if (profile.directors && Array.isArray(profile.directors) && profile.directors.length > 0) {
+            setDirectors(profile.directors as Director[]);
+          }
+        }
+        console.log('📥 Stage 2 loaded for:', profile?.business_name);
       } catch (err) {
         console.error('Failed to load profile:', err);
       } finally {
@@ -106,7 +110,6 @@ export default function OnboardingStage2() {
     }
 
     try {
-      // 🚧 We send the directors list. Uploads will be handled later via a dedicated upload API.
       const res = await fetch('/v1/auth/update-profile', {
         method: 'PUT',
         headers: {
