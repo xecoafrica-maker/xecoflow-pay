@@ -76,11 +76,18 @@ export interface MerchantProfile {
   business_location?: string;
   business_registration_number?: string;
   
-  // ✅ NEW SETTLEMENT FIELDS ADDED HERE
+  // ✅ SETTLEMENT FIELDS
   settlement_method?: string;
   bank_name?: string;
   bank_account_number?: string;
   bank_account_holder?: string;
+
+  // ✅ NEW TAX & COMPLIANCE FIELDS (STAGE 3)
+  vat_registered?: boolean;
+  vat_number?: string;
+  filing_preference?: 'auto' | 'manual';
+  tax_agent_name?: string;
+  tax_agent_pin?: string;
 }
 
 export async function registerMerchant(data: RegisterRequest): Promise<RegisterResponse> {
