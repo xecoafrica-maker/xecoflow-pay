@@ -79,7 +79,6 @@ export default function OnboardingStage1() {
           country: profile.country || 'Kenya',
           business_phone: profile.phone || '',
           business_email: profile.email || '',
-          // Future fields will map here once we migrate to the KYC table
         }));
       }
     } catch (err) {
@@ -127,6 +126,9 @@ export default function OnboardingStage1() {
     }
 
     try {
+      // ✅ FIXED: Send the full location string so the API registers it as complete
+      const fullBusinessLocation = `${formData.city || ''}, ${formData.country || 'Kenya'}`;
+
       const res = await fetch('/v1/auth/update-profile', {
         method: 'PUT',
         headers: {
@@ -135,7 +137,7 @@ export default function OnboardingStage1() {
         },
         body: JSON.stringify({
           business_type: formData.business_type,
-          business_location: formData.city,
+          business_location: fullBusinessLocation, // ✅ Sends "Nairobi, Kenya" to the DB
           business_registration_number: formData.business_registration_number,
           country: formData.country,
           phone: formData.business_phone,
@@ -153,8 +155,13 @@ export default function OnboardingStage1() {
             business_type: formData.business_type,
             country: formData.country,
             phone: formData.business_phone,
+            business_location: fullBusinessLocation,
           }));
         }
+
+        // ✅ Force Next.js to re-fetch server data (fixes the resume bug)
+        router.refresh();
+
         setTimeout(() => router.push('/dashboard/onboarding/stage2'), 2000);
       } else {
         setError(data.message || 'Failed to save business details');
@@ -229,13 +236,13 @@ export default function OnboardingStage1() {
                 Legal Business Name <span className="text-red-500">*</span>
               </label>
               <input
-  type="text"
-  name="business_name"
-  value={formData.business_name}
-  onChange={handleChange} // ✅ Ensure you add this back!
-  placeholder="Enter your legal business name"
-  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-/>
+                type="text"
+                name="business_name"
+                value={formData.business_name}
+                onChange={handleChange}
+                placeholder="Enter your legal business name"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              />
               <p className="text-xs text-gray-400 mt-1">The exact name registered with the relevant authority.</p>
             </div>
 
