@@ -8,9 +8,7 @@ import {
   Loader2, 
   CheckCircle,
   Landmark,
-  Shield,
-  AlertCircle,
-  ArrowLeft // ✅ Added Back Button Icon
+  ArrowLeft
 } from 'lucide-react';
 import { getStoredMerchant, getToken } from '@/lib/auth';
 import { getMerchantProfile } from '@/lib/auth-api';
@@ -25,11 +23,6 @@ export default function OnboardingStage3() {
   // ─── Form Data ────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
     kra_pin: '',
-    vat_registered: false,
-    vat_number: '',
-    filing_preference: 'auto',
-    tax_agent_name: '',
-    tax_agent_pin: '',
   });
 
   // ─── Load Profile Data ────────────────────────────────────────────
@@ -44,15 +37,9 @@ export default function OnboardingStage3() {
       try {
         const profile = await getMerchantProfile(token);
         if (profile) {
-          setFormData(prev => ({
-            ...prev,
-            kra_pin: profile.business_registration_number || prev.kra_pin,
-            vat_registered: profile.vat_registered || false,
-            vat_number: profile.vat_number || '',
-            filing_preference: profile.filing_preference || 'auto',
-            tax_agent_name: profile.tax_agent_name || '',
-            tax_agent_pin: profile.tax_agent_pin || '',
-          }));
+          setFormData({
+            kra_pin: profile.business_registration_number || '',
+          });
         }
         console.log('📥 Stage 3 loaded for:', profile?.business_name);
       } catch (err) {
@@ -63,18 +50,6 @@ export default function OnboardingStage3() {
     };
     fetchProfile();
   }, [router]);
-
-  // ─── Handle Input Changes ────────────────────────────────────────
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    const checked = type === 'checkbox' ? (e.target as HTMLInputElement).checked : undefined;
-    
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
-    setSaved(false);
-  };
 
   // ─── Save Data ────────────────────────────────────────────────────
   const handleSave = async (e: React.FormEvent) => {
@@ -90,6 +65,7 @@ export default function OnboardingStage3() {
     }
 
     try {
+      // We send the KRA PIN again just to make sure it's synced
       const res = await fetch('/v1/auth/update-profile', {
         method: 'PUT',
         headers: {
@@ -97,11 +73,7 @@ export default function OnboardingStage3() {
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          vat_registered: formData.vat_registered,
-          vat_number: formData.vat_number,
-          filing_preference: formData.filing_preference,
-          tax_agent_name: formData.tax_agent_name,
-          tax_agent_pin: formData.tax_agent_pin,
+          business_registration_number: formData.kra_pin,
         }),
       });
 
@@ -138,7 +110,7 @@ export default function OnboardingStage3() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">03 — Tax & Compliance</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Configure your tax settings for automated filings.
+            Confirm your KRA PIN for tax reporting and compliance.
           </p>
         </div>
       </div>
@@ -154,7 +126,7 @@ export default function OnboardingStage3() {
         {/* ─── Section 1: KRA PIN ───────────────────────────────────── */}
         <div>
           <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">KRA PIN</h3>
-          <p className="text-xs text-gray-500 mb-3">Your KRA PIN is used for tax reporting and compliance.</p>
+          <p className="text-xs text-gray-500 mb-3">Your KRA PIN is used for tax reporting and compliance. If this is incorrect, go back to Stage 1 to update it.</p>
           
           <input
             type="text"
@@ -162,111 +134,7 @@ export default function OnboardingStage3() {
             disabled={true}
             className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-sm text-gray-600 cursor-not-allowed"
           />
-          <p className="text-xs text-gray-400 mt-1">You can update this in your Business Profile settings.</p>
-        </div>
-
-        {/* ─── Section 2: VAT Registration ──────────────────────────── */}
-        <div className="border-t border-gray-100 pt-6">
-          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">VAT Registration</h3>
-          <p className="text-xs text-gray-500 mb-3">Indicate if your business is registered for Value Added Tax (VAT).</p>
-
-          <div className="flex items-center gap-4 mt-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                name="vat_registered"
-                checked={formData.vat_registered}
-                onChange={handleChange}
-                className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-              />
-              <span className="text-sm font-medium text-gray-700">I am VAT registered</span>
-            </label>
-          </div>
-
-          {formData.vat_registered && (
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">VAT Number *</label>
-              <input
-                type="text"
-                name="vat_number"
-                value={formData.vat_number}
-                onChange={handleChange}
-                placeholder="e.g. VAT-12345678"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                required
-              />
-              <p className="text-xs text-gray-400 mt-1">Provide your official VAT registration number.</p>
-            </div>
-          )}
-        </div>
-
-        {/* ─── Section 3: Filing Preference ──────────────────────────── */}
-        <div className="border-t border-gray-100 pt-6">
-          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">Tax Filing Preferences</h3>
-          <p className="text-xs text-gray-500 mb-3">Choose how you want to file your tax returns.</p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-all ${formData.filing_preference === 'auto' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-200'}`}>
-              <input
-                type="radio"
-                name="filing_preference"
-                value="auto"
-                checked={formData.filing_preference === 'auto'}
-                onChange={handleChange}
-                className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-              />
-              <div>
-                <p className="text-sm font-semibold text-gray-800">Auto-Filing (Recommended)</p>
-                <p className="text-xs text-gray-500">XecoFlow automatically files your tax returns on your behalf.</p>
-              </div>
-            </label>
-
-            <label className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-all ${formData.filing_preference === 'manual' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-200'}`}>
-              <input
-                type="radio"
-                name="filing_preference"
-                value="manual"
-                checked={formData.filing_preference === 'manual'}
-                onChange={handleChange}
-                className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-              />
-              <div>
-                <p className="text-sm font-semibold text-gray-800">Manual Filing</p>
-                <p className="text-xs text-gray-500">I want to file my own tax returns.</p>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        {/* ─── Section 4: Tax Agent (Optional) ──────────────────────── */}
-        <div className="border-t border-gray-100 pt-6">
-          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">Tax Agent Details (Optional)</h3>
-          <p className="text-xs text-gray-500 mb-3">If you use a tax agent, enter their details below.</p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Agent Name</label>
-              <input
-                type="text"
-                name="tax_agent_name"
-                value={formData.tax_agent_name}
-                onChange={handleChange}
-                placeholder="e.g. Tax Masters Ltd"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Agent KRA PIN</label>
-              <input
-                type="text"
-                name="tax_agent_pin"
-                value={formData.tax_agent_pin}
-                onChange={handleChange}
-                placeholder="e.g. P051234567K"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              />
-            </div>
-          </div>
+          <p className="text-xs text-gray-400 mt-1">You can update this in your Business Profile settings later.</p>
         </div>
 
         {/* ─── Actions ────────────────────────────────────────────────── */}
@@ -287,7 +155,7 @@ export default function OnboardingStage3() {
             {saved && (
               <div className="bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm p-3 rounded-xl flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" />
-                <span>Tax details saved! Moving to Stage 4...</span>
+                <span>KRA PIN confirmed! Moving to Stage 4...</span>
               </div>
             )}
             <button
