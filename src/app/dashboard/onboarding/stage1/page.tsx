@@ -92,6 +92,13 @@ export default function OnboardingStage1() {
     fetchProfile();
   }, [router]);
 
+  // ─── 🛡️ REDIRECT GUARD: If they already finished Stage 1, kick them out! ───
+  useEffect(() => {
+    if (!loading && formData.business_type && formData.business_registration_number && formData.country) {
+      router.replace('/dashboard/onboarding/stage2');
+    }
+  }, [loading, formData, router]);
+
   // ─── Handle Input Changes ────────────────────────────────────────
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as any;
@@ -126,7 +133,6 @@ export default function OnboardingStage1() {
     }
 
     try {
-      // ✅ FIXED: Send the full location string so the API registers it as complete
       const fullBusinessLocation = `${formData.city || ''}, ${formData.country || 'Kenya'}`;
 
       const res = await fetch('/v1/auth/update-profile', {
@@ -137,7 +143,7 @@ export default function OnboardingStage1() {
         },
         body: JSON.stringify({
           business_type: formData.business_type,
-          business_location: fullBusinessLocation, // ✅ Sends "Nairobi, Kenya" to the DB
+          business_location: fullBusinessLocation,
           business_registration_number: formData.business_registration_number,
           country: formData.country,
           phone: formData.business_phone,
@@ -159,7 +165,7 @@ export default function OnboardingStage1() {
           }));
         }
 
-        // ✅ Force Next.js to re-fetch server data (fixes the resume bug)
+        // Force Next.js to re-fetch server data
         router.refresh();
 
         setTimeout(() => router.push('/dashboard/onboarding/stage2'), 2000);
