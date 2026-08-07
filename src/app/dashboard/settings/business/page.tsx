@@ -72,7 +72,7 @@ export default function BusinessSettingsPage() {
     setSaved(false);
   };
 
-  // ─── Save Data ────────────────────────────────────────────────────
+   // ─── Save Data ────────────────────────────────────────────────────
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -86,7 +86,8 @@ export default function BusinessSettingsPage() {
     }
 
     try {
-      const res = await fetch('http://localhost:3001/v1/auth/update-profile', {
+      // ✅ FIXED: Removed the hardcoded localhost
+      const res = await fetch('/v1/auth/update-profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
