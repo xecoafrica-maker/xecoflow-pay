@@ -9,7 +9,8 @@ import {
   CheckCircle,
   Landmark,
   Shield,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft // ✅ Added Back Button Icon
 } from 'lucide-react';
 import { getStoredMerchant, getToken } from '@/lib/auth';
 import { getMerchantProfile } from '@/lib/auth-api';
@@ -62,6 +63,13 @@ export default function OnboardingStage3() {
     };
     fetchProfile();
   }, [router]);
+
+  // ─── 🛡️ REDIRECT GUARD: If Stage 3 already completed, skip to Stage 4 ───
+  useEffect(() => {
+    if (!loading && (formData.vat_number || formData.filing_preference)) {
+      router.replace('/dashboard/onboarding/stage4');
+    }
+  }, [loading, formData, router]);
 
   // ─── Handle Input Changes ────────────────────────────────────────
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -269,31 +277,44 @@ export default function OnboardingStage3() {
         </div>
 
         {/* ─── Actions ────────────────────────────────────────────────── */}
-        <div className="border-t border-gray-200 pt-6 space-y-3">
-          {saved && (
-            <div className="bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm p-3 rounded-xl flex items-center gap-2">
-              <CheckCircle className="w-4 h-4" />
-              <span>Tax details saved! Moving to Stage 4...</span>
-            </div>
-          )}
-
+        <div className="border-t border-gray-200 pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          
+          {/* ✅ LEFT: Back Button - Uses router.push() to go to Stage 2 */}
           <button
-            type="submit"
-            disabled={saving}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            type="button"
+            onClick={() => router.push('/dashboard/onboarding/stage2')}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
-            {saving ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                Save & Continue
-              </>
-            )}
+            <ArrowLeft className="w-4 h-4" />
+            Back to Stage 2
           </button>
+
+          {/* ✅ RIGHT: Save & Continue */}
+          <div className="flex-1 sm:flex-none space-y-3">
+            {saved && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm p-3 rounded-xl flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                <span>Tax details saved! Moving to Stage 4...</span>
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save & Continue
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </form>
     </div>
