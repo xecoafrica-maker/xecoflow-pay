@@ -7,7 +7,6 @@ import {
   Save, 
   Loader2, 
   CheckCircle,
-  Upload,
   FileText,
   User,
   IdCard,
@@ -16,15 +15,13 @@ import {
   Briefcase,
   ArrowLeft // ✅ Added Back Button Icon
 } from 'lucide-react';
-import { getStoredMerchant, getToken } from '@/lib/auth';
-import { getMerchantProfile } from '@/lib/auth-api';
+import { getToken } from '@/lib/auth';
 
 interface Director {
   id: string;
   fullName: string;
   idNumber: string;
   role: string;
-  idFile?: File | null;
 }
 
 export default function OnboardingStage2() {
@@ -39,37 +36,40 @@ export default function OnboardingStage2() {
     { id: crypto.randomUUID(), fullName: '', idNumber: '', role: 'Director' }
   ]);
 
-  // ─── Document Uploads (Optional for now) ────────────────────────
-  const [documents, setDocuments] = useState({
-    certificateOfIncorporation: null as File | null,
-    kraPinCertificate: null as File | null,
-  });
-
-  // ─── Load Profile Data ────────────────────────────────────────────
+  // ─── Load Data from new API ──────────────────────────────────────
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchOwners = async () => {
       const token = getToken();
       if (!token) {
         router.push('/login');
         return;
       }
-      setLoading(true);
+
       try {
-        const profile = await getMerchantProfile(token);
-        if (profile) {
-          // ✅ TypeScript safe check for profile.directors
-          if (profile.directors && Array.isArray(profile.directors) && profile.directors.length > 0) {
-            setDirectors(profile.directors as Director[]);
-          }
+        const res = await fetch('/v1/onboarding/owners-documents', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error || 'Failed to load owners');
+
+        if (Array.isArray(data.directors) && data.directors.length > 0) {
+          setDirectors(
+            data.directors.map((director: any) => ({
+              id: crypto.randomUUID(),
+              fullName: director.fullName || '',
+              idNumber: director.idNumber || '',
+              role: director.role || 'Director'
+            }))
+          );
         }
-        console.log('📥 Stage 2 loaded for:', profile?.business_name);
-      } catch (err) {
-        console.error('Failed to load profile:', err);
+      } catch (err: any) {
+        setError(err.message);
       } finally {
         setLoading(false);
       }
     };
-    fetchProfile();
+    fetchOwners();
   }, [router]);
 
   // ─── Director Handlers ────────────────────────────────────────────
@@ -91,12 +91,7 @@ export default function OnboardingStage2() {
     ));
   };
 
-  // ─── Document Handlers ────────────────────────────────────────────
-  const handleFileChange = (field: keyof typeof documents, file: File | null) => {
-    setDocuments(prev => ({ ...prev, [field]: file }));
-  };
-
-  // ─── Save Data ────────────────────────────────────────────────────
+  // ─── Save & Continue ──────────────────────────────────────────────
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -109,23 +104,39 @@ export default function OnboardingStage2() {
       return;
     }
 
+    // 1. Frontend Validation
+    const invalidDirector = directors.some(
+      director => !director.fullName.trim() || !director.idNumber.trim() || !director.role.trim()
+    );
+
+    if (invalidDirector) {
+      setError('Please complete the name, ID/passport number, and role for every director.');
+      setSaving(false);
+      return;
+    }
+
     try {
-      const res = await fetch('/v1/auth/update-profile', {
-        method: 'PUT',
+      // 2. Remove temporary frontend IDs before sending
+      const cleanDirectors = directors.map(({ id, ...director }) => director);
+
+      // 3. ✅ Use the NEW onboarding API
+      const res = await fetch('/v1/onboarding/owners-documents/submit', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          directors: directors, // Will be stored as JSONB in the kyc table
-        }),
+        body: JSON.stringify({ directors: cleanDirectors }),
       });
 
       const data = await res.json();
 
       if (data.success) {
         setSaved(true);
-        setTimeout(() => router.push('/dashboard/onboarding/stage3'), 2000);
+        // 4. ✅ Redirect based on the backend response
+        setTimeout(() => {
+          router.push(`/dashboard/onboarding/stage${data.onboarding.currentStep}`);
+        }, 2000);
       } else {
         setError(data.message || 'Failed to save directors');
       }
@@ -245,18 +256,9 @@ export default function OnboardingStage2() {
                 <FileText className="w-5 h-5 text-indigo-500" />
                 <span className="text-sm font-medium text-gray-700">Certificate of Incorporation</span>
               </div>
-              <input
-                type="file"
-                accept=".pdf,.jpg,.png"
-                onChange={(e) => handleFileChange('certificateOfIncorporation', e.target.files?.[0] || null)}
-                className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-              />
-              {documents.certificateOfIncorporation && (
-                <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                  <CheckCircle className="w-3 h-3" />
-                  {documents.certificateOfIncorporation.name}
-                </p>
-              )}
+              <div className="bg-gray-100 rounded-lg p-4 border border-gray-200 flex items-center justify-center text-gray-400 text-sm min-h-[48px]">
+                <span>Coming soon</span>
+              </div>
             </div>
 
             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
@@ -264,18 +266,9 @@ export default function OnboardingStage2() {
                 <FileText className="w-5 h-5 text-indigo-500" />
                 <span className="text-sm font-medium text-gray-700">KRA PIN Certificate</span>
               </div>
-              <input
-                type="file"
-                accept=".pdf,.jpg,.png"
-                onChange={(e) => handleFileChange('kraPinCertificate', e.target.files?.[0] || null)}
-                className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-              />
-              {documents.kraPinCertificate && (
-                <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                  <CheckCircle className="w-3 h-3" />
-                  {documents.kraPinCertificate.name}
-                </p>
-              )}
+              <div className="bg-gray-100 rounded-lg p-4 border border-gray-200 flex items-center justify-center text-gray-400 text-sm min-h-[48px]">
+                <span>Coming soon</span>
+              </div>
             </div>
           </div>
         </div>
@@ -283,7 +276,6 @@ export default function OnboardingStage2() {
         {/* ─── Actions ────────────────────────────────────────────────── */}
         <div className="border-t border-gray-200 pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           
-          {/* ✅ LEFT: Back Button - Uses router.push() to go to Stage 1 */}
           <button
             type="button"
             onClick={() => router.push('/dashboard/onboarding/stage1')}
@@ -293,7 +285,6 @@ export default function OnboardingStage2() {
             Back to Stage 1
           </button>
 
-          {/* ✅ RIGHT: Save & Continue */}
           <div className="flex-1 sm:flex-none space-y-3">
             {saved && (
               <div className="bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm p-3 rounded-xl flex items-center gap-2">

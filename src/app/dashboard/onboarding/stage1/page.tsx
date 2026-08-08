@@ -186,7 +186,10 @@ export default function OnboardingStage1() {
         }
 
         router.refresh();
-        setTimeout(() => router.replace('/dashboard/onboarding/stage2'), 2000);
+        // ✅ FIXED: Redirect based on backend response
+        setTimeout(() => {
+          router.replace(`/dashboard/onboarding/stage${data.onboarding.currentStep}`);
+        }, 2000);
       } else {
         setError(data.message || 'Failed to save business details');
       }
