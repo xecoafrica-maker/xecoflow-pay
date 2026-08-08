@@ -53,10 +53,10 @@ import {
   PiggyBank,
   Pin,
   MonitorSmartphone,
-  Receipt,
-  FileCheck,
-  Fingerprint,
-  CheckCircle,
+  HelpCircle,
+  BookOpen,
+  Code,
+  Brackets,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -163,26 +163,6 @@ const sidebarSections: SidebarSection[] = [
     items: [], // Will be populated dynamically
   },
   {
-    title: 'TAX SERVICES',
-    items: [
-      {
-        icon: Receipt,
-        label: 'Verify TCC',
-        href: '/dashboard/tax/tcc',
-      },
-      {
-        icon: Fingerprint,
-        label: 'Verify KRA PIN',
-        href: '/dashboard/tax/kra-pin',
-      },
-      {
-        icon: CheckCircle,
-        label: 'Verify PIN Obligation',
-        href: '/dashboard/tax/pin-obligation',
-      },
-    ],
-  },
-  {
     title: 'FINANCE',
     items: [
       {
@@ -205,6 +185,7 @@ const sidebarSections: SidebarSection[] = [
           { icon: User, label: 'Profile', href: '/dashboard/account/profile' },
           { icon: Bell, label: 'Preferences', href: '/dashboard/account/preferences' },
           { icon: Shield, label: 'Security', href: '/dashboard/account/security' },
+          { icon: Activity, label: 'Activity Logs', href: '/dashboard/activity-logs' },
         ],
       },
       {
@@ -212,7 +193,36 @@ const sidebarSections: SidebarSection[] = [
         label: 'API Keys & Webhooks',
         href: '/dashboard/account/api-keys',
       },
-      { icon: Activity, label: 'Activity Logs', href: '/dashboard/activity-logs' },
+    ],
+  },
+  {
+    title: 'INTEGRATIONS',
+    items: [
+      {
+        icon: Code,
+        label: 'API Keys',
+        href: '/dashboard/account/api-keys',
+      },
+      {
+        icon: Brackets,
+        label: 'Custom Integrations',
+        href: '/dashboard/integrations/custom',
+      },
+    ],
+  },
+  {
+    title: 'HELP',
+    items: [
+      {
+        icon: HelpCircle,
+        label: 'Support',
+        href: '/dashboard/support',
+      },
+      {
+        icon: BookOpen,
+        label: 'Documentation',
+        href: '/dashboard/docs',
+      },
     ],
   },
 ];
