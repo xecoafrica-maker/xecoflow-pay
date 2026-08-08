@@ -20,7 +20,6 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { getStoredMerchant, getToken } from '@/lib/auth';
-import { getMerchantProfile } from '@/lib/auth-api';
 
 export default function OnboardingStage1() {
   const router = useRouter();
@@ -57,8 +56,8 @@ export default function OnboardingStage1() {
     registered_address: '',
   });
 
-  // ─── Load Profile Data ────────────────────────────────────────────
-  const fetchProfile = async () => {
+  // ─── Load Profile Data from new Onboarding API ──────────────────
+  const fetchBusinessProfile = async () => {
     const token = getToken();
     if (!token) {
       router.push('/login');
@@ -69,27 +68,45 @@ export default function OnboardingStage1() {
     setError('');
 
     try {
-      const profile = await getMerchantProfile(token);
-      if (profile) {
-        setFormData(prev => ({
-          ...prev,
-          business_name: profile.business_name || '',
-          business_type: profile.business_type || '',
-          business_registration_number: profile.business_registration_number || '',
-          country: profile.country || 'Kenya',
-          business_phone: profile.phone || '',
-          business_email: profile.email || '',
-        }));
-      }
-    } catch (err) {
-      console.error('Failed to load profile:', err);
+      const res = await fetch('/v1/onboarding/business-profile', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Failed to load business profile');
+
+      setFormData(prev => ({
+        ...prev,
+        business_name: data.business_name || '',
+        business_email: data.email || '',
+        business_phone: data.phone || '',
+        country: data.country || 'Kenya',
+        business_type: data.business_type || '',
+        business_registration_number: data.business_registration_number || '',
+        trading_name: data.trading_name || '',
+        date_of_registration: data.date_of_registration || '',
+        country_of_registration: data.country_of_registration || 'Kenya',
+        industry: data.industry || '',
+        business_description: data.business_description || '',
+        website: data.website || '',
+        has_no_website: data.has_no_website || false,
+        county: data.county || '',
+        city: data.city || '',
+        physical_address: data.physical_address || '',
+        postal_code: data.postal_code || '',
+        same_as_registered_address: data.same_as_registered_address ?? true,
+        registered_address: data.registered_address || '',
+      }));
+    } catch (err: any) {
+      console.error('Failed to load business profile:', err);
+      setError(err.message || 'Failed to load business profile');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProfile();
+    fetchBusinessProfile();
   }, [router]);
 
   // ─── Handle Input Changes ────────────────────────────────────────
@@ -99,7 +116,6 @@ export default function OnboardingStage1() {
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       
-      // If they check "No website", clear the website input
       if (name === 'has_no_website' && checked) {
         setFormData(prev => ({ ...prev, [name]: checked, website: '' }));
       } else {
@@ -112,7 +128,7 @@ export default function OnboardingStage1() {
     setSaved(false);
   };
 
-  // ─── Save Data ────────────────────────────────────────────────────
+  // ─── Save & Continue (Finalize Stage 1) ─────────────────────────
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -126,20 +142,32 @@ export default function OnboardingStage1() {
     }
 
     try {
-      const fullBusinessLocation = `${formData.city || ''}, ${formData.country || 'Kenya'}`;
-
-      const res = await fetch('/v1/auth/update-profile', {
-        method: 'PUT',
+      const res = await fetch('/v1/onboarding/business-profile/submit', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          business_type: formData.business_type,
-          business_location: fullBusinessLocation,
-          business_registration_number: formData.business_registration_number,
-          country: formData.country,
+          business_name: formData.business_name,
+          email: formData.business_email,
           phone: formData.business_phone,
+          country: formData.country,
+          business_type: formData.business_type,
+          business_registration_number: formData.business_registration_number,
+          trading_name: formData.trading_name,
+          date_of_registration: formData.date_of_registration,
+          country_of_registration: formData.country_of_registration,
+          industry: formData.industry,
+          business_description: formData.business_description,
+          website: formData.website,
+          has_no_website: formData.has_no_website,
+          county: formData.county,
+          city: formData.city,
+          physical_address: formData.physical_address,
+          postal_code: formData.postal_code,
+          same_as_registered_address: formData.same_as_registered_address,
+          registered_address: formData.registered_address,
         }),
       });
 
@@ -154,13 +182,10 @@ export default function OnboardingStage1() {
             business_type: formData.business_type,
             country: formData.country,
             phone: formData.business_phone,
-            business_location: fullBusinessLocation,
           }));
         }
 
-        // Force Next.js to re-fetch server data
         router.refresh();
-
         setTimeout(() => router.replace('/dashboard/onboarding/stage2'), 2000);
       } else {
         setError(data.message || 'Failed to save business details');
