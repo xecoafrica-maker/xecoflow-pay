@@ -167,17 +167,6 @@ const sidebarSections: SidebarSection[] = [
     items: [], // Will be populated dynamically
   },
   {
-    title: 'APPS & SERVICES',
-    items: [
-      {
-        icon: Grid3x3,
-        label: 'App Marketplace',
-        href: '#',
-        // ✅ Removed badge: '6'
-      },
-    ],
-  },
-  {
     title: 'FINANCE',
     items: [
       {
