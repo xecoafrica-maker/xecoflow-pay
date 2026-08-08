@@ -53,6 +53,10 @@ import {
   PiggyBank,
   Pin,
   MonitorSmartphone,
+  Receipt,
+  FileCheck,
+  Fingerprint,
+  CheckCircle,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -141,12 +145,15 @@ const sidebarSections: SidebarSection[] = [
       {
         icon: Send,
         label: 'Send STK Push',
-        href: '/dashboard/hosted-checkout',
+        href: '/dashboard/hosted-checkout/integration',
       },
       {
         icon: Link2,
         label: 'Create Payment Link',
-        href: '/dashboard/smart-bills/pages',
+        children: [
+          { icon: PlusCircle, label: 'Create Bill', href: '/dashboard/smart-bills/pages' },
+          { icon: BarChart3, label: 'Active Bills & Analytics', href: '/dashboard/smart-bills/analytics' },
+        ],
       },
     ],
   },
@@ -154,6 +161,26 @@ const sidebarSections: SidebarSection[] = [
   {
     title: 'MY APPS & SHORTCUTS',
     items: [], // Will be populated dynamically
+  },
+  {
+    title: 'TAX SERVICES',
+    items: [
+      {
+        icon: Receipt,
+        label: 'Verify TCC',
+        href: '/dashboard/tax/tcc',
+      },
+      {
+        icon: Fingerprint,
+        label: 'Verify KRA PIN',
+        href: '/dashboard/tax/kra-pin',
+      },
+      {
+        icon: CheckCircle,
+        label: 'Verify PIN Obligation',
+        href: '/dashboard/tax/pin-obligation',
+      },
+    ],
   },
   {
     title: 'FINANCE',
