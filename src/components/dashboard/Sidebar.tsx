@@ -188,11 +188,7 @@ const sidebarSections: SidebarSection[] = [
           { icon: Activity, label: 'Activity Logs', href: '/dashboard/activity-logs' },
         ],
       },
-      {
-        icon: Key,
-        label: 'API Keys & Webhooks',
-        href: '/dashboard/account/api-keys',
-      },
+      // ✅ REMOVED DUPLICATE "API Keys & Webhooks" from here
     ],
   },
   {
