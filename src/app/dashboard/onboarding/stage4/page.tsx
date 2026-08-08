@@ -13,8 +13,7 @@ import {
   FileText,
   ArrowLeft
 } from 'lucide-react';
-import { getStoredMerchant, getToken } from '@/lib/auth';
-import { getMerchantProfile } from '@/lib/auth-api';
+import { getToken } from '@/lib/auth';
 
 const SETTLEMENT_METHODS = [
   { id: 'mpesa', label: 'M-PESA', icon: Smartphone },
@@ -37,9 +36,9 @@ export default function OnboardingStage4() {
     bank_account_holder: '',
   });
 
-  // ─── Load Profile Data ────────────────────────────────────────────
+  // ─── Load Settlement Data from new API ──────────────────────────
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchSettlement = async () => {
       const token = getToken();
       if (!token) {
         router.push('/login');
@@ -47,24 +46,30 @@ export default function OnboardingStage4() {
       }
 
       try {
-        const profile = await getMerchantProfile(token);
-        if (profile) {
-          setFormData({
-            settlement_method: profile.settlement_method || 'mpesa',
-            settlement_phone: profile.settlement_phone || '',
-            bank_name: profile.bank_name || '',
-            bank_account_number: profile.bank_account_number || '',
-            bank_account_holder: profile.bank_account_holder || '',
-          });
+        const res = await fetch('/v1/onboarding/settlement', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to load settlement information');
         }
+
+        setFormData({
+          settlement_method: data.settlement_method || 'mpesa',
+          settlement_phone: data.settlement_phone || '',
+          bank_name: data.bank_name || '',
+          bank_account_number: data.bank_account_number || '',
+          bank_account_holder: data.bank_account_holder || '',
+        });
       } catch (err: any) {
-        console.error('❌ REAL ERROR REASON:', err.message);
+        console.error('❌ Failed to load Stage 4:', err);
+        setError(err.message || 'Failed to load settlement information');
       } finally {
         setLoading(false);
       }
     };
-
-    fetchProfile();
+    fetchSettlement();
   }, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,6 +83,7 @@ export default function OnboardingStage4() {
     setSaved(false);
   };
 
+  // ─── Save & Continue ──────────────────────────────────────────────
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -91,39 +97,34 @@ export default function OnboardingStage4() {
     }
 
     try {
-      const res = await fetch('/v1/auth/update-profile', {
-        method: 'PUT',
+      const res = await fetch('/v1/onboarding/settlement/submit', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           settlement_method: formData.settlement_method,
-          settlement_phone: formData.settlement_phone,
-          bank_name: formData.bank_name,
-          bank_account_number: formData.bank_account_number,
-          bank_account_holder: formData.bank_account_holder,
+          settlement_phone: formData.settlement_phone.trim(),
+          bank_name: formData.bank_name.trim(),
+          bank_account_number: formData.bank_account_number.trim(),
+          bank_account_holder: formData.bank_account_holder.trim(),
         }),
       });
 
       const data = await res.json();
 
-      if (data.success) {
-        setSaved(true);
-        const cached = getStoredMerchant();
-        if (cached) {
-          localStorage.setItem('merchant', JSON.stringify({
-            ...cached,
-            settlement_method: formData.settlement_method,
-            settlement_phone: formData.settlement_phone,
-          }));
-        }
-        // 🎉 ONBOARDING COMPLETE! Redirect to Dashboard
-        setTimeout(() => router.replace('/dashboard'), 2000);
-      } else {
-        setError(data.message || 'Failed to save settlement preferences');
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || data.message || 'Failed to save settlement preferences');
       }
+
+      setSaved(true);
+      // ✅ Redirect to Stage 5 (Review & Submit)
+      setTimeout(() => {
+        router.push('/dashboard/onboarding/stage5');
+      }, 1500);
     } catch (err: any) {
+      console.error('❌ Failed to save Stage 4:', err);
       setError(err.message || 'An error occurred while saving.');
     } finally {
       setSaving(false);
@@ -262,11 +263,10 @@ export default function OnboardingStage4() {
           {saved && (
             <div className="bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm p-3 rounded-xl flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
-              <span>Onboarding complete! Redirecting to dashboard...</span>
+              <span>Settlement information saved. Moving to review...</span>
             </div>
           )}
 
-          {/* Actions */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
             <button
               type="button"
@@ -290,7 +290,7 @@ export default function OnboardingStage4() {
               ) : (
                 <>
                   <Save className="w-4 h-4" />
-                  Save & Finish
+                  Save & Continue
                 </>
               )}
             </button>
