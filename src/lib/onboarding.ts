@@ -39,7 +39,26 @@ export function getOnboardingPath(step: number): string {
     case 2: return '/dashboard/onboarding/stage2';
     case 3: return '/dashboard/onboarding/stage3';
     case 4: return '/dashboard/onboarding/stage4';
-    case 5: return '/dashboard/onboarding/stage5';
+    case 5: return '/dashboard/onboarding/review';
     default: return '/dashboard/onboarding/stage1';
+  }
+}
+
+/**
+ * Redirects the user to their current incomplete onboarding stage.
+ * If onboarding is already submitted/complete, stays on dashboard.
+ */
+export async function redirectToOnboardingResume(router: any) {
+  try {
+    const status = await getOnboardingStatus();
+    if (status.overallStatus === 'SUBMITTED') {
+      router.replace('/dashboard');
+      return;
+    }
+    const route = getOnboardingPath(status.currentStep);
+    router.replace(route);
+  } catch (error) {
+    console.error('Failed to resume onboarding:', error);
+    router.replace('/dashboard/onboarding/stage1');
   }
 }

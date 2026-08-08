@@ -185,8 +185,7 @@ export default function OnboardingStage1() {
           }));
         }
 
-        router.refresh();
-        // ✅ FIXED: Redirect based on backend response
+        // ✅ FIXED: Removed router.refresh() to prevent race conditions
         setTimeout(() => {
           router.replace(`/dashboard/onboarding/stage${data.onboarding.currentStep}`);
         }, 2000);

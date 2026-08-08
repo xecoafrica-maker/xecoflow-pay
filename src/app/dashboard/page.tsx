@@ -45,6 +45,7 @@ import {
 import { getToken, removeToken, getStoredMerchant } from '@/lib/auth';
 import { getMerchantProfile } from '@/lib/auth-api';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
+import { redirectToOnboardingResume } from '@/lib/onboarding';
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Transaction {
@@ -168,7 +169,7 @@ export default function DashboardOverview() {
           { 
             id: 5, 
             label: '05 — Review & Submit', 
-            href: '/dashboard/onboarding/stage5', 
+            href: '/dashboard/onboarding/review', 
             completed: data.overallStatus === 'SUBMITTED' 
           },
         ];
@@ -323,10 +324,16 @@ export default function DashboardOverview() {
     }, 500);
   }, [router]);
 
+  // ─── 🛡️ RESUME GUARD: Redirect user to their current incomplete stage ──
+  useEffect(() => {
+    if (!loading) {
+      redirectToOnboardingResume(router);
+    }
+  }, [loading, router]);
+
   // ─── Log Dashboard View - Only once per page visit ──────────────
   useEffect(() => {
     const logView = async () => {
-      // ✅ Prevent duplicate logs during the same page load
       if (isLoggingView.current || hasLoggedView.current || !merchantId) {
         return;
       }
@@ -354,7 +361,6 @@ export default function DashboardOverview() {
 
   // ─── Sign Out Handler ─────────────────────────────────────────────
   const handleSignOut = async () => {
-    // Log sign out
     await log(
       ActivityActions.LOGOUT,
       `User logged out from ${merchantName}`
