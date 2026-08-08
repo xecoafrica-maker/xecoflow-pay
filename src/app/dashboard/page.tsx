@@ -29,6 +29,7 @@ import {
   LogOut,
   ArrowUpRight,
   AlertCircle,
+  Users,
 } from 'lucide-react';
 import {
   BarChart,
@@ -41,7 +42,7 @@ import {
   Line,
   LineChart,
 } from 'recharts';
-import { getToken, removeToken, getStoredMerchant } from '../../lib/auth';
+import { getToken, removeToken, getStoredMerchant } from '@/lib/auth';
 import { getMerchantProfile } from '@/lib/auth-api';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
@@ -125,20 +126,65 @@ export default function DashboardOverview() {
 
   const tooltipFormatter = (value: any) => [`KES ${value}`, 'Amount'];
 
-  // ─── Fetch Onboarding Status ──────────────────────────────────────
-  const fetchOnboarding = async (id: string) => {
+  // ─── 🚀 NEW: Fetch Onboarding Status from Real Backend ───────────
+  const fetchOnboarding = async () => {
+    const token = getToken();
+    if (!token) return;
+
     try {
-      const res = await fetch(`/api/merchant/onboarding?merchantId=${id}`);
+      // ✅ Calls the new backend /api/onboarding/status endpoint
+      const res = await fetch(`/api/onboarding/status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       const data = await res.json();
       
-      if (data.success) {
-        // Map API steps to the UI format
-        const mappedSteps = data.data.steps.map((step: any) => ({
+      if (data) {
+        // Map the backend 5-stage response to the UI
+        const stepMappings = [
+          { 
+            id: 1, 
+            label: '01 — Business Profile', 
+            href: '/dashboard/onboarding/stage1', 
+            completed: data.steps.businessProfile === 'COMPLETED' 
+          },
+          { 
+            id: 2, 
+            label: '02 — Owners & Documents', 
+            href: '/dashboard/onboarding/stage2', 
+            completed: data.steps.ownersDocuments === 'COMPLETED' 
+          },
+          { 
+            id: 3, 
+            label: '03 — Tax & Compliance', 
+            href: '/dashboard/onboarding/stage3', 
+            completed: data.steps.taxCompliance === 'COMPLETED' 
+          },
+          { 
+            id: 4, 
+            label: '04 — Settlement', 
+            href: '/dashboard/onboarding/stage4', 
+            completed: data.steps.settlement === 'COMPLETED' 
+          },
+          { 
+            id: 5, 
+            label: '05 — Review & Submit', 
+            href: '/dashboard/onboarding/stage5', 
+            completed: data.overallStatus === 'SUBMITTED' 
+          },
+        ];
+
+        // Determine active step from backend currentStep
+        const activeStepId = data.currentStep;
+        
+        const mappedSteps = stepMappings.map((step) => ({
           ...step,
-          // Assign icons based on label
-          icon: step.label === '01 — Business Profile' ? Building : Landmark,
-          active: !step.completed && (step.id === 1 || data.data.steps[0]?.completed === true)
+          icon: step.label.includes('Business Profile') ? Building : 
+                step.label.includes('Owners') ? Users : 
+                step.label.includes('Tax') ? FileText : 
+                step.label.includes('Settlement') ? Landmark : CheckCircle,
+          active: step.id === activeStepId
         }));
+        
         setOnboardingSteps(mappedSteps);
       }
     } catch (error) {
@@ -253,7 +299,7 @@ export default function DashboardOverview() {
         if (id) {
           console.log("🚀 Fetching data with merchant ID:", id);
           await fetchDashboardData(String(id));
-          await fetchOnboarding(String(id));
+          await fetchOnboarding();
         }
       } else {
         try {
@@ -263,7 +309,7 @@ export default function DashboardOverview() {
             if (profile && profile.merchant_id) {
               setMerchantId(String(profile.merchant_id));
               await fetchDashboardData(String(profile.merchant_id));
-              await fetchOnboarding(String(profile.merchant_id));
+              await fetchOnboarding();
             }
           }
         } catch (err) {
@@ -477,9 +523,10 @@ export default function DashboardOverview() {
   
   // Determine the contextual button text
   const getActionButtonText = () => {
-    if (completedSteps === totalSteps && totalSteps > 0) return 'Setup complete ✓';
+    if (isFullyOnboarded) return 'Submitted ✓';
     if (completedSteps === 0) return 'Start setup →';
-    if (completedSteps > 0 && completedSteps < totalSteps) return 'Continue setup →';
+    if (completedSteps > 0 && completedSteps < 4) return 'Continue setup →';
+    if (completedSteps === 4) return 'Review & Submit →';
     return 'Complete Setup';
   };
 
@@ -564,8 +611,8 @@ export default function DashboardOverview() {
             </div>
           </div>
 
-          {/* ─── Steps Grid ────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          {/* ─── Steps Grid (5 Stages) ────────────────────────────── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
             {onboardingSteps.map((step, index) => {
               const Icon = step.icon;
               return (
