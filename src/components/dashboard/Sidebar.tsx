@@ -139,25 +139,14 @@ const sidebarSections: SidebarSection[] = [
     title: 'PRODUCTS',
     items: [
       {
-        icon: ShoppingCart,
-        label: 'Hosted Checkout',
-        children: [
-          { icon: PlusCircle, label: 'Integration', href: '/dashboard/hosted-checkout/integration' },
-        ],
+        icon: Send,
+        label: 'Send STK Push',
+        href: '/dashboard/hosted-checkout',
       },
       {
         icon: Link2,
-        label: 'Smart Bills',
-        children: [
-          { icon: PlusCircle, label: 'Create Bill', href: '/dashboard/smart-bills/pages' },
-          { icon: BarChart3, label: 'Active Bills & Analytics', href: '/dashboard/smart-bills/analytics' },
-        ],
-      },
-      {
-        icon: MonitorSmartphone,
-        label: 'POS / Counter Pay',
-        href: '#',
-        badge: 'New',
+        label: 'Create Payment Link',
+        href: '/dashboard/smart-bills/pages',
       },
     ],
   },
@@ -195,7 +184,6 @@ const sidebarSections: SidebarSection[] = [
         icon: Key,
         label: 'API Keys & Webhooks',
         href: '/dashboard/account/api-keys',
-        // ✅ Removed badge: 'v2'
       },
       { icon: Activity, label: 'Activity Logs', href: '/dashboard/activity-logs' },
     ],
@@ -368,9 +356,6 @@ export default function Sidebar() {
               <div>
                 <p className="text-xl font-bold tracking-tight text-white">
                   Xeco<span className="text-emerald-400">Flow</span>
-                </p>
-                <p className="text-[10px] text-slate-500 tracking-wider uppercase mt-0.5">
-                  Payment Gateway
                 </p>
               </div>
             </div>
