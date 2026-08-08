@@ -188,7 +188,6 @@ const sidebarSections: SidebarSection[] = [
           { icon: Activity, label: 'Activity Logs', href: '/dashboard/activity-logs' },
         ],
       },
-      // ✅ REMOVED DUPLICATE "API Keys & Webhooks" from here
     ],
   },
   {
@@ -196,14 +195,10 @@ const sidebarSections: SidebarSection[] = [
     items: [
       {
         icon: Code,
-        label: 'API Keys',
+        label: 'API Keys & Webhooks', // ✅ Renamed
         href: '/dashboard/account/api-keys',
       },
-      {
-        icon: Brackets,
-        label: 'Custom Integrations',
-        href: '/dashboard/integrations/custom',
-      },
+      // ✅ Removed Custom Integrations
     ],
   },
   {
