@@ -6,118 +6,86 @@ import {
   Building2,
   FileText,
   Shield,
-  Calendar,
-  Camera,
   Save,
   Edit2,
   X,
-  Globe,
-  Users,
-  CheckCircle,
   MapPin,
-  Phone,
-  Mail,
-  Clock,
-  Landmark,
-  Smartphone,
-  Copy,
-  Check,
-  AlertCircle,
+  CheckCircle,
   Loader2,
+  Globe,
+  Calendar,
 } from 'lucide-react';
 import { getStoredMerchant, getToken } from '@/lib/auth';
-import { getMerchantProfile } from '@/lib/auth-api';
+
+interface BusinessIdentityData {
+  business_name: string;
+  trading_name: string;
+  business_type: string;
+  industry: string;
+  business_description: string;
+  website: string;
+  email: string;
+  phone: string;
+  country: string;
+  business_registration_number: string;
+  date_of_registration: string;
+  country_of_registration: string;
+  kra_pin: string;
+  county: string;
+  city: string;
+  physical_address: string;
+  postal_code: string;
+  registered_address: string;
+  same_as_registered_address: boolean;
+  has_no_website: boolean;
+}
 
 export default function BusinessIdentityPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('identity');
+  const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
-  const [copied, setCopied] = useState<string | null>(null);
-
-  // ─── Form Data (Connected to Real Database) ──────────────────────
-  const [formData, setFormData] = useState({
-    business_name: '',
-    first_name: '',
-    last_name: '',
-    business_type: '',
-    business_location: '',
-    business_registration_number: '',
-    // Contact Info
-    phone: '',
-    email: '',
-    // Banking
-    bank_name: '',
-    bank_account_number: '',
-    bank_account_holder: '',
-    settlement_method: 'mpesa',
-    settlement_phone: '',
-  });
+  const [data, setData] = useState<BusinessIdentityData | null>(null);
 
   const tabs = [
-    { id: 'identity', label: 'Business Identity', icon: Building2 },
-    { id: 'contact', label: 'Contact', icon: MapPin },
-    { id: 'banking', label: 'Banking & Settlement', icon: Landmark },
+    { id: 'overview', label: 'Overview', icon: Building2 },
+    { id: 'registration', label: 'Registration', icon: FileText },
+    { id: 'contact', label: 'Contact & Address', icon: MapPin },
   ];
 
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard?.writeText(text);
-    setCopied(id);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  // ─── Load Profile Data ────────────────────────────────────────────
+  // ─── Load Data from New API ──────────────────────────────────────
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchIdentity = async () => {
       const token = getToken();
       if (!token) {
         router.push('/login');
         return;
       }
 
-      setLoading(true);
-      setError('');
-
       try {
-        const profile = await getMerchantProfile(token);
-        if (profile) {
-          setFormData({
-            business_name: profile.business_name || '',
-            first_name: profile.first_name || '',
-            last_name: profile.last_name || '',
-            business_type: profile.business_type || '',
-            business_location: profile.business_location || '',
-            business_registration_number: profile.business_registration_number || '',
-            phone: profile.phone || '',
-            email: profile.email || '',
-            bank_name: profile.bank_name || '',
-            bank_account_number: profile.bank_account_number || '',
-            bank_account_holder: profile.bank_account_holder || '',
-            settlement_method: profile.settlement_method || 'mpesa',
-            settlement_phone: profile.settlement_phone || '',
-          });
+        const res = await fetch('/v1/business-account/identity', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+
+        if (!res.ok) {
+          throw new Error(json.error || 'Failed to load business identity');
         }
-      } catch (err) {
-        console.error('Failed to load profile:', err);
-        setError('Failed to load profile. Please refresh.');
+        setData(json);
+      } catch (err: any) {
+        setError(err.message || 'Failed to load business identity');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProfile();
+    fetchIdentity();
   }, [router]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    setSaved(false);
-  };
-
-  // ─── Save Data ────────────────────────────────────────────────────
+  // ─── Handle Save ──────────────────────────────────────────────────
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -131,40 +99,38 @@ export default function BusinessIdentityPage() {
     }
 
     try {
-      const res = await fetch('/v1/auth/update-profile', {
+      const res = await fetch('/v1/business-account/identity', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          business_type: formData.business_type,
-          business_location: formData.business_location,
-          business_registration_number: formData.business_registration_number,
-          phone: formData.phone,
-          bank_name: formData.bank_name,
-          bank_account_number: formData.bank_account_number,
-          bank_account_holder: formData.bank_account_holder,
-          settlement_method: formData.settlement_method,
-          settlement_phone: formData.settlement_phone,
+          phone: data?.phone,
+          email: data?.email,
+          country: data?.country,
+          trading_name: data?.trading_name,
+          industry: data?.industry,
+          business_description: data?.business_description,
+          website: data?.website,
+          has_no_website: data?.has_no_website,
+          county: data?.county,
+          city: data?.city,
+          physical_address: data?.physical_address,
+          postal_code: data?.postal_code,
+          registered_address: data?.registered_address,
+          same_as_registered_address: data?.same_as_registered_address,
         }),
       });
 
-      const data = await res.json();
+      const json = await res.json();
 
-      if (data.success) {
+      if (json.success) {
         setSaved(true);
         setIsEditing(false);
-        const cached = getStoredMerchant();
-        if (cached) {
-          localStorage.setItem('merchant', JSON.stringify({
-            ...cached,
-            ...formData,
-          }));
-        }
         setTimeout(() => setSaved(false), 3000);
       } else {
-        setError(data.message || 'Failed to save details');
+        setError(json.error || 'Failed to save changes');
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred while saving.');
@@ -173,20 +139,38 @@ export default function BusinessIdentityPage() {
     }
   };
 
+  // ─── Loading State ────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
       </div>
     );
   }
 
-  // ─── TAB RENDERERS ──────────────────────────────────────────────────
+  if (error || !data) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl">
+          {error || 'Unable to load business identity.'}
+        </div>
+      </div>
+    );
+  }
 
-  const renderIdentityTab = () => (
+  // ─── Helper to Update State ──────────────────────────────────────
+  const updateField = (field: keyof BusinessIdentityData, value: any) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      return { ...prev, [field]: value };
+    });
+  };
+
+  // ─── RENDER: OVERVIEW TAB ────────────────────────────────────────
+  const renderOverviewTab = () => (
     <div className="space-y-6">
-      {/* Business Overview Cards (Dynamically pulled from real data) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Status Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Status</p>
           <div className="mt-1">
@@ -201,262 +185,261 @@ export default function BusinessIdentityPage() {
           <p className="text-sm font-semibold text-gray-900 mt-1">{getStoredMerchant()?.merchantId || '—'}</p>
         </div>
         <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-          <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Business Type</p>
-          <p className="text-sm font-semibold text-gray-900 mt-1">{formData.business_type || '—'}</p>
-        </div>
-        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-          <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Location</p>
-          <p className="text-sm font-semibold text-gray-900 mt-1">{formData.business_location || '—'}</p>
+          <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Industry</p>
+          <p className="text-sm font-semibold text-gray-900 mt-1">{data.industry || '—'}</p>
         </div>
       </div>
 
-      {/* Business Details Form */}
+      {/* Business Info Form */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Business Name <span className="text-red-500">*</span>
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Business Name</label>
           <input
             type="text"
-            value={formData.business_name}
-            disabled={true} // Business Name is read-only in this view
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Registration Number <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            name="business_registration_number"
-            value={formData.business_registration_number}
-            onChange={handleChange}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Tax ID / PIN
-          </label>
-          <input
-            type="text"
-            value={formData.business_registration_number} // Using same field as KRA PIN in DB
+            value={data.business_name || ''}
             disabled={true}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Business Type <span className="text-red-500">*</span>
-          </label>
-          <select
-            name="business_type"
-            value={formData.business_type}
-            onChange={handleChange}
+          <label className="block text-sm font-medium text-gray-700 mb-1">Trading Name</label>
+          <input
+            type="text"
+            value={data.trading_name || ''}
+            onChange={(e) => updateField('trading_name', e.target.value)}
             disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Business Type</label>
+          <input
+            type="text"
+            value={data.business_type || ''}
+            disabled={true}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+          <select
+            value={data.industry || ''}
+            onChange={(e) => updateField('industry', e.target.value)}
+            disabled={!isEditing}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
           >
-            <option value="">Select Business Type</option>
-            <option value="Sole Proprietorship">Sole Proprietorship</option>
-            <option value="Partnership">Partnership</option>
-            <option value="LLC">Limited Liability Company (LLC)</option>
-            <option value="Corporation">Corporation</option>
-            <option value="Non-Profit">Non-Profit</option>
+            <option value="">Select Industry</option>
+            <option value="Financial Technology">Financial Technology</option>
+            <option value="Retail">Retail</option>
+            <option value="E-commerce">E-commerce</option>
+            <option value="Hospitality">Hospitality</option>
+            <option value="Services">Services</option>
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Business Location <span className="text-red-500">*</span>
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
           <input
             type="text"
-            name="business_location"
-            value={formData.business_location}
-            onChange={handleChange}
+            value={data.website || ''}
+            onChange={(e) => updateField('website', e.target.value)}
             disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
           />
         </div>
-      </div>
-
-      <div className="flex gap-3">
-        {!isEditing ? (
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-          >
-            <Edit2 className="w-4 h-4" />
-            Edit Details
-          </button>
-        ) : (
-          <>
-            <button
-              type="submit"
-              onClick={handleSave}
-              disabled={saving}
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsEditing(false)}
-              className="px-6 py-2.5 border border-gray-300 hover:bg-gray-50 rounded-lg text-sm font-medium text-gray-700 transition-all flex items-center gap-2"
-            >
-              <X className="w-4 h-4" />
-              Cancel
-            </button>
-          </>
-        )}
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Business Description</label>
+          <textarea
+            rows={3}
+            value={data.business_description || ''}
+            onChange={(e) => updateField('business_description', e.target.value)}
+            disabled={!isEditing}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+          />
+        </div>
       </div>
     </div>
   );
 
+  // ─── RENDER: REGISTRATION TAB ────────────────────────────────────
+  const renderRegistrationTab = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Registration Number</label>
+          <input
+            type="text"
+            value={data.business_registration_number || ''}
+            disabled={true}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Country of Registration</label>
+          <input
+            type="text"
+            value={data.country_of_registration || ''}
+            disabled={true}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Date of Registration</label>
+          <input
+            type="date"
+            value={data.date_of_registration || ''}
+            disabled={true}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">KRA PIN</label>
+          <div className="relative">
+            <input
+              type="text"
+              value={data.kra_pin || ''}
+              disabled={true}
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60 font-mono"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-emerald-600 font-medium bg-emerald-50 px-2 py-0.5 rounded-full">
+              Verified
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <p className="text-xs text-amber-700">
+          <strong>Note:</strong> Registration details and KRA PIN are locked for compliance. 
+          To change these, please contact support.
+        </p>
+      </div>
+    </div>
+  );
+
+  // ─── RENDER: CONTACT & ADDRESS TAB ───────────────────────────────
   const renderContactTab = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Phone Number <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="tel"
-            name="phone"
-            value={formData.phone}
-            onChange={handleChange}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Email Address <span className="text-red-500">*</span>
-          </label>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
           <input
             type="email"
-            value={formData.email}
-            disabled={true} // Email is read-only
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
+            value={data.email || ''}
+            onChange={(e) => updateField('email', e.target.value)}
+            disabled={!isEditing}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+          <input
+            type="tel"
+            value={data.phone || ''}
+            onChange={(e) => updateField('phone', e.target.value)}
+            disabled={!isEditing}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+          <input
+            type="text"
+            value={data.country || ''}
+            onChange={(e) => updateField('country', e.target.value)}
+            disabled={!isEditing}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">County</label>
+          <input
+            type="text"
+            value={data.county || ''}
+            onChange={(e) => updateField('county', e.target.value)}
+            disabled={!isEditing}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+          <input
+            type="text"
+            value={data.city || ''}
+            onChange={(e) => updateField('city', e.target.value)}
+            disabled={!isEditing}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Postal Code</label>
+          <input
+            type="text"
+            value={data.postal_code || ''}
+            onChange={(e) => updateField('postal_code', e.target.value)}
+            disabled={!isEditing}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
           />
         </div>
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Business Location <span className="text-red-500">*</span>
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Physical Address</label>
           <input
             type="text"
-            name="business_location"
-            value={formData.business_location}
-            onChange={handleChange}
+            value={data.physical_address || ''}
+            onChange={(e) => updateField('physical_address', e.target.value)}
             disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
           />
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Registered Address</label>
+          <input
+            type="text"
+            value={data.registered_address || ''}
+            onChange={(e) => updateField('registered_address', e.target.value)}
+            disabled={!isEditing}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none disabled:opacity-60 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+          />
+        </div>
+        <div className="md:col-span-2 flex items-center gap-2 pt-2">
+          <input
+            type="checkbox"
+            id="sameAddress"
+            checked={data.same_as_registered_address || false}
+            onChange={(e) => updateField('same_as_registered_address', e.target.checked)}
+            disabled={!isEditing}
+            className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+          />
+          <label htmlFor="sameAddress" className="text-sm text-gray-700">
+            Same as registered address
+          </label>
         </div>
       </div>
     </div>
   );
 
-  const renderBankingTab = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Settlement Method <span className="text-red-500">*</span>
-          </label>
-          <select
-            name="settlement_method"
-            value={formData.settlement_method}
-            onChange={handleChange}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          >
-            <option value="mpesa">M-PESA</option>
-            <option value="bank">Bank Transfer</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Settlement Phone <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="tel"
-            name="settlement_phone"
-            value={formData.settlement_phone}
-            onChange={handleChange}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Bank Name
-          </label>
-          <input
-            type="text"
-            name="bank_name"
-            value={formData.bank_name}
-            onChange={handleChange}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Account Number
-          </label>
-          <input
-            type="text"
-            name="bank_account_number"
-            value={formData.bank_account_number}
-            onChange={handleChange}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Account Holder Name
-          </label>
-          <input
-            type="text"
-            name="bank_account_holder"
-            value={formData.bank_account_holder}
-            onChange={handleChange}
-            disabled={!isEditing}
-            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none disabled:opacity-60"
-          />
-        </div>
-      </div>
-    </div>
-  );
-
+  // ─── MAIN RETURN ──────────────────────────────────────────────────
   return (
     <div className="max-w-[1400px] mx-auto space-y-6">
-      {/* ─── Page Header ────────────────────────────────────────────── */}
+      {/* ─── Header ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
         <div className="p-2.5 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl shadow-sm shadow-emerald-200">
           <Building2 className="w-5 h-5 text-white" />
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Business Identity</h1>
-          <p className="text-sm text-gray-500">Manage your business profile, contact, and banking details</p>
+          <p className="text-sm text-gray-500">Manage your official business information, registration, and contact details</p>
         </div>
       </div>
 
+      {/* ─── Alerts ─────────────────────────────────────────────────── */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-xl">
           {error}
         </div>
       )}
-
       {saved && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm p-3 rounded-xl flex items-center gap-2">
           <CheckCircle className="w-4 h-4" />
-          <span>Details saved successfully!</span>
+          <span>Business details saved successfully!</span>
         </div>
       )}
 
@@ -485,9 +468,43 @@ export default function BusinessIdentityPage() {
 
       {/* ─── Content ────────────────────────────────────────────────── */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-        {activeTab === 'identity' && renderIdentityTab()}
+        {activeTab === 'overview' && renderOverviewTab()}
+        {activeTab === 'registration' && renderRegistrationTab()}
         {activeTab === 'contact' && renderContactTab()}
-        {activeTab === 'banking' && renderBankingTab()}
+        
+        {/* ─── Actions ────────────────────────────────────────────────── */}
+        <div className="mt-8 pt-6 border-t border-gray-200 flex gap-3">
+          {!isEditing ? (
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+            >
+              <Edit2 className="w-4 h-4" />
+              Edit Details
+            </button>
+          ) : (
+            <>
+              <button
+                type="submit"
+                onClick={handleSave}
+                disabled={saving}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="px-6 py-2.5 border border-gray-300 hover:bg-gray-50 rounded-lg text-sm font-medium text-gray-700 transition-all flex items-center gap-2"
+              >
+                <X className="w-4 h-4" />
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
