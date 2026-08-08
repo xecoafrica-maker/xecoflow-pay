@@ -126,14 +126,14 @@ export default function DashboardOverview() {
 
   const tooltipFormatter = (value: any) => [`KES ${value}`, 'Amount'];
 
-  // ─── 🚀 NEW: Fetch Onboarding Status from Real Backend ───────────
+  // ─── 🚀 Fetch Onboarding Status from Backend ──────────────────────
   const fetchOnboarding = async () => {
     const token = getToken();
     if (!token) return;
 
     try {
-      // ✅ Calls the new backend /api/onboarding/status endpoint
-      const res = await fetch(`/api/onboarding/status`, {
+      // ✅ FIXED: Changed endpoint to /v1/onboarding/status to match start.js mount
+      const res = await fetch(`/v1/onboarding/status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
