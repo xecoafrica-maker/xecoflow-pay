@@ -18,60 +18,27 @@ import {
   RefreshCw,
   Shield,
   Check,
+  Loader2,
 } from 'lucide-react';
 import { getToken, getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
-// ─── Mock User Data ──────────────────────────────────────────────────
-const userProfile = {
-  name: 'JOAN HOME LTD',
-  email: 'joan@example.com',
-  phone: '254712345678',
-  bankAccounts: [
-    {
-      id: 1,
-      bankName: 'KCB Bank Kenya',
-      accountNumber: '1234567890',
-      accountName: 'JOAN HOME LTD',
-      isDefault: true,
-    },
-  ],
-  mobileMoney: {
-    provider: 'M-PESA',
-    number: '254712345678',
-    isDefault: true,
-  },
-};
-
-// Helper function to mask phone number
+// ─── Helper Functions ──────────────────────────────────────────────
 const maskPhoneNumber = (phone: string) => {
-  if (phone.length <= 6) return phone;
+  if (!phone || phone.length <= 6) return phone;
   const start = phone.slice(0, 6);
   const end = phone.slice(-2);
   return `${start}xxxxx${end}`;
 };
 
-// Helper function to mask account number
 const maskAccountNumber = (account: string) => {
-  if (account.length <= 6) return account;
+  if (!account || account.length <= 6) return account;
   const start = account.slice(0, 4);
   const end = account.slice(-3);
   return `${start}xxxxx${end}`;
 };
 
-// ─── Colors ──────────────────────────────────────────────────────────
-const statusColors = {
-  Completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  Pending: 'bg-amber-50 text-amber-700 border-amber-200',
-  Failed: 'bg-red-50 text-red-700 border-red-200',
-};
-
-const statusIcons = {
-  Completed: CheckCircle,
-  Pending: Clock,
-  Failed: XCircle,
-};
-
+// ─── Colors & Icons ──────────────────────────────────────────────────
 const methodIcons = {
   'M-PESA': Smartphone,
   'Bank Transfer': Landmark,
@@ -86,23 +53,27 @@ export default function WithdrawFundPage() {
   // ─── State ────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'withdraw' | 'deposit'>('withdraw');
   const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [depositMethod, setDepositMethod] = useState('M-PESA');
   const [depositAmount, setDepositAmount] = useState('');
-  const [depositPhone, setDepositPhone] = useState('');
-  const [selectedBankAccount, setSelectedBankAccount] = useState(userProfile.bankAccounts[0]?.id || 1);
+  
+  // Real Data State
+  const [loading, setLoading] = useState(true);
+  const [balance, setBalance] = useState(0);
+  const [merchantData, setMerchantData] = useState<any>(null);
+  const [availableBalance, setAvailableBalance] = useState(0);
+  
+  // UI State
+  const [withdrawTo, setWithdrawTo] = useState<'mobile' | 'bank'>('mobile');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [transactionDetails, setTransactionDetails] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [withdrawTo, setWithdrawTo] = useState<'bank' | 'mobile'>('mobile');
-  const [merchantId, setMerchantId] = useState<string>('');
-  const [merchantName, setMerchantName] = useState<string>('');
+  const [error, setError] = useState('');
 
   // ✅ Prevent duplicate logging
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
-  // ─── Load Merchant Data ──────────────────────────────────────────
+  // ─── Load Merchant Data & Balance ──────────────────────────────────
   useEffect(() => {
     const token = getToken();
     if (!token) {
@@ -110,34 +81,45 @@ export default function WithdrawFundPage() {
       return;
     }
 
-    const cached = getStoredMerchant();
-    if (cached) {
-      const id = String(cached.merchant_id || cached.merchantId);
-      if (id) {
-        setMerchantId(id);
-        setMerchantName(cached.business_name || cached.businessName || '');
+    const fetchData = async () => {
+      try {
+        const cached = getStoredMerchant();
+        if (cached) {
+          setMerchantData(cached);
+        }
+
+        // Fetch Real Balance from Dashboard Stats
+        const statsRes = await fetch('/api/dashboard/stats');
+        const statsData = await statsRes.json();
+        
+        if (statsData.success && statsData.stats) {
+          // Calculate 70% of completed amount as available balance
+          const completedAmount = statsData.stats.completedAmount || 0;
+          setAvailableBalance(Math.round(completedAmount * 0.7));
+          setBalance(statsData.stats.totalAmount || 0);
+        }
+      } catch (err) {
+        console.error('Failed to load balance:', err);
+      } finally {
+        setLoading(false);
       }
-    }
+    };
+
+    fetchData();
   }, [router]);
 
   // ─── Log View - Only once per page visit ──────────────────────
   useEffect(() => {
     const logView = async () => {
-      if (isLoggingView.current || hasLoggedView.current) {
-        return;
-      }
+      if (isLoggingView.current || hasLoggedView.current || !merchantData) return;
       
       try {
         isLoggingView.current = true;
-        
-        if (merchantId) {
-          await log(
-            ActivityActions.VIEW_WITHDRAW_HISTORY,
-            `Viewed withdraw funds page for ${merchantName || 'business'}`
-          );
-          hasLoggedView.current = true;
-          console.log('✅ Withdraw funds view logged');
-        }
+        await log(
+          ActivityActions.VIEW_WITHDRAW_HISTORY,
+          `Viewed withdraw funds page for ${merchantData?.business_name || 'business'}`
+        );
+        hasLoggedView.current = true;
       } catch (error) {
         console.debug('Withdraw funds view logging skipped:', error);
       } finally {
@@ -145,16 +127,21 @@ export default function WithdrawFundPage() {
       }
     };
     
-    if (merchantId && !hasLoggedView.current) {
+    if (merchantData && !hasLoggedView.current) {
       logView();
     }
-  }, [merchantId, merchantName, log]);
+  }, [merchantData, log]);
 
   // ─── Handlers ──────────────────────────────────────────────────────
+
   const handleWithdraw = () => {
     const amount = parseFloat(withdrawAmount);
     if (!amount || amount <= 0) {
-      alert('Please enter a valid amount');
+      setError('Please enter a valid amount');
+      return;
+    }
+    if (amount > availableBalance) {
+      setError(`Insufficient balance. Available: KES ${availableBalance.toLocaleString()}`);
       return;
     }
 
@@ -162,14 +149,14 @@ export default function WithdrawFundPage() {
     let method = '';
 
     if (withdrawTo === 'mobile') {
-      recipient = `${userProfile.mobileMoney.provider} - ${userProfile.mobileMoney.number}`;
-      method = userProfile.mobileMoney.provider;
+      recipient = `M-PESA - ${maskPhoneNumber(merchantData?.phone || '')}`;
+      method = 'M-PESA';
     } else {
-      const bank = userProfile.bankAccounts.find(b => b.id === selectedBankAccount);
-      recipient = `${bank?.bankName} - ${bank?.accountNumber}`;
+      recipient = `Bank Transfer`;
       method = 'Bank Transfer';
     }
 
+    setError('');
     setTransactionDetails({
       type: 'Withdrawal',
       method: method,
@@ -177,8 +164,61 @@ export default function WithdrawFundPage() {
       recipient: recipient,
       reference: `WD-${Date.now().toString().slice(-6)}`,
       withdrawTo: withdrawTo,
+      phoneNumber: merchantData?.phone || '',
     });
     setShowConfirmModal(true);
+  };
+
+  const confirmTransaction = async () => {
+    setIsProcessing(true);
+    setError('');
+    
+    const token = getToken();
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    try {
+      // 🔥 REAL BACKEND CALL TO YOUR B2C ENGINE
+      const res = await fetch('/api/v1/payments/withdraw', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          phoneNumber: transactionDetails.phoneNumber,
+          amount: transactionDetails.amount,
+          remarks: 'Withdrawal from XecoFlow Dashboard',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        // Log the successful withdrawal
+        await log(
+          ActivityActions.CREATE_WITHDRAWAL,
+          `Withdrawal of KES ${transactionDetails.amount.toLocaleString()} via ${transactionDetails.method}`
+        );
+
+        setIsProcessing(false);
+        setShowConfirmModal(false);
+        setShowSuccessModal(true);
+        setWithdrawAmount('');
+        
+        // Update balance locally (optimistic)
+        setAvailableBalance(prev => prev - transactionDetails.amount);
+      } else {
+        throw new Error(data.error || 'Withdrawal failed');
+      }
+
+    } catch (err: any) {
+      setIsProcessing(false);
+      setShowConfirmModal(false);
+      setError(err.message || 'An error occurred while processing your withdrawal.');
+    }
   };
 
   const handleDeposit = () => {
@@ -187,51 +227,18 @@ export default function WithdrawFundPage() {
       alert('Please enter a valid amount');
       return;
     }
-
-    if ((depositMethod === 'M-PESA' || depositMethod === 'Airtel Money') && !depositPhone) {
-      alert('Please enter your phone number');
-      return;
-    }
-
-    setTransactionDetails({
-      type: 'Deposit',
-      method: depositMethod,
-      amount: amount,
-      recipient: depositMethod === 'M-PESA' || depositMethod === 'Airtel Money' ? depositPhone : 'Bank Transfer',
-      reference: `DEP-${Date.now().toString().slice(-6)}`,
-    });
-    setShowConfirmModal(true);
+    // Deposit logic would call a C2B or STK endpoint here in the future
+    alert('Deposit functionality coming soon!');
   };
 
-  const confirmTransaction = async () => {
-    setIsProcessing(true);
-    
-    // Log the transaction
-    if (transactionDetails) {
-      await log(
-        transactionDetails.type === 'Withdrawal' 
-          ? ActivityActions.CREATE_WITHDRAWAL 
-          : 'Deposit initiated',
-        `${transactionDetails.type} of KES ${transactionDetails.amount.toLocaleString()} via ${transactionDetails.method}`
-      );
-    }
-    
-    setTimeout(() => {
-      setIsProcessing(false);
-      setShowConfirmModal(false);
-      setShowSuccessModal(true);
-      if (activeTab === 'withdraw') {
-        setWithdrawAmount('');
-      } else {
-        setDepositAmount('');
-        setDepositPhone('');
-      }
-    }, 2000);
-  };
-
-  const getSelectedBank = () => {
-    return userProfile.bankAccounts.find(b => b.id === selectedBankAccount);
-  };
+  // ─── Render Loading ────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-rose-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-5">
@@ -252,7 +259,7 @@ export default function WithdrawFundPage() {
               </h1>
               <p className="text-sm text-gray-500">
                 {activeTab === 'withdraw' 
-                  ? 'Transfer funds from your wallet to your registered accounts' 
+                  ? 'Transfer funds from your wallet to your registered mobile number' 
                   : 'Add funds to your wallet via various payment methods'}
               </p>
             </div>
@@ -284,13 +291,29 @@ export default function WithdrawFundPage() {
         </div>
       </div>
 
+      {/* ─── Error Display ───────────────────────────────────────────── */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-xl flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          {error}
+        </div>
+      )}
+
       {/* ─── Main Action Card ───────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* ─── Withdraw/Deposit Form ────────────────────────────────── */}
+        {/* ─── Withdraw Form ─────────────────────────────────────────── */}
         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">
-            {activeTab === 'withdraw' ? 'Withdraw Funds' : 'Deposit Funds'}
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">
+              {activeTab === 'withdraw' ? 'Withdraw Funds' : 'Deposit Funds'}
+            </h2>
+            {activeTab === 'withdraw' && (
+              <div className="text-right">
+                <p className="text-xs text-gray-400">Available Balance</p>
+                <p className="text-lg font-bold text-emerald-600">KES {availableBalance.toLocaleString()}</p>
+              </div>
+            )}
+          </div>
 
           {activeTab === 'withdraw' && (
             <div className="space-y-4">
@@ -311,7 +334,9 @@ export default function WithdrawFundPage() {
                     <Smartphone className="w-4 h-4" />
                     <div className="text-left">
                       <div className="font-medium">Mobile Money</div>
-                      <div className="text-xs text-gray-400">{maskPhoneNumber(userProfile.mobileMoney.number)}</div>
+                      <div className="text-xs text-gray-400">
+                        {maskPhoneNumber(merchantData?.phone || 'Not set')}
+                      </div>
                     </div>
                   </button>
                   <button
@@ -325,46 +350,13 @@ export default function WithdrawFundPage() {
                     <Landmark className="w-4 h-4" />
                     <div className="text-left">
                       <div className="font-medium">Bank Account</div>
-                      <div className="text-xs text-gray-400">{getSelectedBank()?.bankName}</div>
+                      <div className="text-xs text-gray-400">(Coming Soon)</div>
                     </div>
                   </button>
                 </div>
               </div>
 
-              {/* Bank Account Selection (if bank selected) */}
-              {withdrawTo === 'bank' && (
-                <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1.5">
-                    Select Bank Account
-                  </label>
-                  <div className="space-y-2">
-                    {userProfile.bankAccounts.map((bank) => (
-                      <button
-                        key={bank.id}
-                        onClick={() => setSelectedBankAccount(bank.id)}
-                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm transition-all ${
-                          selectedBankAccount === bank.id
-                            ? 'border-rose-500 bg-rose-50 ring-2 ring-rose-500/20'
-                            : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Landmark className="w-4 h-4 text-gray-400" />
-                          <div className="text-left">
-                            <p className="font-medium text-gray-900">{bank.bankName}</p>
-                            <p className="text-xs text-gray-500">Account: {maskAccountNumber(bank.accountNumber)}</p>
-                          </div>
-                        </div>
-                        {selectedBankAccount === bank.id && (
-                          <Check className="w-4 h-4 text-rose-500" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Mobile Money Display (if mobile selected) */}
+              {/* Mobile Money Display */}
               {withdrawTo === 'mobile' && (
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                   <div className="flex items-center gap-3">
@@ -372,11 +364,11 @@ export default function WithdrawFundPage() {
                       <Smartphone className="w-5 h-5 text-green-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{userProfile.mobileMoney.provider}</p>
-                      <p className="text-sm text-gray-600">{maskPhoneNumber(userProfile.mobileMoney.number)}</p>
+                      <p className="text-sm font-medium text-gray-900">M-PESA</p>
+                      <p className="text-sm text-gray-600">{maskPhoneNumber(merchantData?.phone || '')}</p>
                       <p className="text-xs text-emerald-600 flex items-center gap-1">
                         <Shield className="w-3.5 h-3.5" />
-                        Registered number
+                        Registered business number
                       </p>
                     </div>
                   </div>
@@ -398,6 +390,9 @@ export default function WithdrawFundPage() {
                     className="w-full pl-14 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-base font-semibold focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all outline-none"
                   />
                 </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Min: KES 10 | Max: KES 250,000 | Balance: KES {availableBalance.toLocaleString()}
+                </p>
               </div>
 
               {/* Submit Button */}
@@ -408,10 +403,6 @@ export default function WithdrawFundPage() {
                 <Send className="w-4 h-4" />
                 Withdraw Funds
               </button>
-
-              <p className="text-xs text-gray-400 text-center">
-                Minimum withdrawal: KES 100. Maximum: KES 500,000 per transaction
-              </p>
             </div>
           )}
 
@@ -433,83 +424,30 @@ export default function WithdrawFundPage() {
                   />
                 </div>
               </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1.5">
-                  Payment Method
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['M-PESA', 'Bank Transfer', 'Airtel Money', 'Credit Card'].map((method) => {
-                    const Icon = methodIcons[method as keyof typeof methodIcons] || CreditCard;
-                    const isSelected = depositMethod === method;
-                    return (
-                      <button
-                        key={method}
-                        onClick={() => setDepositMethod(method)}
-                        className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
-                          isSelected
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-500/20'
-                            : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
-                        }`}
-                      >
-                        <Icon className="w-4 h-4" />
-                        {method}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Phone Number Input for Mobile Money */}
-              {(depositMethod === 'M-PESA' || depositMethod === 'Airtel Money') && (
-                <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1.5">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    placeholder="Enter phone number (e.g., 2547xxxxxxxx)"
-                    value={depositPhone}
-                    onChange={(e) => setDepositPhone(e.target.value)}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Enter the phone number you'll be sending money from
-                  </p>
-                </div>
-              )}
-
-              {/* Bank Transfer Info */}
-              {depositMethod === 'Bank Transfer' && (
-                <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                  <div className="flex items-start gap-3">
-                    <Landmark className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-blue-800">Bank Transfer Details</p>
-                      <p className="text-xs text-blue-700 mt-1">
-                        Please transfer to the following account and the funds will be credited automatically:
-                      </p>
-                      <div className="mt-2 space-y-1 text-sm text-blue-700">
-                        <p><span className="font-medium">Bank:</span> KCB Bank Kenya</p>
-                        <p><span className="font-medium">Account:</span> 1234567890</p>
-                        <p><span className="font-medium">Name:</span> XecoFlow Limited</p>
-                      </div>
+              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                <div className="flex items-start gap-3">
+                  <Landmark className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-800">Deposit via Bank Transfer</p>
+                    <p className="text-xs text-blue-700 mt-1">
+                      Transfer to the account below and the funds will be credited automatically:
+                    </p>
+                    <div className="mt-2 space-y-1 text-sm text-blue-700">
+                      <p><span className="font-medium">Bank:</span> KCB Bank Kenya</p>
+                      <p><span className="font-medium">Account:</span> 1234567890</p>
+                      <p><span className="font-medium">Name:</span> XecoFlow Limited</p>
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
 
               <button
                 onClick={handleDeposit}
                 className="w-full py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:shadow-lg hover:shadow-emerald-200 text-white rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2"
               >
                 <Send className="w-4 h-4" />
-                Deposit Funds
+                I've Made the Transfer
               </button>
-
-              <p className="text-xs text-gray-400 text-center">
-                Minimum deposit: KES 100. Maximum: KES 1,000,000 per transaction
-              </p>
             </div>
           )}
         </div>
@@ -528,38 +466,15 @@ export default function WithdrawFundPage() {
               >
                 <ArrowUpRight className="w-6 h-6 text-green-600" />
                 <span className="text-sm font-medium text-gray-700">Withdraw to Mobile</span>
-                <span className="text-xs text-gray-400">{maskPhoneNumber(userProfile.mobileMoney.number)}</span>
-              </button>
-              <button
-                onClick={() => {
-                  setActiveTab('withdraw');
-                  setWithdrawTo('bank');
-                }}
-                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl border border-blue-200 hover:shadow-md transition-all"
-              >
-                <ArrowUpRight className="w-6 h-6 text-blue-600" />
-                <span className="text-sm font-medium text-gray-700">Withdraw to Bank</span>
-                <span className="text-xs text-gray-400">{getSelectedBank()?.bankName}</span>
+                <span className="text-xs text-gray-400">{maskPhoneNumber(merchantData?.phone || '')}</span>
               </button>
               <button
                 onClick={() => {
                   setActiveTab('deposit');
-                  setDepositMethod('M-PESA');
                 }}
                 className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl border border-emerald-200 hover:shadow-md transition-all"
               >
                 <ArrowDownLeft className="w-6 h-6 text-emerald-600" />
-                <span className="text-sm font-medium text-gray-700">Deposit from Mobile</span>
-                <span className="text-xs text-gray-400">M-PESA</span>
-              </button>
-              <button
-                onClick={() => {
-                  setActiveTab('deposit');
-                  setDepositMethod('Bank Transfer');
-                }}
-                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl border border-purple-200 hover:shadow-md transition-all"
-              >
-                <ArrowDownLeft className="w-6 h-6 text-purple-600" />
                 <span className="text-sm font-medium text-gray-700">Deposit from Bank</span>
                 <span className="text-xs text-gray-400">Bank Transfer</span>
               </button>
@@ -572,10 +487,9 @@ export default function WithdrawFundPage() {
               <div>
                 <h4 className="text-sm font-semibold text-amber-800">Important Information</h4>
                 <ul className="text-xs text-amber-700 mt-1 space-y-1">
-                  <li>• Withdrawals are processed within 24-48 hours</li>
-                  <li>• Bank transfers may take 1-3 business days</li>
-                  <li>• M-PESA withdrawals are instant (subject to network)</li>
-                  <li>• Funds are sent to your registered accounts only</li>
+                  <li>• Withdrawals to M-PESA are processed within 5-30 seconds.</li>
+                  <li>• You must have sufficient balance in your utility account.</li>
+                  <li>• Minimum withdrawal is KES 10. Maximum is KES 250,000.</li>
                 </ul>
               </div>
             </div>
@@ -658,9 +572,9 @@ export default function WithdrawFundPage() {
                   <CheckCircle className="w-8 h-8 text-emerald-500" />
                 </div>
               </div>
-              <h3 className="text-xl font-bold text-gray-900">Transaction Successful!</h3>
+              <h3 className="text-xl font-bold text-gray-900">Transaction Initiated!</h3>
               <p className="text-sm text-gray-500 mt-1">
-                Your {transactionDetails.type.toLowerCase()} has been processed successfully
+                Your {transactionDetails.type.toLowerCase()} is being processed.
               </p>
 
               <div className="mt-6 bg-gray-50 rounded-xl p-4 text-left space-y-2">
@@ -679,10 +593,13 @@ export default function WithdrawFundPage() {
               </div>
 
               <button
-                onClick={() => setShowSuccessModal(false)}
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  router.push('/dashboard');
+                }}
                 className="w-full mt-6 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-all"
               >
-                Done
+                Go to Dashboard
               </button>
             </div>
           </div>
