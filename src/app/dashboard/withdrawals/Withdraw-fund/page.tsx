@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { getToken, getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
+import crypto from 'crypto'; // ✅ Import crypto for idempotency key
 
 // ─── Helper Functions ──────────────────────────────────────────────
 const maskAccountNumber = (account: string) => {
@@ -28,6 +29,21 @@ const maskAccountNumber = (account: string) => {
   const start = account.slice(0, 4);
   const end = account.slice(-3);
   return `${start}xxxxx${end}`;
+};
+
+const normalizeKenyanPhone = (phone: string): string => {
+  const cleaned = phone.replace(/\D/g, ''); // Remove non-digits
+
+  if (cleaned.startsWith('0') && cleaned.length === 10) {
+    return `254${cleaned.slice(1)}`;
+  }
+  if (cleaned.startsWith('7') && cleaned.length === 9) {
+    return `254${cleaned}`;
+  }
+  if (cleaned.startsWith('254') && cleaned.length === 12) {
+    return cleaned;
+  }
+  throw new Error('Invalid Kenyan phone number');
 };
 
 // ─── Colors & Icons ──────────────────────────────────────────────────
@@ -45,7 +61,7 @@ export default function WithdrawFundPage() {
   // ─── State ────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'withdraw' | 'deposit'>('withdraw');
   const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [withdrawPhone, setWithdrawPhone] = useState(''); // ✅ NEW: Manual input for phone
+  const [withdrawPhone, setWithdrawPhone] = useState(''); 
   const [depositAmount, setDepositAmount] = useState('');
   
   // Real Data State
@@ -76,24 +92,20 @@ export default function WithdrawFundPage() {
 
     const fetchData = async () => {
       try {
-        // 1. Get cached merchant data
         const cached = getStoredMerchant();
         if (cached) {
           setMerchantData(cached);
         }
 
-        // 2. Get merchant_id to construct the account number
         const merchantId = cached?.merchant_id || cached?.merchantId;
         if (!merchantId) {
           setLoading(false);
           return;
         }
 
-        // 3. Construct the Asset Wallet Account Number
         const paddedId = String(merchantId).padStart(8, '0');
         const accountNumber = `1-1001-${paddedId}`;
 
-        // 4. Fetch BOTH endpoints in parallel (MUCH faster)
         const [identityRes, balanceRes] = await Promise.all([
           fetch('/v1/business-account/identity', {
             headers: { Authorization: `Bearer ${token}` }
@@ -103,7 +115,6 @@ export default function WithdrawFundPage() {
           })
         ]);
 
-        // 5. Process Identity Data (Settlement info)
         const identityData = await identityRes.json();
         if (identityData) {
           setSettlementData({
@@ -113,13 +124,11 @@ export default function WithdrawFundPage() {
             bank_account_number: identityData.bank_account_number || '',
             bank_account_holder: identityData.bank_account_holder || '',
           });
-          // ✅ Pre-fill the manual input with the saved KYC number if available
           if (identityData.settlement_phone) {
             setWithdrawPhone(identityData.settlement_phone);
           }
         }
 
-        // 6. Process Balance Data (FROM LEDGER ENGINE)
         const balanceData = await balanceRes.json();
         if (balanceData.success) {
           setAvailableBalance(balanceData.balance);
@@ -195,7 +204,8 @@ export default function WithdrawFundPage() {
       recipient: recipient,
       reference: `WD-${Date.now().toString().slice(-6)}`,
       withdrawTo: withdrawTo,
-      phoneNumber: withdrawPhone, // ✅ Uses user input
+      phoneNumber: withdrawPhone, 
+      idempotencyKey: crypto.randomUUID(), // ✅ Generate true UUID for idempotency
     });
     setShowConfirmModal(true);
   };
@@ -211,24 +221,25 @@ export default function WithdrawFundPage() {
     }
 
     try {
-      // 🔥 REAL BACKEND CALL TO YOUR B2C ENGINE
-      const res = await fetch('/api/v1/payments/withdraw', {
+      // ✅ FIXED URL: Removed /api to prevent double /v1 rewrite
+      // ✅ FIXED BODY: Added idempotencyKey from state
+      const res = await fetch('/v1/payments/withdraw', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          phoneNumber: transactionDetails.phoneNumber,
+          phoneNumber: normalizeKenyanPhone(transactionDetails.phoneNumber),
           amount: transactionDetails.amount,
           remarks: 'Withdrawal from XecoFlow Dashboard',
+          idempotencyKey: transactionDetails.idempotencyKey, 
         }),
       });
 
       const data = await res.json();
 
       if (data.success) {
-        // Log the successful withdrawal
         await log(
           ActivityActions.CREATE_WITHDRAWAL,
           `Withdrawal of KES ${transactionDetails.amount.toLocaleString()} via ${transactionDetails.method}`
@@ -240,7 +251,7 @@ export default function WithdrawFundPage() {
         setWithdrawAmount('');
         setWithdrawPhone('');
         
-        // Update balance locally (optimistic)
+        // Optimistic balance update (will be corrected on next page load)
         setAvailableBalance(prev => prev - transactionDetails.amount);
       } else {
         throw new Error(data.error || 'Withdrawal failed');
@@ -259,11 +270,9 @@ export default function WithdrawFundPage() {
       alert('Please enter a valid amount');
       return;
     }
-    // Deposit logic would call a C2B or STK endpoint here in the future
     alert('Deposit functionality coming soon!');
   };
 
-  // ─── Render Loading ────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
