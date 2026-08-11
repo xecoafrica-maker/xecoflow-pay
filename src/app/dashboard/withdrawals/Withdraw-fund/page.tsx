@@ -72,7 +72,7 @@ export default function WithdrawFundPage() {
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
-  // ─── Load Merchant Data, Settlement Data & Balance ──────────────────
+  // ─── Load REAL Data (Balance from Ledger + Settlement from KYC) ────
   useEffect(() => {
     const token = getToken();
     if (!token) {
@@ -82,21 +82,34 @@ export default function WithdrawFundPage() {
 
     const fetchData = async () => {
       try {
-        // 1. Get cached merchant data (instant)
+        // 1. Get cached merchant data
         const cached = getStoredMerchant();
         if (cached) {
           setMerchantData(cached);
         }
 
-        // 2. Fetch ALL data in parallel for speed
-        const [identityRes, statsRes] = await Promise.all([
+        // 2. Get merchant_id to construct the account number
+        const merchantId = cached?.merchant_id || cached?.merchantId;
+        if (!merchantId) {
+          setLoading(false);
+          return;
+        }
+
+        // 3. Construct the Asset Wallet Account Number
+        const paddedId = String(merchantId).padStart(8, '0');
+        const accountNumber = `1-1001-${paddedId}`;
+
+        // 4. Fetch BOTH endpoints in parallel (MUCH faster)
+        const [identityRes, balanceRes] = await Promise.all([
           fetch('/v1/business-account/identity', {
             headers: { Authorization: `Bearer ${token}` }
           }),
-          fetch('/api/dashboard/stats')
+          fetch(`/v1/ledger/accounts/${accountNumber}/balance`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
         ]);
 
-        // 3. Process Identity Data (Settlement info)
+        // 5. Process Identity Data (Settlement info)
         const identityData = await identityRes.json();
         if (identityData) {
           setSettlementData({
@@ -108,12 +121,12 @@ export default function WithdrawFundPage() {
           });
         }
 
-        // 4. Process Stats Data (Balance)
-        const statsData = await statsRes.json();
-        if (statsData.success && statsData.stats) {
-          const completedAmount = statsData.stats.completedAmount || 0;
-          setAvailableBalance(Math.round(completedAmount * 0.7));
+        // 6. Process Balance Data (FROM LEDGER ENGINE)
+        const balanceData = await balanceRes.json();
+        if (balanceData.success) {
+          setAvailableBalance(balanceData.balance);
         }
+
       } catch (err) {
         console.error('Failed to load data:', err);
       } finally {
@@ -355,7 +368,7 @@ export default function WithdrawFundPage() {
                     <div className="text-left">
                       <div className="font-medium">M-PESA</div>
                       <div className="text-xs text-gray-400">
-                        {settlementData?.settlement_phone ? maskPhoneNumber(settlementData.settlement_phone) : 'Loading...'}
+                        {settlementData?.settlement_phone ? maskPhoneNumber(settlementData.settlement_phone) : 'Not set'}
                       </div>
                     </div>
                   </button>
@@ -371,7 +384,7 @@ export default function WithdrawFundPage() {
                     <div className="text-left">
                       <div className="font-medium">Bank Transfer</div>
                       <div className="text-xs text-gray-400">
-                        {settlementData?.bank_account_number ? maskAccountNumber(settlementData.bank_account_number) : 'Loading...'}
+                        {settlementData?.bank_account_number ? maskAccountNumber(settlementData.bank_account_number) : 'Not set'}
                       </div>
                     </div>
                   </button>
@@ -491,7 +504,7 @@ export default function WithdrawFundPage() {
                 <ArrowUpRight className="w-6 h-6 text-green-600" />
                 <span className="text-sm font-medium text-gray-700">Withdraw to Mobile</span>
                 <span className="text-xs text-gray-400">
-                  {settlementData?.settlement_phone ? maskPhoneNumber(settlementData.settlement_phone) : 'Loading...'}
+                  {settlementData?.settlement_phone ? maskPhoneNumber(settlementData.settlement_phone) : 'Not set'}
                 </span>
               </button>
               <button
