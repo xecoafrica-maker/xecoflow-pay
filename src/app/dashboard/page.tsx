@@ -30,6 +30,7 @@ import {
   ArrowUpRight,
   AlertCircle,
   Users,
+  Loader2,
 } from 'lucide-react';
 import {
   BarChart,
@@ -117,6 +118,10 @@ export default function DashboardOverview() {
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   
+  // ✅ NEW: Real balance from Ledger Engine
+  const [ledgerBalance, setLedgerBalance] = useState<number>(0);
+  const [balanceLoading, setBalanceLoading] = useState<boolean>(true);
+  
   // ─── Filter State ──────────────────────────────────────────────────
   const [statusFilter, setStatusFilter] = useState('All');
   const [chartType, setChartType] = useState('Bar');
@@ -132,14 +137,12 @@ export default function DashboardOverview() {
     if (!token) return;
 
     try {
-      // ✅ FIXED: Changed endpoint to /v1/onboarding/status to match start.js mount
       const res = await fetch(`/v1/onboarding/status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
       
       if (data) {
-        // Map the backend 5-stage response to the UI
         const stepMappings = [
           { 
             id: 1, 
@@ -173,7 +176,6 @@ export default function DashboardOverview() {
           },
         ];
 
-        // Determine active step from backend currentStep
         const activeStepId = data.currentStep;
         
         const mappedSteps = stepMappings.map((step) => ({
@@ -203,24 +205,39 @@ export default function DashboardOverview() {
       }
       params.append('limit', '100');
 
+      // 1. Fetch Transactions
       const transRes = await fetch(`/api/transactions?${params.toString()}`);
       const transData = await transRes.json();
-      console.log("📊 Transactions response:", transData);
       
       if (transData.success) {
         setTransactions(transData.data || []);
         setFilteredTransactions(transData.data || []);
       }
 
+      // 2. Fetch Stats (for history, not balance)
       const statsRes = await fetch(`/api/dashboard/stats?${params.toString()}`);
       const statsData = await statsRes.json();
-      console.log("📊 Stats response:", statsData);
       
       if (statsData.success) {
         setStats(statsData.stats);
       }
+
+      // 3. ✅ Fetch REAL Balance from Ledger Engine
+      if (merchantIdParam) {
+        const paddedId = String(merchantIdParam).padStart(8, '0');
+        const accountNumber = `1-1001-${paddedId}`;
+        const balanceRes = await fetch(`/v1/ledger/accounts/${accountNumber}/balance`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        const balanceData = await balanceRes.json();
+        if (balanceData.success) {
+          setLedgerBalance(balanceData.balance);
+        }
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+    } finally {
+      setBalanceLoading(false);
     }
   };
 
@@ -271,7 +288,6 @@ export default function DashboardOverview() {
 
     getMerchantProfile(token)
       .then((profile) => {
-        console.log("👤 Profile from API:", profile);
         if (profile) {
           const id = profile.merchant_id;
           if (id) {
@@ -326,14 +342,12 @@ export default function DashboardOverview() {
   // ─── Log Dashboard View - Only once per page visit ──────────────
   useEffect(() => {
     const logView = async () => {
-      // ✅ Prevent duplicate logs during the same page load
       if (isLoggingView.current || hasLoggedView.current || !merchantId) {
         return;
       }
       
       try {
         isLoggingView.current = true;
-        
         await log(
           ActivityActions.VIEW_DASHBOARD,
           `Viewed dashboard for ${merchantName}`
@@ -354,7 +368,6 @@ export default function DashboardOverview() {
 
   // ─── Sign Out Handler ─────────────────────────────────────────────
   const handleSignOut = async () => {
-    // Log sign out
     await log(
       ActivityActions.LOGOUT,
       `User logged out from ${merchantName}`
@@ -367,6 +380,7 @@ export default function DashboardOverview() {
   const currentMonth = getCurrentMonth();
 
   const generateStats = () => {
+    // If no data, return zeros
     if (!stats && transactions.length === 0) {
       return [
         { 
@@ -424,11 +438,8 @@ export default function DashboardOverview() {
       t.status === 'AWAITING_CUSTOMER_PIN' || t.payment_status === 'PENDING'
     ).length;
 
-    const completedAmount = stats?.completedAmount || transactions
-      .filter(t => t.status === 'COMPLETED' || t.payment_status === 'COMPLETED')
-      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-    
-    const availableBalance = completedAmount > 0 ? completedAmount * 0.7 : 0;
+    // ✅ Use REAL ledgerBalance from journal_entries
+    const availableBalance = ledgerBalance;
 
     // Utilities earnings from real data (no mock)
     const utilitiesEarnings = 0; // This will come from API
@@ -521,7 +532,6 @@ export default function DashboardOverview() {
   const totalSteps = onboardingSteps.length;
   const isFullyOnboarded = totalSteps > 0 && completedSteps === totalSteps;
   
-  // Determine the contextual button text
   const getActionButtonText = () => {
     if (isFullyOnboarded) return 'Submitted ✓';
     if (completedSteps === 0) return 'Start setup →';
