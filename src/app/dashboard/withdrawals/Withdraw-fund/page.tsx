@@ -56,12 +56,8 @@ export default function WithdrawFundPage() {
   
   // Real Data State
   const [loading, setLoading] = useState(true);
-  const [balance, setBalance] = useState(0);
   const [merchantData, setMerchantData] = useState<any>(null);
-  
-  // ✅ NEW: Settlement Data State
   const [settlementData, setSettlementData] = useState<any>(null);
-  
   const [availableBalance, setAvailableBalance] = useState(0);
   
   // UI State
@@ -86,18 +82,22 @@ export default function WithdrawFundPage() {
 
     const fetchData = async () => {
       try {
-        // 1. Get cached merchant data
+        // 1. Get cached merchant data (instant)
         const cached = getStoredMerchant();
         if (cached) {
           setMerchantData(cached);
         }
 
-        // 2. Fetch REAL Settlement Data from /v1/business-account/identity
-        const identityRes = await fetch('/v1/business-account/identity', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        // 2. Fetch ALL data in parallel for speed
+        const [identityRes, statsRes] = await Promise.all([
+          fetch('/v1/business-account/identity', {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+          fetch('/api/dashboard/stats')
+        ]);
+
+        // 3. Process Identity Data (Settlement info)
         const identityData = await identityRes.json();
-        
         if (identityData) {
           setSettlementData({
             settlement_method: identityData.settlement_method || 'mpesa',
@@ -108,14 +108,11 @@ export default function WithdrawFundPage() {
           });
         }
 
-        // 3. Fetch Real Balance from Dashboard Stats
-        const statsRes = await fetch('/api/dashboard/stats');
+        // 4. Process Stats Data (Balance)
         const statsData = await statsRes.json();
-        
         if (statsData.success && statsData.stats) {
           const completedAmount = statsData.stats.completedAmount || 0;
           setAvailableBalance(Math.round(completedAmount * 0.7));
-          setBalance(statsData.stats.totalAmount || 0);
         }
       } catch (err) {
         console.error('Failed to load data:', err);
@@ -358,7 +355,7 @@ export default function WithdrawFundPage() {
                     <div className="text-left">
                       <div className="font-medium">M-PESA</div>
                       <div className="text-xs text-gray-400">
-                        {maskPhoneNumber(settlementData?.settlement_phone || 'Not set')}
+                        {settlementData?.settlement_phone ? maskPhoneNumber(settlementData.settlement_phone) : 'Loading...'}
                       </div>
                     </div>
                   </button>
@@ -374,7 +371,7 @@ export default function WithdrawFundPage() {
                     <div className="text-left">
                       <div className="font-medium">Bank Transfer</div>
                       <div className="text-xs text-gray-400">
-                        {maskAccountNumber(settlementData?.bank_account_number || 'Not set')}
+                        {settlementData?.bank_account_number ? maskAccountNumber(settlementData.bank_account_number) : 'Loading...'}
                       </div>
                     </div>
                   </button>
@@ -390,7 +387,9 @@ export default function WithdrawFundPage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-900">Registered Payout Number</p>
-                      <p className="text-sm text-gray-600">{maskPhoneNumber(settlementData?.settlement_phone || '')}</p>
+                      <p className="text-sm text-gray-600">
+                        {settlementData?.settlement_phone ? maskPhoneNumber(settlementData.settlement_phone) : 'Not set'}
+                      </p>
                       <p className="text-xs text-emerald-600 flex items-center gap-1">
                         <Shield className="w-3.5 h-3.5" />
                         From KYC Data
@@ -491,7 +490,9 @@ export default function WithdrawFundPage() {
               >
                 <ArrowUpRight className="w-6 h-6 text-green-600" />
                 <span className="text-sm font-medium text-gray-700">Withdraw to Mobile</span>
-                <span className="text-xs text-gray-400">{maskPhoneNumber(settlementData?.settlement_phone || '')}</span>
+                <span className="text-xs text-gray-400">
+                  {settlementData?.settlement_phone ? maskPhoneNumber(settlementData.settlement_phone) : 'Loading...'}
+                </span>
               </button>
               <button
                 onClick={() => {
