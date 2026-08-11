@@ -21,7 +21,6 @@ import {
 } from 'lucide-react';
 import { getToken, getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
-import crypto from 'crypto'; // ✅ Import crypto for idempotency key
 
 // ─── Helper Functions ──────────────────────────────────────────────
 const maskAccountNumber = (account: string) => {
@@ -197,6 +196,10 @@ export default function WithdrawFundPage() {
     }
 
     setError('');
+    
+    // ✅ FIXED: Use browser-native globalThis.crypto.randomUUID()
+    const idempotencyKey = globalThis.crypto.randomUUID();
+
     setTransactionDetails({
       type: 'Withdrawal',
       method: method,
@@ -205,7 +208,7 @@ export default function WithdrawFundPage() {
       reference: `WD-${Date.now().toString().slice(-6)}`,
       withdrawTo: withdrawTo,
       phoneNumber: withdrawPhone, 
-      idempotencyKey: crypto.randomUUID(), // ✅ Generate true UUID for idempotency
+      idempotencyKey: idempotencyKey, 
     });
     setShowConfirmModal(true);
   };
@@ -222,7 +225,6 @@ export default function WithdrawFundPage() {
 
     try {
       // ✅ FIXED URL: Removed /api to prevent double /v1 rewrite
-      // ✅ FIXED BODY: Added idempotencyKey from state
       const res = await fetch('/v1/payments/withdraw', {
         method: 'POST',
         headers: {
@@ -251,7 +253,6 @@ export default function WithdrawFundPage() {
         setWithdrawAmount('');
         setWithdrawPhone('');
         
-        // Optimistic balance update (will be corrected on next page load)
         setAvailableBalance(prev => prev - transactionDetails.amount);
       } else {
         throw new Error(data.error || 'Withdrawal failed');
