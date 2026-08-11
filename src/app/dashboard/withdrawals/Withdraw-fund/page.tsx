@@ -1,4 +1,3 @@
-// src/app/dashboard/withdrawals/Withdraw-fund/page.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -59,6 +58,10 @@ export default function WithdrawFundPage() {
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState(0);
   const [merchantData, setMerchantData] = useState<any>(null);
+  
+  // ✅ NEW: Settlement Data State
+  const [settlementData, setSettlementData] = useState<any>(null);
+  
   const [availableBalance, setAvailableBalance] = useState(0);
   
   // UI State
@@ -73,7 +76,7 @@ export default function WithdrawFundPage() {
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
-  // ─── Load Merchant Data & Balance ──────────────────────────────────
+  // ─── Load Merchant Data, Settlement Data & Balance ──────────────────
   useEffect(() => {
     const token = getToken();
     if (!token) {
@@ -83,23 +86,39 @@ export default function WithdrawFundPage() {
 
     const fetchData = async () => {
       try {
+        // 1. Get cached merchant data
         const cached = getStoredMerchant();
         if (cached) {
           setMerchantData(cached);
         }
 
-        // Fetch Real Balance from Dashboard Stats
+        // 2. Fetch REAL Settlement Data from /v1/business-account/identity
+        const identityRes = await fetch('/v1/business-account/identity', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const identityData = await identityRes.json();
+        
+        if (identityData) {
+          setSettlementData({
+            settlement_method: identityData.settlement_method || 'mpesa',
+            settlement_phone: identityData.settlement_phone || '',
+            bank_name: identityData.bank_name || '',
+            bank_account_number: identityData.bank_account_number || '',
+            bank_account_holder: identityData.bank_account_holder || '',
+          });
+        }
+
+        // 3. Fetch Real Balance from Dashboard Stats
         const statsRes = await fetch('/api/dashboard/stats');
         const statsData = await statsRes.json();
         
         if (statsData.success && statsData.stats) {
-          // Calculate 70% of completed amount as available balance
           const completedAmount = statsData.stats.completedAmount || 0;
           setAvailableBalance(Math.round(completedAmount * 0.7));
           setBalance(statsData.stats.totalAmount || 0);
         }
       } catch (err) {
-        console.error('Failed to load balance:', err);
+        console.error('Failed to load data:', err);
       } finally {
         setLoading(false);
       }
@@ -147,12 +166,16 @@ export default function WithdrawFundPage() {
 
     let recipient = '';
     let method = '';
+    let phoneToSend = '';
 
     if (withdrawTo === 'mobile') {
-      recipient = `M-PESA - ${maskPhoneNumber(merchantData?.phone || '')}`;
+      // ✅ Use the REAL settlement phone number from the database
+      const settlementPhone = settlementData?.settlement_phone || merchantData?.phone || '';
+      phoneToSend = settlementPhone;
+      recipient = `M-PESA - ${maskPhoneNumber(settlementPhone)}`;
       method = 'M-PESA';
     } else {
-      recipient = `Bank Transfer`;
+      recipient = `Bank Transfer - ${maskAccountNumber(settlementData?.bank_account_number || '')}`;
       method = 'Bank Transfer';
     }
 
@@ -164,7 +187,7 @@ export default function WithdrawFundPage() {
       recipient: recipient,
       reference: `WD-${Date.now().toString().slice(-6)}`,
       withdrawTo: withdrawTo,
-      phoneNumber: merchantData?.phone || '',
+      phoneNumber: phoneToSend, // ✅ Pass the correct number to the API
     });
     setShowConfirmModal(true);
   };
@@ -259,7 +282,7 @@ export default function WithdrawFundPage() {
               </h1>
               <p className="text-sm text-gray-500">
                 {activeTab === 'withdraw' 
-                  ? 'Transfer funds from your wallet to your registered mobile number' 
+                  ? 'Transfer funds from your wallet to your registered payout number' 
                   : 'Add funds to your wallet via various payment methods'}
               </p>
             </div>
@@ -333,9 +356,9 @@ export default function WithdrawFundPage() {
                   >
                     <Smartphone className="w-4 h-4" />
                     <div className="text-left">
-                      <div className="font-medium">Mobile Money</div>
+                      <div className="font-medium">M-PESA</div>
                       <div className="text-xs text-gray-400">
-                        {maskPhoneNumber(merchantData?.phone || 'Not set')}
+                        {maskPhoneNumber(settlementData?.settlement_phone || 'Not set')}
                       </div>
                     </div>
                   </button>
@@ -349,8 +372,10 @@ export default function WithdrawFundPage() {
                   >
                     <Landmark className="w-4 h-4" />
                     <div className="text-left">
-                      <div className="font-medium">Bank Account</div>
-                      <div className="text-xs text-gray-400">(Coming Soon)</div>
+                      <div className="font-medium">Bank Transfer</div>
+                      <div className="text-xs text-gray-400">
+                        {maskAccountNumber(settlementData?.bank_account_number || 'Not set')}
+                      </div>
                     </div>
                   </button>
                 </div>
@@ -364,11 +389,11 @@ export default function WithdrawFundPage() {
                       <Smartphone className="w-5 h-5 text-green-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">M-PESA</p>
-                      <p className="text-sm text-gray-600">{maskPhoneNumber(merchantData?.phone || '')}</p>
+                      <p className="text-sm font-medium text-gray-900">Registered Payout Number</p>
+                      <p className="text-sm text-gray-600">{maskPhoneNumber(settlementData?.settlement_phone || '')}</p>
                       <p className="text-xs text-emerald-600 flex items-center gap-1">
                         <Shield className="w-3.5 h-3.5" />
-                        Registered business number
+                        From KYC Data
                       </p>
                     </div>
                   </div>
@@ -391,7 +416,7 @@ export default function WithdrawFundPage() {
                   />
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
-                  Min: KES 10 | Max: KES 250,000 | Balance: KES {availableBalance.toLocaleString()}
+                  Min: KES 10 | Max: KES 250,000
                 </p>
               </div>
 
@@ -466,7 +491,7 @@ export default function WithdrawFundPage() {
               >
                 <ArrowUpRight className="w-6 h-6 text-green-600" />
                 <span className="text-sm font-medium text-gray-700">Withdraw to Mobile</span>
-                <span className="text-xs text-gray-400">{maskPhoneNumber(merchantData?.phone || '')}</span>
+                <span className="text-xs text-gray-400">{maskPhoneNumber(settlementData?.settlement_phone || '')}</span>
               </button>
               <button
                 onClick={() => {
@@ -490,6 +515,7 @@ export default function WithdrawFundPage() {
                   <li>• Withdrawals to M-PESA are processed within 5-30 seconds.</li>
                   <li>• You must have sufficient balance in your utility account.</li>
                   <li>• Minimum withdrawal is KES 10. Maximum is KES 250,000.</li>
+                  <li>• Funds are sent to your registered KYC settlement number.</li>
                 </ul>
               </div>
             </div>
