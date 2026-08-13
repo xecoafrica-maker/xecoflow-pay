@@ -226,12 +226,18 @@ export default function DashboardOverview() {
       if (merchantIdParam) {
         const paddedId = String(merchantIdParam).padStart(8, '0');
         const accountNumber = `1-1001-${paddedId}`;
+        console.log('🔍 Fetching balance for account:', accountNumber);
+        
         const balanceRes = await fetch(`/v1/ledger/accounts/${accountNumber}/balance`, {
           headers: { 'Authorization': `Bearer ${getToken()}` }
         });
         const balanceData = await balanceRes.json();
+        console.log('🔍 Balance response:', balanceData);
+        
         if (balanceData.success) {
           setLedgerBalance(balanceData.balance);
+        } else {
+          console.error('❌ Failed to fetch balance:', balanceData.error);
         }
       }
     } catch (error) {
