@@ -192,16 +192,20 @@ export default function HostedCheckoutIntegration() {
       });
       const bodyString = JSON.stringify(sorted);
 
-      // 3. Generate HMAC-SHA256 signature
-      const signature = crypto
-        .createHmac('sha256', apiSecret)
-        .update(bodyString)
-        .digest('hex');
-
+      // 3. Generate timestamp and nonce
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = crypto.randomBytes(16).toString('hex');
 
-      // 4. Send the request to the Unified Gateway
+      // 4. ✅ Build canonical string (timestamp.nonce.method.path.body)
+      const canonicalString = `${timestamp}.${nonce}.POST./v1/payments.${bodyString}`;
+
+      // 5. Generate HMAC-SHA256 signature over the canonical string
+      const signature = crypto
+        .createHmac('sha256', apiSecret)
+        .update(canonicalString)
+        .digest('hex');
+
+      // 6. Send the request to the Unified Gateway
       const response = await fetch('/v1/payments', {
         method: 'POST',
         headers: {
