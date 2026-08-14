@@ -23,24 +23,39 @@ import {
   Eye,
   History,
   Loader2,
+  Zap,
+  Smartphone,
+  Landmark,
 } from 'lucide-react';
 import { getToken, getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 // ─── Types ──────────────────────────────────────────────────────────
+interface LedgerEntry {
+  id: string;
+  amount: number;
+  entry_type: 'CREDIT' | 'DEBIT';
+  description: string | null;
+  reference_id: string | null;
+  created_at: string;
+  status: string;
+  balance_before: number;
+  balance_after: number;
+}
+
 interface WalletTransaction {
   id: string;
   Ref: string;
   Description: string;
   Amount: number;
-  Balance: number;
-  Type: 'Credit' | 'Debit';
+  BalanceBefore: number;
+  BalanceAfter: number;
+  Type: 'Credit' | 'Debit' | 'Withdrawal' | 'Airtime' | 'KPLC';
   status: string;
   Posted_Time: string;
-  created_at?: string;
 }
 
-// ─── Colors ──────────────────────────────────────────────────────────
+// ─── Colors & Icons ────────────────────────────────────────────────
 const statusColors = {
   Completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   Pending: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -53,10 +68,20 @@ const statusIcons = {
   Failed: XCircle,
 };
 
-const statusBadgeColors = {
-  Completed: 'bg-emerald-500',
-  Pending: 'bg-amber-500',
-  Failed: 'bg-red-500',
+const typeIcons = {
+  Credit: ArrowUpRight,
+  Debit: ArrowDownRight,
+  Withdrawal: ArrowDownRight,
+  Airtime: Smartphone,
+  KPLC: Zap,
+};
+
+const typeColors = {
+  Credit: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  Debit: 'bg-rose-50 text-rose-700 border-rose-200',
+  Withdrawal: 'bg-rose-50 text-rose-700 border-rose-200',
+  Airtime: 'bg-blue-50 text-blue-700 border-blue-200',
+  KPLC: 'bg-amber-50 text-amber-700 border-amber-200',
 };
 
 export default function WalletPage() {
@@ -69,13 +94,84 @@ export default function WalletPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filterType, setFilterType] = useState('All');
   const [merchantId, setMerchantId] = useState<string>('');
+  const [ledgerEntries, setLedgerEntries] = useState<WalletTransaction[]>([]);
 
   // ✅ Prevent duplicate logging
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
-  // ─── Empty Wallet Data ──────────────────────────────────────────
-  const walletData: WalletTransaction[] = [];
+  // ─── Helper: Determine transaction type ───────────────────────────
+  const determineType = (entry: LedgerEntry): WalletTransaction['Type'] => {
+    const desc = entry.description?.toLowerCase() || '';
+    if (entry.entry_type === 'CREDIT') return 'Credit';
+    if (desc.includes('withdrawal')) return 'Withdrawal';
+    if (desc.includes('airtime') || desc.includes('top up')) return 'Airtime';
+    if (desc.includes('kplc') || desc.includes('electricity')) return 'KPLC';
+    return 'Debit';
+  };
+
+  // ─── Fetch Wallet Transactions ─────────────────────────────────────
+  const fetchWalletTransactions = async () => {
+    try {
+      const token = getToken();
+      if (!token || !merchantId) return;
+
+      const paddedId = String(merchantId).padStart(8, '0');
+      const accountNumber = `1-1001-${paddedId}`;
+
+      const res = await fetch(`/v1/ledger/accounts/${accountNumber}/entries`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const json = await res.json();
+      if (json.success) {
+        const mapped = (json.data || []).map((item: LedgerEntry) => ({
+          id: item.id,
+          Ref: item.reference_id || item.id.slice(0, 8),
+          Description: item.description || '—',
+          Amount: item.amount,
+          BalanceBefore: item.balance_before,
+          BalanceAfter: item.balance_after,
+          Type: determineType(item),
+          status: item.status === 'POSTED' ? 'Completed' : item.status,
+          Posted_Time: new Date(item.created_at).toLocaleString(),
+        }));
+        setLedgerEntries(mapped);
+      }
+    } catch (error) {
+      console.error('Failed to fetch wallet transactions:', error);
+    }
+  };
+
+  // ─── Load Merchant Data ──────────────────────────────────────────
+  useEffect(() => {
+    const token = getToken();
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    const cached = getStoredMerchant();
+    if (cached) {
+      const id = String(cached.merchant_id || cached.merchantId);
+      if (id) {
+        setMerchantId(id);
+      }
+    }
+
+    setTimeout(() => {
+      setLoading(false);
+    }, 500);
+  }, [router]);
+
+  // ─── Fetch data when merchantId is available ─────────────────────
+  useEffect(() => {
+    if (merchantId) {
+      fetchWalletTransactions();
+    }
+  }, [merchantId]);
 
   // ─── Log View - Only once per page visit ──────────────────────
   useEffect(() => {
@@ -86,14 +182,12 @@ export default function WalletPage() {
       
       try {
         isLoggingView.current = true;
-        
         const cached = getStoredMerchant();
         const id = merchantId || cached?.merchant_id || cached?.merchantId;
-        
         if (id) {
           await log(
             ActivityActions.VIEW_WALLET,
-            `Viewed wallet transactions (0 transactions)`
+            `Viewed wallet transactions (${ledgerEntries.length} transactions)`
           );
           hasLoggedView.current = true;
           console.log('✅ Wallet view logged');
@@ -105,13 +199,13 @@ export default function WalletPage() {
       }
     };
     
-    if (!loading && !hasLoggedView.current) {
+    if (!loading && !hasLoggedView.current && merchantId) {
       logView();
     }
-  }, [loading, merchantId, log]);
+  }, [loading, merchantId, ledgerEntries.length, log]);
 
   // ─── Apply Filters ──────────────────────────────────────────────
-  const filteredData = walletData.filter(
+  const filteredData = ledgerEntries.filter(
     (item) =>
       (filterType === 'All' || item.Type === filterType) &&
       (item.Description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -120,13 +214,16 @@ export default function WalletPage() {
   );
 
   const totalCredits = filteredData.filter(t => t.Type === 'Credit').reduce((sum, t) => sum + t.Amount, 0);
-  const totalDebits = filteredData.filter(t => t.Type === 'Debit').reduce((sum, t) => sum + t.Amount, 0);
+  const totalDebits = filteredData.filter(t => t.Type !== 'Credit').reduce((sum, t) => sum + t.Amount, 0);
   const netBalance = totalCredits - totalDebits;
+  const totalWithdrawals = filteredData.filter(t => t.Type === 'Withdrawal').reduce((sum, t) => sum + t.Amount, 0);
+  const totalUtilities = filteredData.filter(t => t.Type === 'Airtime' || t.Type === 'KPLC').reduce((sum, t) => sum + t.Amount, 0);
 
   // ─── Handlers ──────────────────────────────────────────────────────
   const handleRefresh = () => {
     setIsRefreshing(true);
     hasLoggedView.current = false;
+    fetchWalletTransactions();
     setTimeout(() => {
       setIsRefreshing(false);
       setLoading(false);
@@ -167,26 +264,18 @@ export default function WalletPage() {
     );
   };
 
-  // ─── Load Data ──────────────────────────────────────────────────────
-  useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    const cached = getStoredMerchant();
-    if (cached) {
-      const id = String(cached.merchant_id || cached.merchantId);
-      if (id) {
-        setMerchantId(id);
-      }
-    }
-
-    setTimeout(() => {
-      setLoading(false);
-    }, 500);
-  }, [router]);
+  // ─── Type Badge ──────────────────────────────────────────────────
+  const TypeBadge = ({ type }: { type: WalletTransaction['Type'] }) => {
+    const Icon = typeIcons[type] || Wallet;
+    const color = typeColors[type as keyof typeof typeColors] || 'bg-gray-50 text-gray-600 border-gray-200';
+    const label = type === 'Debit' ? 'Debit' : type;
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color}`}>
+        <Icon className="w-3 h-3" />
+        {label}
+      </span>
+    );
+  };
 
   // ─── Loading State ────────────────────────────────────────────────
   if (loading) {
@@ -276,6 +365,9 @@ export default function WalletPage() {
             <option value="All">All Types</option>
             <option value="Credit">📈 Credit</option>
             <option value="Debit">📉 Debit</option>
+            <option value="Withdrawal">💸 Withdrawal</option>
+            <option value="Airtime">📱 Airtime</option>
+            <option value="KPLC">⚡ KPLC</option>
           </select>
           <button className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap">
             <Filter className="w-4 h-4" />
@@ -298,7 +390,8 @@ export default function WalletPage() {
                 <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Reference</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Description</th>
                 <th className="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Balance</th>
+                <th className="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Balance Before</th>
+                <th className="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Balance After</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
               </tr>
@@ -306,7 +399,7 @@ export default function WalletPage() {
             <tbody>
               {filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-16 text-center">
+                  <td colSpan={8} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-4">
                       <div className="p-4 bg-indigo-50 rounded-full">
                         <Wallet className="w-14 h-14 text-indigo-400" />
@@ -350,18 +443,14 @@ export default function WalletPage() {
                       <td className={`px-6 py-4 text-right font-semibold ${isCredit ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {isCredit ? '+' : '-'} {formatCurrency(tx.Amount)}
                       </td>
+                      <td className="px-6 py-4 text-right font-medium text-gray-700">
+                        {formatCurrency(tx.BalanceBefore)}
+                      </td>
                       <td className="px-6 py-4 text-right font-medium text-gray-900">
-                        {formatCurrency(tx.Balance)}
+                        {formatCurrency(tx.BalanceAfter)}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
-                          isCredit
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-rose-50 text-rose-700 border-rose-200'
-                        }`}>
-                          {isCredit ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                          {tx.Type}
-                        </span>
+                        <TypeBadge type={tx.Type} />
                       </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={tx.status} />
@@ -449,15 +538,27 @@ export default function WalletPage() {
                           : 'bg-rose-50 text-rose-700 border-rose-200'
                       }`}>
                         {selectedTransaction.Type === 'Credit' ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                        {selectedTransaction.Type}
+                        {selectedTransaction.Type === 'Credit' ? 'Credit' : 'Debit'}
                       </span>
                       <StatusBadge status={selectedTransaction.status} />
                     </div>
                   </div>
 
                   <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Balance Before</p>
+                    <p className="text-xl font-bold text-gray-700 mt-1">{formatCurrency(selectedTransaction.BalanceBefore)}</p>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-xl p-4">
                     <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Balance After</p>
-                    <p className="text-xl font-bold text-gray-900 mt-1">{formatCurrency(selectedTransaction.Balance)}</p>
+                    <p className="text-xl font-bold text-gray-900 mt-1">{formatCurrency(selectedTransaction.BalanceAfter)}</p>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Transaction Type</p>
+                    <div className="mt-1">
+                      <TypeBadge type={selectedTransaction.Type} />
+                    </div>
                   </div>
                 </div>
               </div>
