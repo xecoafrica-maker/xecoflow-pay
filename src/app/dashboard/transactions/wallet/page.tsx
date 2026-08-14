@@ -18,14 +18,11 @@ import {
   Copy,
   Printer,
   Mail,
-  Hash,
-  Calendar,
   Eye,
   History,
   Loader2,
   Zap,
   Smartphone,
-  Landmark,
 } from 'lucide-react';
 import { getToken, getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
