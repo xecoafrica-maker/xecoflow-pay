@@ -196,8 +196,8 @@ export default function HostedCheckoutIntegration() {
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = crypto.randomBytes(16).toString('hex');
 
-      // 4. ✅ Build canonical string (timestamp.nonce.method.path.body)
-      const canonicalString = `${timestamp}.${nonce}.POST./v1/payments.${bodyString}`;
+      // 4. ✅ CORRECT: Match backend EXACTLY with '/' (not '/v1/payments')
+      const canonicalString = `${timestamp}.${nonce}.POST./.${bodyString}`;
 
       // 5. Generate HMAC-SHA256 signature over the canonical string
       const signature = crypto
