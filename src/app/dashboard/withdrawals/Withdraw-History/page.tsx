@@ -1,4 +1,3 @@
-// src/app/dashboard/withdrawals/Withdraw-history/page.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -16,17 +15,11 @@ import {
   Copy,
   Printer,
   Mail,
-  Hash,
-  Calendar,
-  Eye,
-  Wallet,
-  TrendingUp,
-  TrendingDown,
-  Landmark,
-  Smartphone,
-  CreditCard,
   History,
   Loader2,
+  Smartphone,
+  Landmark,
+  CreditCard,
 } from 'lucide-react';
 import { getToken, getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
@@ -85,13 +78,44 @@ export default function WithdrawHistoryPage() {
   const [filterMethod, setFilterMethod] = useState('All');
   const [merchantId, setMerchantId] = useState<string>('');
   const [merchantName, setMerchantName] = useState<string>('');
+  const [withdrawData, setWithdrawData] = useState<WithdrawTransaction[]>([]);
 
   // ✅ Prevent duplicate logging
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
-  // ─── Empty Withdraw Data ──────────────────────────────────────────
-  const withdrawData: WithdrawTransaction[] = [];
+  // ─── Fetch Withdrawals ────────────────────────────────────────────
+  const fetchWithdrawals = async () => {
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const res = await fetch('/v1/payments/withdrawals', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const json = await res.json();
+      if (json.success) {
+        const mapped = (json.data || []).map((item: any) => ({
+          id: item.id,
+          Ref: item.mpesa_receipt || item.id.slice(0, 8),
+          Description: `Withdrawal to ${item.phone_number}`,
+          Amount: Number(item.amount),
+          Balance: 0, // You can fetch this separately if needed
+          Method: 'M-PESA',
+          status: item.status,
+          Posted_Time: new Date(item.created_at).toLocaleString(),
+          recipient: item.phone_number,
+          phoneNumber: item.phone_number,
+        }));
+        setWithdrawData(mapped);
+      }
+    } catch (error) {
+      console.error('Failed to load withdrawals:', error);
+    }
+  };
 
   // ─── Load Merchant Data ──────────────────────────────────────────
   useEffect(() => {
@@ -109,6 +133,9 @@ export default function WithdrawHistoryPage() {
         setMerchantName(cached.business_name || cached.businessName || '');
       }
     }
+
+    // ✅ Fetch real withdrawals
+    fetchWithdrawals();
 
     setTimeout(() => {
       setLoading(false);
@@ -164,6 +191,7 @@ export default function WithdrawHistoryPage() {
   const handleRefresh = () => {
     setIsRefreshing(true);
     hasLoggedView.current = false;
+    fetchWithdrawals(); // ✅ Refresh data
     setTimeout(() => {
       setIsRefreshing(false);
       setLoading(false);
