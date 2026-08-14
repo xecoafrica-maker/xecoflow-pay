@@ -79,29 +79,6 @@ interface DashboardStats {
   completedAmount?: number;
 }
 
-interface Withdrawal {
-  id: string;
-  amount: string;
-  phone_number: string;
-  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'TIMEOUT';
-  mpesa_receipt: string | null;
-  result_code: number | null;
-  result_desc: string | null;
-  created_at: string;
-  completed_at: string | null;
-}
-
-interface LedgerEntry {
-  id: string;
-  amount: number;
-  entry_type: 'CREDIT' | 'DEBIT';
-  description: string | null;
-  reference_id: string | null;
-  created_at: string;
-  status: string;
-  balance?: number;
-}
-
 // ─── Onboarding Steps ──────────────────────────────────────────────
 interface OnboardingStep {
   id: number;
@@ -129,24 +106,23 @@ export default function DashboardOverview() {
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(true);
   
+  // ✅ Prevent duplicate logging ONLY during the same page load
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
+  // ─── Onboarding Steps State ─────────────────────────────────────
   const [onboardingSteps, setOnboardingSteps] = useState<OnboardingStep[]>([]);
 
+  // ─── Real Data State ──────────────────────────────────────────────
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   
+  // ✅ NEW: Real balance from Ledger Engine
   const [ledgerBalance, setLedgerBalance] = useState<number>(0);
   const [balanceLoading, setBalanceLoading] = useState<boolean>(true);
   
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
-  const [withdrawalsLoading, setWithdrawalsLoading] = useState(false);
-  
-  const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
-  const [ledgerEntriesLoading, setLedgerEntriesLoading] = useState(false);
-  
+  // ─── Filter State ──────────────────────────────────────────────────
   const [statusFilter, setStatusFilter] = useState('All');
   const [chartType, setChartType] = useState('Bar');
   const [timeRange, setTimeRange] = useState('7 Days');
@@ -155,6 +131,7 @@ export default function DashboardOverview() {
 
   const tooltipFormatter = (value: any) => [`KES ${value}`, 'Amount'];
 
+  // ─── 🚀 Fetch Onboarding Status from Backend ──────────────────────
   const fetchOnboarding = async () => {
     const token = getToken();
     if (!token) return;
@@ -217,6 +194,7 @@ export default function DashboardOverview() {
     }
   };
 
+  // ─── Fetch Real Data ──────────────────────────────────────────────
   const fetchDashboardData = async (merchantIdParam?: string) => {
     try {
       console.log("🔍 Fetching data for merchant:", merchantIdParam);
@@ -227,6 +205,7 @@ export default function DashboardOverview() {
       }
       params.append('limit', '100');
 
+      // 1. Fetch Transactions
       const transRes = await fetch(`/api/transactions?${params.toString()}`);
       const transData = await transRes.json();
       
@@ -235,6 +214,7 @@ export default function DashboardOverview() {
         setFilteredTransactions(transData.data || []);
       }
 
+      // 2. Fetch Stats (for history, not balance)
       const statsRes = await fetch(`/api/dashboard/stats?${params.toString()}`);
       const statsData = await statsRes.json();
       
@@ -242,6 +222,7 @@ export default function DashboardOverview() {
         setStats(statsData.stats);
       }
 
+      // 3. ✅ Fetch REAL Balance from Ledger Engine
       if (merchantIdParam) {
         const paddedId = String(merchantIdParam).padStart(8, '0');
         const accountNumber = `1-1001-${paddedId}`;
@@ -259,10 +240,6 @@ export default function DashboardOverview() {
           console.error('❌ Failed to fetch balance:', balanceData.error);
         }
       }
-
-      await fetchWithdrawals(merchantIdParam);
-      await fetchLedgerEntries(merchantIdParam);
-
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -270,62 +247,7 @@ export default function DashboardOverview() {
     }
   };
 
-  const fetchWithdrawals = async (merchantIdParam?: string) => {
-    if (!merchantIdParam) return;
-    
-    setWithdrawalsLoading(true);
-    try {
-      const res = await fetch(`/v1/payments/withdrawals`, {
-        headers: { 'Authorization': `Bearer ${getToken()}` }
-      });
-      const data = await res.json();
-      if (data.success) {
-        setWithdrawals(data.data || []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch withdrawals:', error);
-    } finally {
-      setWithdrawalsLoading(false);
-    }
-  };
-
-  const fetchLedgerEntries = async (merchantIdParam?: string) => {
-    if (!merchantIdParam) return;
-    
-    setLedgerEntriesLoading(true);
-    try {
-      const paddedId = String(merchantIdParam).padStart(8, '0');
-      const accountNumber = `1-1001-${paddedId}`;
-      
-      const res = await fetch(`/v1/ledger/accounts/${accountNumber}/entries`, {
-        headers: { 'Authorization': `Bearer ${getToken()}` }
-      });
-      const data = await res.json();
-      if (data.success) {
-        let runningBalance = 0;
-        const entriesWithBalance = (data.data || [])
-          .sort((a: LedgerEntry, b: LedgerEntry) => 
-            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-          )
-          .map((entry: LedgerEntry) => {
-            if (entry.entry_type === 'CREDIT') {
-              runningBalance += entry.amount;
-            } else {
-              runningBalance -= entry.amount;
-            }
-            return { ...entry, balance: runningBalance };
-          })
-          .reverse();
-        
-        setLedgerEntries(entriesWithBalance);
-      }
-    } catch (error) {
-      console.error('Failed to fetch ledger entries:', error);
-    } finally {
-      setLedgerEntriesLoading(false);
-    }
-  };
-
+  // ─── Apply Filters ──────────────────────────────────────────────
   useEffect(() => {
     let filtered = [...transactions];
 
@@ -351,6 +273,7 @@ export default function DashboardOverview() {
     setFilteredTransactions(filtered);
   }, [transactions, statusFilter]);
 
+  // ─── Auth & Profile ──────────────────────────────────────────────
   useEffect(() => {
     const token = getToken();
     if (!token) {
@@ -422,6 +345,7 @@ export default function DashboardOverview() {
     }, 500);
   }, [router]);
 
+  // ─── Log Dashboard View - Only once per page visit ──────────────
   useEffect(() => {
     const logView = async () => {
       if (isLoggingView.current || hasLoggedView.current || !merchantId) {
@@ -448,6 +372,7 @@ export default function DashboardOverview() {
     }
   }, [loading, merchantId, merchantName, log]);
 
+  // ─── Sign Out Handler ─────────────────────────────────────────────
   const handleSignOut = async () => {
     await log(
       ActivityActions.LOGOUT,
@@ -457,9 +382,11 @@ export default function DashboardOverview() {
     router.push('/login');
   };
 
+  // ─── Generate Real Stats ──────────────────────────────────────────
   const currentMonth = getCurrentMonth();
 
   const generateStats = () => {
+    // If no data, return zeros
     if (!stats && transactions.length === 0) {
       return [
         { 
@@ -517,8 +444,11 @@ export default function DashboardOverview() {
       t.status === 'AWAITING_CUSTOMER_PIN' || t.payment_status === 'PENDING'
     ).length;
 
+    // ✅ Use REAL ledgerBalance from journal_entries
     const availableBalance = ledgerBalance;
-    const utilitiesEarnings = 0;
+
+    // Utilities earnings from real data (no mock)
+    const utilitiesEarnings = 0; // This will come from API
 
     return [
       { 
@@ -562,6 +492,7 @@ export default function DashboardOverview() {
 
   const statsData = generateStats();
 
+  // ─── Generate Chart Data ──────────────────────────────────────────
   const chartData = [...filteredTransactions]
     .slice(0, 7)
     .map(t => ({
@@ -570,6 +501,7 @@ export default function DashboardOverview() {
     }))
     .reverse();
 
+  // ─── Recent Transactions ──────────────────────────────────────────
   const recentTransactions = filteredTransactions.slice(0, 10).map(t => ({
     id: t.id.slice(0, 8),
     customer: t.phone_number,
@@ -581,6 +513,7 @@ export default function DashboardOverview() {
     receipt: t.mpesa_receipt,
   }));
 
+  // ─── Status Helper ────────────────────────────────────────────────
   const getStatusDisplay = (status: string) => {
     const s = status?.toUpperCase() || '';
     if (s.includes('COMPLETED') || s.includes('SUCCESS')) {
@@ -600,6 +533,7 @@ export default function DashboardOverview() {
     setShowDetailsModal(true);
   };
 
+  // ─── Onboarding Calculation ──────────────────────────────────────
   const completedSteps = onboardingSteps.filter(s => s.completed).length;
   const totalSteps = onboardingSteps.length;
   const isFullyOnboarded = totalSteps > 0 && completedSteps === totalSteps;
@@ -674,6 +608,7 @@ export default function DashboardOverview() {
 
       {showOnboarding && !isFullyOnboarded && onboardingSteps.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm relative">
+          {/* ─── Header ────────────────────────────────────────────── */}
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
             <div>
               <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
@@ -692,6 +627,7 @@ export default function DashboardOverview() {
             </div>
           </div>
 
+          {/* ─── Steps Grid (5 Stages) ────────────────────────────── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
             {onboardingSteps.map((step, index) => {
               const Icon = step.icon;
@@ -736,6 +672,7 @@ export default function DashboardOverview() {
             })}
           </div>
 
+          {/* ─── Footer Action ────────────────────────────────────── */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-gray-100">
             <Link
               href={onboardingSteps.find(s => !s.completed)?.href || '/dashboard'}
@@ -1060,206 +997,6 @@ export default function DashboardOverview() {
               ) : (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-gray-400">No transactions found</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ─── Withdrawal History ──────────────────────────────────────── */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mt-6">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Withdrawal History</h2>
-          <Link href="/dashboard/withdrawals" className="text-sm text-emerald-500 font-medium hover:text-emerald-600">
-            View All →
-          </Link>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 text-left bg-gray-50">
-                <th className="px-6 py-3 text-xs font-medium text-gray-400 uppercase">Receipt</th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-400 uppercase">Amount</th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-400 uppercase">Phone</th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-400 uppercase">Status</th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-400 uppercase">Date</th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-400 uppercase">Result</th>
-              </tr>
-            </thead>
-            <tbody>
-              {withdrawalsLoading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
-                    <Loader2 className="animate-spin mx-auto mb-2" size={20} />
-                    Loading withdrawals...
-                  </td>
-                </tr>
-              ) : withdrawals.length > 0 ? (
-                withdrawals.map((w) => (
-                  <tr key={w.id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="px-6 py-3 font-mono text-xs text-gray-500">
-                      {w.mpesa_receipt || '—'}
-                    </td>
-                    <td className="px-6 py-3 font-semibold text-gray-900">
-                      KES {parseFloat(w.amount).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-3 text-gray-500">
-                      {w.phone_number.slice(-4).padStart(w.phone_number.length, '*')}
-                    </td>
-                    <td className="px-6 py-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                        w.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600' :
-                        w.status === 'PENDING' ? 'bg-amber-50 text-amber-600' :
-                        w.status === 'FAILED' ? 'bg-red-50 text-red-600' :
-                        'bg-gray-50 text-gray-600'
-                      }`}>
-                        {w.status === 'COMPLETED' ? <CheckCircle size={12} /> :
-                         w.status === 'PENDING' ? <Clock size={12} /> :
-                         w.status === 'FAILED' ? <XCircle size={12} /> :
-                         <Clock size={12} />}
-                        {w.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 text-gray-400 text-xs">
-                      {new Date(w.created_at).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-3 text-xs text-gray-500">
-                      {w.result_code === 0 ? '✅ Success' :
-                       w.result_code ? `❌ ${w.result_code}` :
-                       '⏳ Pending'}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
-                    No withdrawals found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ─── Wallet Transactions ─────────────────────────────────────── */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mt-6">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Wallet Transactions</h2>
-          <span className="text-sm text-gray-500">
-            Balance: <span className="font-semibold text-emerald-600">KES {ledgerBalance.toLocaleString()}</span>
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 text-left bg-gray-50">
-                <th className="px-6 py-3 text-xs font-medium text-gray-400 uppercase">Type</th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-400 uppercase">Amount</th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-400 uppercase">Balance</th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-400 uppercase">Description</th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-400 uppercase">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ledgerEntriesLoading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
-                    <Loader2 className="animate-spin mx-auto mb-2" size={20} />
-                    Loading wallet transactions...
-                  </td>
-                </tr>
-              ) : ledgerEntries.length > 0 ? (
-                ledgerEntries.map((entry) => (
-                  <tr key={entry.id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="px-6 py-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                        entry.entry_type === 'CREDIT' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
-                      }`}>
-                        {entry.entry_type === 'CREDIT' ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
-                        {entry.entry_type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 font-semibold">
-                      <span className={entry.entry_type === 'CREDIT' ? 'text-emerald-600' : 'text-red-600'}>
-                        {entry.entry_type === 'CREDIT' ? '+' : '-'} KES {entry.amount.toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 font-medium text-gray-900">
-                      KES {entry.balance?.toLocaleString() || '—'}
-                    </td>
-                    <td className="px-6 py-3 text-gray-500">
-                      {entry.description || '—'}
-                    </td>
-                    <td className="px-6 py-3 text-gray-400 text-xs">
-                      {new Date(entry.created_at).toLocaleString()}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
-                    No wallet transactions found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ─── Outflows ────────────────────────────────────────────────── */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mt-6">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Outflows</h2>
-          <span className="text-sm text-gray-500">
-            Total Outflows: <span className="font-semibold text-red-600">
-              KES {ledgerEntries
-                .filter(e => e.entry_type === 'DEBIT')
-                .reduce((sum, e) => sum + e.amount, 0)
-                .toLocaleString()}
-            </span>
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 text-left bg-gray-50">
-                <th className="px-6 py-3 text-xs font-medium text-gray-400 uppercase">Amount</th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-400 uppercase">Description</th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-400 uppercase">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ledgerEntriesLoading ? (
-                <tr>
-                  <td colSpan={3} className="px-6 py-8 text-center text-gray-400">
-                    <Loader2 className="animate-spin mx-auto mb-2" size={20} />
-                    Loading outflows...
-                  </td>
-                </tr>
-              ) : ledgerEntries.filter(e => e.entry_type === 'DEBIT').length > 0 ? (
-                ledgerEntries
-                  .filter(e => e.entry_type === 'DEBIT')
-                  .map((entry) => (
-                    <tr key={entry.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="px-6 py-3 font-semibold text-red-600">
-                        - KES {entry.amount.toLocaleString()}
-                      </td>
-                      <td className="px-6 py-3 text-gray-500">
-                        {entry.description || '—'}
-                      </td>
-                      <td className="px-6 py-3 text-gray-400 text-xs">
-                        {new Date(entry.created_at).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))
-              ) : (
-                <tr>
-                  <td colSpan={3} className="px-6 py-8 text-center text-gray-400">
-                    No outflows found
-                  </td>
                 </tr>
               )}
             </tbody>
