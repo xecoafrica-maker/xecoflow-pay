@@ -89,7 +89,7 @@ export default function StatementPage() {
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
-  // ─── Fetch Merchant and Transactions ──────────────────────────────
+  // ─── Fetch Merchant and All Transactions ──────────────────────────
   const fetchData = async () => {
     try {
       const token = getToken();
@@ -165,12 +165,30 @@ export default function StatementPage() {
         params.append('merchantId', String(merchantId));
         params.append('limit', '500');
 
-        const response = await fetch(`/api/transactions?${params.toString()}`);
-        const data = await response.json();
+        // ─── Fetch all transaction types ────────────────────────────
+        const responses = await Promise.all([
+          fetch(`/api/transactions?${params.toString()}`),
+          fetch(`/api/b2c-transactions?${params.toString()}`),
+          fetch(`/api/c2b-transactions?${params.toString()}`),
+        ]);
 
-        if (data.success) {
-          setTransactions(data.data || []);
-        }
+        const allData = await Promise.all(responses.map(r => r.json()));
+        
+        // Combine all transactions
+        let allTransactions: Transaction[] = [];
+        
+        allData.forEach((data) => {
+          if (data.success) {
+            allTransactions = [...allTransactions, ...(data.data || [])];
+          }
+        });
+
+        // Sort by created_at (newest first)
+        allTransactions.sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+
+        setTransactions(allTransactions);
       }
 
       setLoading(false);
@@ -187,7 +205,6 @@ export default function StatementPage() {
   // ─── Log View - Only once per page visit ──────────────────────
   useEffect(() => {
     const logView = async () => {
-      // ✅ Prevent duplicate logs during the same page load
       if (isLoggingView.current || hasLoggedView.current || loading) {
         return;
       }
@@ -222,7 +239,7 @@ export default function StatementPage() {
     const margin = 20;
     let yPos = 25;
 
-    // ─── Colors as proper tuple types ──────────────────────────────
+    // ─── Colors ──────────────────────────────────────────────────────
     const primaryColor: [number, number, number] = [16, 185, 129];
     const darkColor: [number, number, number] = [10, 37, 64];
     const grayColor: [number, number, number] = [107, 114, 128];
@@ -399,7 +416,6 @@ export default function StatementPage() {
       ];
     });
 
-    // Track total pages manually
     let totalPages = 1;
 
     autoTable(doc, {
@@ -436,7 +452,6 @@ export default function StatementPage() {
         const footerY = pageHeight - 12;
         const currentPage = data.pageNumber;
         
-        // Update total pages
         totalPages = Math.max(totalPages, currentPage);
         
         doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
@@ -452,7 +467,6 @@ export default function StatementPage() {
       },
     });
 
-    // ─── Save PDF ────────────────────────────────────────────────────
     doc.save(`statement-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
@@ -502,7 +516,10 @@ export default function StatementPage() {
       const amount = parseFloat(t.amount) || 0;
       const status = t.status?.toUpperCase() || t.payment_status?.toUpperCase() || '';
       
-      if (t.source?.toUpperCase() === 'EXTERNAL' || t.request_type?.toUpperCase().includes('RECEIVE')) {
+      // Determine if inflow or outflow
+      if (t.source?.toUpperCase() === 'EXTERNAL' || 
+          t.request_type?.toUpperCase().includes('RECEIVE') ||
+          t.request_type?.toUpperCase().includes('C2B')) {
         totalInflow += amount;
       } else {
         totalOutflow += amount;
@@ -534,16 +551,23 @@ export default function StatementPage() {
         end: endDate.toISOString(),
       },
       summary,
-      transactions: filtered.map(t => ({
-        id: t.id,
-        receipt: t.mpesa_receipt || t.checkout_id?.slice(0, 10) || t.id.slice(0, 8),
-        date: t.created_at,
-        details: `${t.request_type || 'Payment'} - ${t.phone_number || ''}`,
-        status: t.status || t.payment_status || 'PENDING',
-        paidIn: t.source?.toUpperCase() === 'EXTERNAL' ? parseFloat(t.amount) || 0 : 0,
-        withdrawn: t.source?.toUpperCase() !== 'EXTERNAL' ? parseFloat(t.amount) || 0 : 0,
-        balance: 0,
-      })),
+      transactions: filtered.map(t => {
+        const isInflow = t.source?.toUpperCase() === 'EXTERNAL' || 
+                         t.request_type?.toUpperCase().includes('RECEIVE') ||
+                         t.request_type?.toUpperCase().includes('C2B');
+        const amount = parseFloat(t.amount) || 0;
+        
+        return {
+          id: t.id,
+          receipt: t.mpesa_receipt || t.checkout_id?.slice(0, 10) || t.id.slice(0, 8),
+          date: t.created_at,
+          details: `${t.request_type || 'Payment'} - ${t.phone_number || t.user_id || ''}`,
+          status: t.status || t.payment_status || 'PENDING',
+          paidIn: isInflow ? amount : 0,
+          withdrawn: !isInflow ? amount : 0,
+          balance: 0,
+        };
+      }),
     };
   };
 
@@ -552,7 +576,6 @@ export default function StatementPage() {
     e.preventDefault();
     setGenerating(true);
 
-    // ✅ Log that user is generating a statement
     await log(
       ActivityActions.GENERATE_STATEMENT,
       `Generating statement for period: ${formData.period}`
