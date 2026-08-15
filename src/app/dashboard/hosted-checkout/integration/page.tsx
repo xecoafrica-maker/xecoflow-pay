@@ -51,8 +51,9 @@ export default function HostedCheckoutIntegration() {
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [paymentResponse, setPaymentResponse] = useState<PaymentResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [userAmount, setUserAmount] = useState<string>('');
 
-  const amount = Number(searchParams.get('amount')) || 10;
+  const amount = Number(searchParams.get('amount')) || Number(userAmount) || 10;
   const currency = searchParams.get('currency') || 'KES';
   const businessName = searchParams.get('merchant') || merchantName || 'XecoFlow Merchant';
   const customerName = searchParams.get('customer') || 'Customer';
@@ -68,6 +69,14 @@ export default function HostedCheckoutIntegration() {
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPhoneNumber(formatPhoneNumber(e.target.value));
+  };
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/[^0-9.]/g, '');
+    // Allow only valid number format
+    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+      setUserAmount(value);
+    }
   };
 
   // ─── Fetch Credentials from Database ──────────────────────────────
@@ -153,6 +162,13 @@ export default function HostedCheckoutIntegration() {
   const handleProceed = async () => {
     console.log('🔄 Proceed clicked!');
 
+    // Validate amount
+    const finalAmount = Number(userAmount) || Number(amount);
+    if (finalAmount <= 0) {
+      setErrorMessage('Please enter a valid amount greater than 0');
+      return;
+    }
+
     let phone = phoneNumber || customerPhone;
     phone = phone.replace(/\D/g, '');
     
@@ -180,7 +196,7 @@ export default function HostedCheckoutIntegration() {
         action: 'charge',
         method: 'mpesa',
         phone: phone,
-        amount: Number(amount),
+        amount: finalAmount,
         shortcode: merchantId,
         idempotencyKey: 'key-' + crypto.randomBytes(8).toString('hex'),
       };
@@ -384,7 +400,33 @@ export default function HostedCheckoutIntegration() {
             <div className="order-1 px-6 md:px-8 py-6 md:py-10 lg:border-r border-gray-200">
               <h2 className="text-xl font-light text-gray-700 tracking-wide mb-5">PAYMENT DETAILS</h2>
               <p className="text-sm text-gray-800 mb-4">Reference: {customerRef || '—'}</p>
-              <div className="flex justify-between text-sm text-gray-700 mb-2"><span>Amount</span><span>{currency} {amount.toFixed(2)}</span></div>
+              
+              {/* Amount Input Field - Added here */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Enter Amount ({currency})
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">
+                    {currency}
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={userAmount}
+                    onChange={handleAmountChange}
+                    placeholder="0.00"
+                    disabled={isProcessing || paymentStatus === 'success'}
+                    className="w-full pl-12 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#8b1a1a] focus:border-transparent bg-gray-50 focus:bg-white transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mt-1.5">Enter the amount you wish to pay</p>
+              </div>
+
+              <div className="flex justify-between text-sm text-gray-700 mb-2">
+                <span>Amount</span>
+                <span>{currency} {amount.toFixed(2)}</span>
+              </div>
               <div className="flex justify-between items-center bg-gray-100 px-4 py-2.5 rounded">
                 <span className="text-sm font-semibold text-gray-800">Total Amount</span>
                 <span className="text-sm font-semibold text-gray-800">{currency} {amount.toFixed(2)}</span>
