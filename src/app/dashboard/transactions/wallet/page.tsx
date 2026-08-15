@@ -50,6 +50,7 @@ interface WalletTransaction {
   Type: 'Credit' | 'Debit' | 'Withdrawal' | 'Airtime' | 'KPLC';
   status: string;
   Posted_Time: string;
+  _created_at: number; // ✅ For sorting
 }
 
 // ─── Colors & Icons ────────────────────────────────────────────────
@@ -98,12 +99,18 @@ export default function WalletPage() {
   const isLoggingView = useRef(false);
 
   // ─── Helper: Determine transaction type ───────────────────────────
-  const determineType = (entry: LedgerEntry): WalletTransaction['Type'] => {
+  const determineType = (entry: any): WalletTransaction['Type'] => {
     const desc = entry.description?.toLowerCase() || '';
-    if (entry.entry_type === 'CREDIT') return 'Credit';
+    
+    // Check if it's a B2C withdrawal from the description
     if (desc.includes('withdrawal')) return 'Withdrawal';
     if (desc.includes('airtime') || desc.includes('top up')) return 'Airtime';
     if (desc.includes('kplc') || desc.includes('electricity')) return 'KPLC';
+    
+    // CREDIT is always a credit (C2B payment, manual deposit, etc.)
+    if (entry.entry_type === 'CREDIT') return 'Credit';
+    
+    // DEBIT with no specific description is a generic debit
     return 'Debit';
   };
 
@@ -116,27 +123,84 @@ export default function WalletPage() {
       const paddedId = String(merchantId).padStart(8, '0');
       const accountNumber = `1-1001-${paddedId}`;
 
-      const res = await fetch(`/v1/ledger/accounts/${accountNumber}/entries`, {
+      // ─── 1. Fetch Journal Entries ────────────────────────────────
+      const entriesRes = await fetch(`/v1/ledger/accounts/${accountNumber}/entries`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!entriesRes.ok) throw new Error(`HTTP ${entriesRes.status}`);
 
-      const json = await res.json();
-      if (json.success) {
-        const mapped = (json.data || []).map((item: LedgerEntry) => ({
+      const entriesJson = await entriesRes.json();
+      let allEntries: WalletTransaction[] = [];
+
+      if (entriesJson.success) {
+        // Map journal entries
+        const mappedEntries = (entriesJson.data || []).map((item: LedgerEntry) => ({
           id: item.id,
           Ref: item.reference_id || item.id.slice(0, 8),
           Description: item.description || '—',
           Amount: item.amount,
-          BalanceBefore: item.balance_before,
-          BalanceAfter: item.balance_after,
+          BalanceBefore: item.balance_before || 0,
+          BalanceAfter: item.balance_after || 0,
           Type: determineType(item),
           status: item.status === 'POSTED' ? 'Completed' : item.status,
           Posted_Time: new Date(item.created_at).toLocaleString(),
+          _created_at: new Date(item.created_at).getTime(),
         }));
-        setLedgerEntries(mapped);
+        allEntries = mappedEntries;
       }
+
+      // ─── 2. Fetch B2C Withdrawals ────────────────────────────────
+      const b2cRes = await fetch(`/v1/payments/withdrawals?merchantId=${merchantId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (b2cRes.ok) {
+        const b2cJson = await b2cRes.json();
+        if (b2cJson.success) {
+          // Map B2C transactions to wallet format
+          const mappedB2C = (b2cJson.data || []).map((item: any) => ({
+            id: item.id,
+            Ref: item.mpesa_receipt || item.id.slice(0, 8),
+            Description: `Withdrawal to ${item.phone_number}`,
+            Amount: Number(item.amount),
+            BalanceBefore: 0,
+            BalanceAfter: 0,
+            Type: 'Withdrawal' as const,
+            status: item.status || 'Pending',
+            Posted_Time: new Date(item.created_at).toLocaleString(),
+            _created_at: new Date(item.created_at).getTime(),
+          }));
+          
+          // Combine
+          allEntries = [...allEntries, ...mappedB2C];
+        }
+      }
+
+      // ─── Sort by time (newest first) ─────────────────────────────
+      allEntries.sort((a, b) => b._created_at - a._created_at);
+
+      // ─── Calculate running balance ────────────────────────────────
+      let runningBalance = 0;
+      // Reverse to calculate from oldest to newest
+      const reversed = [...allEntries].reverse();
+      const withBalances = reversed.map((entry) => {
+        const isCredit = entry.Type === 'Credit';
+        const balanceBefore = runningBalance;
+        if (isCredit) {
+          runningBalance += entry.Amount;
+        } else {
+          runningBalance -= entry.Amount;
+        }
+        return {
+          ...entry,
+          BalanceBefore: balanceBefore,
+          BalanceAfter: runningBalance,
+        };
+      });
+      // Reverse back to newest first
+      setLedgerEntries(withBalances.reverse());
+
     } catch (error) {
       console.error('Failed to fetch wallet transactions:', error);
     }
