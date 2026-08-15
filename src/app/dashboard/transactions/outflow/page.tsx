@@ -116,18 +116,83 @@ export default function OutflowPage() {
   const [filterCategory, setFilterCategory] = useState('All');
   const [merchantId, setMerchantId] = useState<string>('');
   const [merchantName, setMerchantName] = useState<string>('');
+  const [outflowData, setOutflowData] = useState<OutflowTransaction[]>([]);
 
   // ✅ Prevent duplicate logging ONLY during the same page load
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
-  // ─── Empty Outflow Data ──────────────────────────────────────────
-  const outflowData: OutflowTransaction[] = [];
+  // ─── Fetch Outflow Data ──────────────────────────────────────────────
+  const fetchOutflowData = async () => {
+    try {
+      const token = getToken();
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const res = await fetch('/v1/payments/withdrawals', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const json = await res.json();
+      
+      if (json.success) {
+        // Map B2C transactions to OutflowTransaction format
+        const mapped = (json.data || []).map((item: any) => ({
+          id: item.id || item.mpesa_receipt || 'N/A',
+          recipient: item.recipient_name || item.phone_number || 'Unknown',
+          email: item.email || '',
+          phone: item.phone_number || '',
+          amount: Number(item.amount),
+          method: item.method || 'M-PESA',
+          channel: item.channel || 'M-PESA',
+          category: item.category || 'Withdrawal',
+          status: item.status || 'Pending',
+          ref: item.reference || item.mpesa_receipt || item.id,
+          description: item.description || `Withdrawal to ${item.phone_number}`,
+          date: item.created_at || new Date().toISOString(),
+          settlementDate: item.completed_at || item.created_at || new Date().toISOString(),
+        }));
+        
+        setOutflowData(mapped);
+      }
+    } catch (error) {
+      console.error('Failed to fetch outflow data:', error);
+      setOutflowData([]);
+    }
+  };
+
+  // ─── Load Data ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const token = getToken();
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    const cached = getStoredMerchant();
+    if (cached) {
+      const id = String(cached.merchant_id || cached.merchantId);
+      if (id) {
+        setMerchantId(id);
+        setMerchantName(cached.business_name || cached.businessName || '');
+      }
+    }
+
+    // ✅ Fetch real outflow data
+    fetchOutflowData();
+
+    setTimeout(() => {
+      setLoading(false);
+    }, 500);
+  }, [router]);
 
   // ─── Log View - Only once per page visit ──────────────────────
   useEffect(() => {
     const logView = async () => {
-      // ✅ Prevent duplicate logs during the same page load
       if (isLoggingView.current || hasLoggedView.current) {
         return;
       }
@@ -141,7 +206,7 @@ export default function OutflowPage() {
         if (id) {
           await log(
             ActivityActions.VIEW_OUTFLOW,
-            `Viewed outflow transactions (0 transactions)`
+            `Viewed outflow transactions (${outflowData.length} transactions)`
           );
           hasLoggedView.current = true;
           console.log('✅ Outflow view logged');
@@ -154,10 +219,10 @@ export default function OutflowPage() {
     };
     
     // Only log when not loading and we haven't logged yet
-    if (!loading && !hasLoggedView.current) {
+    if (!loading && !hasLoggedView.current && outflowData.length > 0) {
       logView();
     }
-  }, [loading, merchantId, log]);
+  }, [loading, merchantId, log, outflowData.length]);
 
   // ─── Apply Filters ──────────────────────────────────────────────
   const filteredData = outflowData.filter(
@@ -182,6 +247,7 @@ export default function OutflowPage() {
     setIsRefreshing(true);
     // ✅ Reset the log flag so refresh can log again
     hasLoggedView.current = false;
+    fetchOutflowData(); // ✅ Refresh data
     setTimeout(() => {
       setIsRefreshing(false);
       setLoading(false);
@@ -246,29 +312,6 @@ export default function OutflowPage() {
     );
   };
 
-  // ─── Load Data ──────────────────────────────────────────────────────
-  useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    const cached = getStoredMerchant();
-    if (cached) {
-      const id = String(cached.merchant_id || cached.merchantId);
-      if (id) {
-        setMerchantId(id);
-        setMerchantName(cached.business_name || cached.businessName || '');
-      }
-    }
-
-    // Simulate loading complete
-    setTimeout(() => {
-      setLoading(false);
-    }, 500);
-  }, [router]);
-
   // ─── Loading State ────────────────────────────────────────────────
   if (loading) {
     return (
@@ -316,25 +359,25 @@ export default function OutflowPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <SummaryCard
           title="Total Outflow"
-          value="KES 0"
+          value={`KES ${totalOutflow.toLocaleString()}`}
           icon={TrendingDown}
           color="bg-rose-50 text-rose-500"
         />
         <SummaryCard
           title="Successful"
-          value={0}
+          value={completedCount}
           icon={CheckCircle}
           color="bg-green-50 text-green-500"
         />
         <SummaryCard
           title="Pending"
-          value={0}
+          value={pendingCount}
           icon={Clock}
           color="bg-amber-50 text-amber-500"
         />
         <SummaryCard
           title="Failed"
-          value={0}
+          value={failedCount}
           icon={XCircle}
           color="bg-red-50 text-red-500"
         />
