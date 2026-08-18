@@ -28,7 +28,7 @@ const supabase = createClient(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = getTokenFromRequest(req);
@@ -47,7 +47,7 @@ export async function POST(
       );
     }
 
-    const { id } = await params;
+    const { id } = await context.params;
     const merchantId = user.merchantId;
 
     // ─── Verify schedule exists and belongs to merchant ─────────────
