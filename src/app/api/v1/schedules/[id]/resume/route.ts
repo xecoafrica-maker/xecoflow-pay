@@ -10,17 +10,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
-
-// ============================================================================
-// SUPABASE CLIENT
-// ============================================================================
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { supabase } from '@/lib/supabase';
 
 // ============================================================================
 // POST /api/v1/schedules/:id/resume
@@ -50,8 +41,6 @@ export async function POST(
     const { id } = await context.params;
     const merchantId = user.merchantId;
 
-    // ─── Verify schedule exists and belongs to merchant ─────────────
-
     const { data: existing, error: existingError } = await supabase
       .from('schedules')
       .select('*')
@@ -73,16 +62,12 @@ export async function POST(
       );
     }
 
-    // ─── Validate current status ────────────────────────────────────
-
     if (existing.status !== 'PAUSED') {
       return NextResponse.json(
         { success: false, error: 'Schedule is not paused' },
         { status: 400 }
       );
     }
-
-    // ─── Check if schedule is still valid ──────────────────────────
 
     const now = new Date();
     const scheduledAt = new Date(existing.scheduled_at);
@@ -93,16 +78,12 @@ export async function POST(
       updatedScheduledAt = nextDate.toISOString();
     }
 
-    // ─── Build metadata with resume info ────────────────────────────
-
     const currentMetadata = existing.metadata || {};
     const updatedMetadata = {
       ...currentMetadata,
       resumed_at: new Date().toISOString(),
       resumed_by: user.email || user.businessName || 'merchant',
     };
-
-    // ─── Update status to PENDING ───────────────────────────────────
 
     const { data, error } = await supabase
       .from('schedules')

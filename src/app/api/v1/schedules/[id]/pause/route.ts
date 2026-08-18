@@ -10,17 +10,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
-
-// ============================================================================
-// SUPABASE CLIENT
-// ============================================================================
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { supabase } from '@/lib/supabase';
 
 // ============================================================================
 // POST /api/v1/schedules/:id/pause
@@ -50,8 +41,6 @@ export async function POST(
     const { id } = await context.params;
     const merchantId = user.merchantId;
 
-    // ─── Verify schedule exists and belongs to merchant ─────────────
-
     const { data: existing, error: existingError } = await supabase
       .from('schedules')
       .select('*')
@@ -72,8 +61,6 @@ export async function POST(
         { status: 500 }
       );
     }
-
-    // ─── Validate current status ────────────────────────────────────
 
     if (existing.status === 'PAUSED') {
       return NextResponse.json(
@@ -103,16 +90,12 @@ export async function POST(
       );
     }
 
-    // ─── Build metadata with pause info ─────────────────────────────
-
     const currentMetadata = existing.metadata || {};
     const updatedMetadata = {
       ...currentMetadata,
       paused_at: new Date().toISOString(),
       paused_by: user.email || user.businessName || 'merchant',
     };
-
-    // ─── Update status to PAUSED ────────────────────────────────────
 
     const { data, error } = await supabase
       .from('schedules')
