@@ -44,6 +44,19 @@ interface ScheduledWithdrawal {
   startDate: string;
   nextDate: string;
   time: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface ApiResponse {
+  success: boolean;
+  data?: any;
+  error?: string;
+  pagination?: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
 }
 
 // ─── Colors ──────────────────────────────────────────────────────────
@@ -52,6 +65,9 @@ const statusColors = {
   Paused: 'bg-amber-50 text-amber-700 border-amber-200',
   Cancelled: 'bg-gray-50 text-gray-700 border-gray-200',
   Completed: 'bg-blue-50 text-blue-700 border-blue-200',
+  PENDING: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+  PROCESSING: 'bg-blue-50 text-blue-700 border-blue-200',
+  FAILED: 'bg-red-50 text-red-700 border-red-200',
 };
 
 const statusIcons = {
@@ -59,18 +75,25 @@ const statusIcons = {
   Paused: ClockIcon,
   Cancelled: XCircle,
   Completed: CheckCircle,
+  PENDING: ClockIcon,
+  PROCESSING: ClockIcon,
+  FAILED: XCircle,
 };
 
 const methodIcons = {
   'M-PESA': Smartphone,
   'Bank Transfer': Landmark,
   'Credit Card': CreditCard,
+  'MPESA_PHONE': Smartphone,
+  'BANK_ACCOUNT': Landmark,
 };
 
 const methodColors = {
   'M-PESA': 'bg-green-50 text-green-700 border-green-200',
   'Bank Transfer': 'bg-blue-50 text-blue-700 border-blue-200',
   'Credit Card': 'bg-purple-50 text-purple-700 border-purple-200',
+  'MPESA_PHONE': 'bg-green-50 text-green-700 border-green-200',
+  'BANK_ACCOUNT': 'bg-blue-50 text-blue-700 border-blue-200',
 };
 
 const frequencyOptions = ['Daily', 'Weekly', 'Bi-Weekly', 'Monthly', 'Quarterly'];
@@ -106,6 +129,7 @@ export default function ScheduledWithdrawalsPage() {
 
   // ─── State ────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
+  const [scheduledData, setScheduledData] = useState<ScheduledWithdrawal[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduledWithdrawal | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -116,6 +140,8 @@ export default function ScheduledWithdrawalsPage() {
   const [filterFrequency, setFilterFrequency] = useState('All');
   const [merchantId, setMerchantId] = useState<string>('');
   const [merchantName, setMerchantName] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // ✅ Prevent duplicate logging
   const hasLoggedView = useRef(false);
@@ -124,15 +150,65 @@ export default function ScheduledWithdrawalsPage() {
   // ─── Form State ───────────────────────────────────────────────────
   const [formData, setFormData] = useState({
     amount: '',
-    frequency: 'Daily',
+    frequency: 'Weekly',
     nextDate: '',
-    time: '',
-    method: 'Bank Transfer',
+    time: '08:00',
+    method: 'M-PESA',
+    destination_reference: '',
     confirmAccuracy: false,
   });
 
-  // ─── Empty Data ──────────────────────────────────────────────────
-  const scheduledData: ScheduledWithdrawal[] = [];
+  // ─── Fetch Schedules ──────────────────────────────────────────────
+  const fetchSchedules = async () => {
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const statusParam = filterStatus !== 'All' ? `&status=${filterStatus}` : '';
+      const frequencyParam = filterFrequency !== 'All' ? `&frequency=${filterFrequency}` : '';
+
+      const response = await fetch(
+        `/api/v1/schedules?limit=100${statusParam}${frequencyParam}`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }
+      );
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push('/login');
+          return;
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const json: ApiResponse = await response.json();
+
+      if (json.success) {
+        // Map API data to frontend format
+        const mappedData = (json.data || []).map((item: any) => ({
+          id: item.id,
+          name: item.schedule_type || 'Scheduled Withdrawal',
+          description: `${item.schedule_type} of ${item.amount} ${item.currency}`,
+          amount: Number(item.amount),
+          frequency: item.frequency || 'weekly',
+          method: item.destination_type === 'MPESA_PHONE' ? 'M-PESA' : 'Bank Transfer',
+          status: item.status,
+          recipient: item.destination_reference || item.destination_account_number || 'N/A',
+          startDate: item.created_at,
+          nextDate: item.scheduled_at,
+          time: item.scheduled_at ? new Date(item.scheduled_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '08:00',
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+        }));
+
+        setScheduledData(mappedData);
+      }
+    } catch (error) {
+      console.error('Failed to fetch schedules:', error);
+      setError('Failed to load schedules. Please try again.');
+    }
+  };
 
   // ─── Load Merchant Data ──────────────────────────────────────────
   useEffect(() => {
@@ -150,6 +226,8 @@ export default function ScheduledWithdrawalsPage() {
         setMerchantName(cached.business_name || cached.businessName || '');
       }
     }
+
+    fetchSchedules();
 
     setTimeout(() => {
       setLoading(false);
@@ -198,17 +276,17 @@ export default function ScheduledWithdrawalsPage() {
 
   // ─── Statistics ──────────────────────────────────────────────────
   const totalScheduled = filteredData.length;
-  const activeCount = filteredData.filter(t => t.status === 'Active').length;
+  const activeCount = filteredData.filter(t => t.status === 'Active' || t.status === 'PENDING' || t.status === 'PROCESSING').length;
   const pausedCount = filteredData.filter(t => t.status === 'Paused').length;
 
   // ─── Handlers ──────────────────────────────────────────────────────
   const handleRefresh = () => {
     setIsRefreshing(true);
     hasLoggedView.current = false;
-    setTimeout(() => {
+    fetchSchedules().finally(() => {
       setIsRefreshing(false);
       setLoading(false);
-    }, 500);
+    });
   };
 
   const handleViewDetails = async (schedule: ScheduledWithdrawal) => {
@@ -226,23 +304,58 @@ export default function ScheduledWithdrawalsPage() {
   };
 
   const confirmDelete = async () => {
-    if (selectedSchedule) {
+    if (!selectedSchedule) return;
+
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const response = await fetch(`/api/v1/schedules/${selectedSchedule.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (!response.ok) throw new Error('Failed to delete schedule');
+
       await log(
         'Deleted scheduled withdrawal',
         `Deleted schedule ${selectedSchedule.id} - Amount: KES ${selectedSchedule.amount}`
       );
+
+      setShowDeleteModal(false);
+      setSelectedSchedule(null);
+      await fetchSchedules();
+    } catch (error) {
+      console.error('Failed to delete schedule:', error);
+      alert('Failed to delete schedule. Please try again.');
     }
-    setShowDeleteModal(false);
-    alert('Schedule deleted successfully');
   };
 
   const handleToggleStatus = async (schedule: ScheduledWithdrawal) => {
-    const newStatus = schedule.status === 'Active' ? 'Paused' : 'Active';
-    await log(
-      schedule.status === 'Active' ? 'Paused scheduled withdrawal' : 'Activated scheduled withdrawal',
-      `${schedule.status === 'Active' ? 'Paused' : 'Activated'} schedule ${schedule.id}`
-    );
-    alert(`Schedule ${newStatus === 'Active' ? 'activated' : 'paused'} successfully`);
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const newStatus = schedule.status === 'Active' || schedule.status === 'PENDING' ? 'PAUSED' : 'PENDING';
+      const endpoint = `/api/v1/schedules/${schedule.id}/${newStatus === 'PAUSED' ? 'pause' : 'resume'}`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (!response.ok) throw new Error('Failed to update schedule status');
+
+      await log(
+        schedule.status === 'Active' ? 'Paused scheduled withdrawal' : 'Activated scheduled withdrawal',
+        `${schedule.status === 'Active' ? 'Paused' : 'Activated'} schedule ${schedule.id}`
+      );
+
+      await fetchSchedules();
+    } catch (error) {
+      console.error('Failed to toggle status:', error);
+      alert('Failed to update schedule status. Please try again.');
+    }
   };
 
   const handleCreateSchedule = async () => {
@@ -250,22 +363,72 @@ export default function ScheduledWithdrawalsPage() {
       alert('Please fill in all required fields');
       return;
     }
-    
-    await log(
-      'Created scheduled withdrawal',
-      `Created new schedule: ${formData.frequency} withdrawal of KES ${parseFloat(formData.amount).toLocaleString()}`
-    );
-    
-    setShowCreateModal(false);
-    alert('Schedule created successfully');
-    setFormData({
-      amount: '',
-      frequency: 'Daily',
-      nextDate: '',
-      time: '',
-      method: 'Bank Transfer',
-      confirmAccuracy: false,
-    });
+
+    setIsSubmitting(true);
+
+    try {
+      const token = getToken();
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      // Map frequency to database format
+      const frequencyMap: Record<string, string> = {
+        'Daily': 'daily',
+        'Weekly': 'weekly',
+        'Bi-Weekly': 'biweekly',
+        'Monthly': 'monthly',
+        'Quarterly': 'quarterly',
+      };
+
+      const response = await fetch('/api/v1/schedules', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: parseFloat(formData.amount),
+          frequency: frequencyMap[formData.frequency] || 'weekly',
+          nextDate: formData.nextDate,
+          time: formData.time,
+          method: formData.method,
+          destination_reference: formData.destination_reference || '',
+          destination_type: formData.method === 'M-PESA' ? 'MPESA_PHONE' : 'BANK_ACCOUNT',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create schedule');
+      }
+
+      await log(
+        'Created scheduled withdrawal',
+        `Created new schedule: ${formData.frequency} withdrawal of KES ${parseFloat(formData.amount).toLocaleString()}`
+      );
+
+      setShowCreateModal(false);
+      setFormData({
+        amount: '',
+        frequency: 'Weekly',
+        nextDate: '',
+        time: '08:00',
+        method: 'M-PESA',
+        destination_reference: '',
+        confirmAccuracy: false,
+      });
+      
+      await fetchSchedules();
+      
+    } catch (error: any) {
+      console.error('Failed to create schedule:', error);
+      alert(error.message || 'Failed to create schedule. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -277,6 +440,7 @@ export default function ScheduledWithdrawalsPage() {
   };
 
   const formatDate = (dateStr: string) => {
+    if (!dateStr) return '—';
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
@@ -331,6 +495,22 @@ export default function ScheduledWithdrawalsPage() {
         </div>
       </div>
 
+      {/* ─── Error Message ──────────────────────────────────────────── */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm text-red-700">{error}</p>
+            <button
+              onClick={() => setError(null)}
+              className="text-xs text-red-600 hover:text-red-800 mt-1"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ─── Summary Cards ───────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
@@ -368,9 +548,11 @@ export default function ScheduledWithdrawalsPage() {
             className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 appearance-none pr-10 shadow-sm"
           >
             <option value="All">All Status</option>
+            <option value="PENDING">Pending</option>
             <option value="Active">Active</option>
             <option value="Paused">Paused</option>
-            <option value="Cancelled">Cancelled</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="FAILED">Failed</option>
           </select>
           <select
             value={filterFrequency}
@@ -467,11 +649,13 @@ export default function ScheduledWithdrawalsPage() {
                         <button
                           onClick={() => handleToggleStatus(schedule)}
                           className={`p-1.5 hover:bg-gray-100 rounded-lg transition-colors ${
-                            schedule.status === 'Active' ? 'text-amber-400 hover:text-amber-600' : 'text-emerald-400 hover:text-emerald-600'
+                            schedule.status === 'Active' || schedule.status === 'PENDING' || schedule.status === 'PROCESSING'
+                              ? 'text-amber-400 hover:text-amber-600'
+                              : 'text-emerald-400 hover:text-emerald-600'
                           }`}
-                          title={schedule.status === 'Active' ? 'Pause' : 'Activate'}
+                          title={schedule.status === 'Active' || schedule.status === 'PENDING' ? 'Pause' : 'Activate'}
                         >
-                          {schedule.status === 'Active' ? (
+                          {schedule.status === 'Active' || schedule.status === 'PENDING' || schedule.status === 'PROCESSING' ? (
                             <Pause className="w-4 h-4" />
                           ) : (
                             <Play className="w-4 h-4" />
@@ -539,6 +723,8 @@ export default function ScheduledWithdrawalsPage() {
                       value={formData.amount}
                       onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                       className="w-full pl-14 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
+                      min="1"
+                      step="1"
                     />
                   </div>
                 </div>
@@ -622,7 +808,7 @@ export default function ScheduledWithdrawalsPage() {
                       <Smartphone className="w-4 h-4" />
                       <div className="text-left">
                         <div className="font-medium">Mobile Money</div>
-                        <div className="text-xs text-gray-400">254712xxxxx78</div>
+                        <div className="text-xs text-gray-400">254712071385</div>
                       </div>
                     </button>
                   </div>
@@ -701,10 +887,20 @@ export default function ScheduledWithdrawalsPage() {
                 </button>
                 <button
                   onClick={handleCreateSchedule}
-                  className="flex-1 px-4 py-2.5 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2.5 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Plus className="w-4 h-4" />
-                  Create Schedule
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" />
+                      Create Schedule
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -719,7 +915,7 @@ export default function ScheduledWithdrawalsPage() {
             <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
               <div className="flex items-center gap-3">
                 <div className={`w-3 h-3 rounded-full ${
-                  selectedSchedule.status === 'Active' ? 'bg-emerald-500' :
+                  selectedSchedule.status === 'Active' || selectedSchedule.status === 'PENDING' ? 'bg-emerald-500' :
                   selectedSchedule.status === 'Paused' ? 'bg-amber-500' : 'bg-gray-500'
                 }`} />
                 <h3 className="text-lg font-bold text-gray-900">Schedule Details</h3>
@@ -800,12 +996,12 @@ export default function ScheduledWithdrawalsPage() {
                 <button
                   onClick={() => handleToggleStatus(selectedSchedule)}
                   className={`px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
-                    selectedSchedule.status === 'Active'
+                    selectedSchedule.status === 'Active' || selectedSchedule.status === 'PENDING'
                       ? 'bg-amber-500 hover:bg-amber-600 text-white'
                       : 'bg-emerald-500 hover:bg-emerald-600 text-white'
                   }`}
                 >
-                  {selectedSchedule.status === 'Active' ? (
+                  {selectedSchedule.status === 'Active' || selectedSchedule.status === 'PENDING' ? (
                     <>
                       <Pause className="w-4 h-4" />
                       Pause Schedule
