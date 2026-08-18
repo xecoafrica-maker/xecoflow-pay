@@ -6,9 +6,6 @@
  *
  * GET /api/v1/schedules/due          - Get schedules that are due for processing
  *
- * This endpoint is used by the scheduler worker to find schedules that
- * are ready to be executed.
- *
  * ============================================================================
  */
 
@@ -31,8 +28,6 @@ const supabase = createClient(
 
 export async function GET(req: NextRequest) {
   try {
-    // ─── Optional authentication for internal use ──────────────────
-    // For scheduler worker, can skip auth or use internal token
     const isInternal = req.headers.get('x-internal-key') === process.env.INTERNAL_SERVICE_TOKEN;
     
     if (!isInternal) {
@@ -57,8 +52,6 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '100');
     const merchantId = searchParams.get('merchantId');
 
-    // ─── Build query ─────────────────────────────────────────────────
-
     let query = supabase
       .from('schedules')
       .select('*')
@@ -67,12 +60,9 @@ export async function GET(req: NextRequest) {
       .order('scheduled_at', { ascending: true })
       .limit(limit);
 
-    // If merchantId provided, filter by merchant
     if (merchantId) {
       query = query.eq('merchant_id', parseInt(merchantId));
     }
-
-    // ─── Execute query ──────────────────────────────────────────────
 
     const { data, error } = await query;
 

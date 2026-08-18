@@ -39,8 +39,8 @@ export async function POST(
       );
     }
 
-    const user = await verifyToken(token);
-    if (!user) {
+    const user = verifyToken(token);
+    if (!user || !user.merchantId) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }

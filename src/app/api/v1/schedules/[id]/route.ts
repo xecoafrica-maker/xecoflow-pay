@@ -30,7 +30,7 @@ const supabase = createClient(
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
     const token = getTokenFromRequest(req);
@@ -73,7 +73,6 @@ export async function GET(
       );
     }
 
-    // Transform to frontend format
     const transformedData = {
       id: data.id,
       name: data.schedule_type || 'Scheduled Withdrawal',
@@ -118,7 +117,7 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
     const token = getTokenFromRequest(req);
@@ -141,8 +140,6 @@ export async function PUT(
     const merchantId = user.merchantId;
     const body = await req.json();
 
-    // ─── Verify schedule exists and belongs to merchant ─────────────
-
     const { data: existing, error: existingError } = await supabase
       .from('schedules')
       .select('id, status')
@@ -164,8 +161,6 @@ export async function PUT(
       );
     }
 
-    // ─── Don't allow updates to completed or failed schedules ──────
-
     if (existing.status === 'COMPLETED') {
       return NextResponse.json(
         { success: false, error: 'Cannot update a completed schedule' },
@@ -179,8 +174,6 @@ export async function PUT(
         { status: 400 }
       );
     }
-
-    // ─── Build update data ───────────────────────────────────────────
 
     const {
       frequency,
@@ -204,8 +197,6 @@ export async function PUT(
     if (destination_reference) updateData.destination_reference = destination_reference;
 
     updateData.updated_at = new Date().toISOString();
-
-    // ─── Update the schedule ─────────────────────────────────────────
 
     const { data, error } = await supabase
       .from('schedules')
@@ -242,7 +233,7 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
     const token = getTokenFromRequest(req);
@@ -263,8 +254,6 @@ export async function DELETE(
 
     const { id } = await params;
     const merchantId = user.merchantId;
-
-    // ─── Verify schedule exists and belongs to merchant ─────────────
 
     const { data: existing, error: existingError } = await supabase
       .from('schedules')
@@ -287,16 +276,12 @@ export async function DELETE(
       );
     }
 
-    // ─── Don't allow deletion of processing schedules ───────────────
-
     if (existing.status === 'PROCESSING') {
       return NextResponse.json(
         { success: false, error: 'Cannot delete a schedule that is currently processing' },
         { status: 400 }
       );
     }
-
-    // ─── Delete the schedule ─────────────────────────────────────────
 
     const { error } = await supabase
       .from('schedules')

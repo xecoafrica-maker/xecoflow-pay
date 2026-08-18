@@ -28,7 +28,7 @@ const supabase = createClient(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
     const token = getTokenFromRequest(req);
@@ -89,7 +89,6 @@ export async function POST(
 
     let updatedScheduledAt = existing.scheduled_at;
     if (scheduledAt < now) {
-      // If the schedule date has passed, recalculate the next date
       const nextDate = calculateNextDate(now, existing.frequency);
       updatedScheduledAt = nextDate.toISOString();
     }
@@ -144,9 +143,6 @@ export async function POST(
 // HELPERS
 // ============================================================================
 
-/**
- * Calculate the next processing date based on frequency.
- */
 function calculateNextDate(
   currentDate: Date,
   frequency: string

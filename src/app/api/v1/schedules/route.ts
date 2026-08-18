@@ -76,7 +76,6 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Transform data to match frontend type
     const transformedData = (data || []).map((item: any) => ({
       id: item.id,
       name: item.schedule_type || 'Scheduled Withdrawal',
