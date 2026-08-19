@@ -159,7 +159,7 @@ const sidebarSections: SidebarSection[] = [
     ],
   },
   {
-    title: 'UTILITIES & DISBURSEMENT',
+    title: 'DISBURSEMENT',
     items: [
       {
         icon: Phone,
