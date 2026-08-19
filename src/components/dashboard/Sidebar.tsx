@@ -57,6 +57,8 @@ import {
   BookOpen,
   Code,
   Brackets,
+  Phone,
+  Users as UsersIcon,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -116,7 +118,7 @@ const sidebarSections: SidebarSection[] = [
     ],
   },
   {
-    title: 'PAYMENTS',
+    title: 'PAYMENTS & COLLECTION',
     items: [
       {
         icon: CreditCard,
@@ -137,11 +139,6 @@ const sidebarSections: SidebarSection[] = [
           { icon: Clock, label: 'Scheduled Withdraws', href: '/dashboard/withdrawals/Withdraw-scheduled' },
         ],
       },
-    ],
-  },
-  {
-    title: 'PRODUCTS',
-    items: [
       {
         icon: Send,
         label: 'Send STK Push',
@@ -154,6 +151,24 @@ const sidebarSections: SidebarSection[] = [
           { icon: PlusCircle, label: 'Create Bill', href: '/dashboard/smart-bills/pages' },
           { icon: BarChart3, label: 'Active Bills & Analytics', href: '/dashboard/smart-bills/analytics' },
         ],
+      },
+    ],
+  },
+  {
+    title: 'UTILITIES & DISBURSEMENT',
+    items: [
+      {
+        icon: Phone,
+        label: 'Bulk & Corporate Airtime',
+        children: [
+          { icon: Smartphone, label: 'Retail Quick Top-Up', href: '/dashboard/utilities/airtime/retail' },
+          { icon: Box, label: 'Bulk Airtime', href: '/dashboard/utilities/airtime/bulk' },
+        ],
+      },
+      {
+        icon: Zap,
+        label: 'Buy KPLC Token',
+        href: '/dashboard/utilities/kplc',
       },
     ],
   },
@@ -195,24 +210,18 @@ const sidebarSections: SidebarSection[] = [
     items: [
       {
         icon: Code,
-        label: 'API Keys & Webhooks', // ✅ Renamed
+        label: 'API Keys & Webhooks',
         href: '/dashboard/account/api-keys',
       },
-      // ✅ Removed Custom Integrations
     ],
   },
   {
-    title: 'HELP',
+    title: 'DEVELOPER',
     items: [
       {
-        icon: HelpCircle,
-        label: 'Support',
-        href: '/dashboard/support',
-      },
-      {
         icon: BookOpen,
-        label: 'Documentation',
-        href: '/dashboard/docs',
+        label: 'Developer Hub (API Keys & Docs)',
+        href: '/dashboard/developer',
       },
     ],
   },
