@@ -28,36 +28,7 @@ interface BulkItem {
 
 export default function BulkAirtimePage() {
   const router = useRouter();
-  const [items, setItems] = useState<BulkItem[]>([
-    {
-      id: '1',
-      phone: '0712071385',
-      amount: 100.00,
-      status: 'draft',
-      updatedAt: '8/19/2026, 12:38:16 PM',
-    },
-    {
-      id: '2',
-      phone: '0712071385',
-      amount: 10.00,
-      status: 'draft',
-      updatedAt: '8/19/2026, 12:38:37 PM',
-    },
-    {
-      id: '3',
-      phone: '0712345678',
-      amount: 100.00,
-      status: 'draft',
-      updatedAt: '8/19/2026, 12:45:24 PM',
-    },
-    {
-      id: '4',
-      phone: '0722113344',
-      amount: 250.00,
-      status: 'draft',
-      updatedAt: '8/19/2026, 12:45:24 PM',
-    },
-  ]);
+  const [items, setItems] = useState<BulkItem[]>([]);
   const [phone, setPhone] = useState('');
   const [amount, setAmount] = useState('');
   const [isUploading, setIsUploading] = useState(false);
