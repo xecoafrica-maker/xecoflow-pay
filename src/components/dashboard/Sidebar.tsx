@@ -163,11 +163,8 @@ const sidebarSections: SidebarSection[] = [
     items: [
       {
         icon: Phone,
-        label: 'Bulk & Corporate Airtime',
-        children: [
-          { icon: Smartphone, label: 'Retail Quick Top-Up', href: '/dashboard/utilities/airtime/bulk' },
-          { icon: Box, label: 'Bulk Airtime', href: '/dashboard/utilities/airtime/bulk' },
-        ],
+        label: 'Bulk Airtime',
+        href: '/dashboard/utilities/airtime/bulk',
       },
     ],
   },
@@ -209,6 +206,7 @@ const sidebarSections: SidebarSection[] = [
     ],
   },
 ];
+
 
 // ─── Component ──────────────────────────────────────────────────────
 export default function Sidebar() {
