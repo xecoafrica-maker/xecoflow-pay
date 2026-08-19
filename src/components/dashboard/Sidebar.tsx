@@ -205,28 +205,12 @@ const sidebarSections: SidebarSection[] = [
     ],
   },
   {
-    title: 'INTEGRATIONS',
+    title: 'DEVELOPER HUB',
     items: [
       {
         icon: Code,
-        label: 'API Keys & Webhooks', // ✅ Renamed
+        label: 'API Keys & Webhooks',
         href: '/dashboard/account/api-keys',
-      },
-      // ✅ Removed Custom Integrations
-    ],
-  },
-  {
-    title: 'HELP',
-    items: [
-      {
-        icon: HelpCircle,
-        label: 'Support',
-        href: '/dashboard/support',
-      },
-      {
-        icon: BookOpen,
-        label: 'Documentation',
-        href: '/dashboard/docs',
       },
     ],
   },
