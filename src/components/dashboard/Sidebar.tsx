@@ -171,11 +171,6 @@ const sidebarSections: SidebarSection[] = [
       },
     ],
   },
-  // DYNAMIC: MY APPS & SHORTCUTS - Pinned apps will be injected here
-  {
-    title: 'MY APPS & SHORTCUTS',
-    items: [], // Will be populated dynamically
-  },
   {
     title: 'FINANCE',
     items: [
@@ -196,7 +191,6 @@ const sidebarSections: SidebarSection[] = [
           { icon: Building, label: 'Business Identity', href: '/dashboard/business/identity' },
           { icon: Users, label: 'Team Management', href: '/dashboard/business/team' },
           { icon: BarChart3, label: 'Reports & Analytics', href: '/dashboard/business/reports' },
-          { icon: User, label: 'Profile', href: '/dashboard/account/profile' },
           { icon: Bell, label: 'Preferences', href: '/dashboard/account/preferences' },
           { icon: Shield, label: 'Security', href: '/dashboard/account/security' },
           { icon: Activity, label: 'Activity Logs', href: '/dashboard/activity-logs' },
