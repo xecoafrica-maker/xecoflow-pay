@@ -165,7 +165,7 @@ const sidebarSections: SidebarSection[] = [
         icon: Phone,
         label: 'Bulk & Corporate Airtime',
         children: [
-          { icon: Smartphone, label: 'Retail Quick Top-Up', href: '/dashboard/utilities/airtime/retail' },
+          { icon: Smartphone, label: 'Retail Quick Top-Up', href: '/dashboard/utilities/airtime/bulk' },
           { icon: Box, label: 'Bulk Airtime', href: '/dashboard/utilities/airtime/bulk' },
         ],
       },
