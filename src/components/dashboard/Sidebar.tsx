@@ -403,7 +403,7 @@ export default function Sidebar() {
               <div key={section.title || 'section'} className="mb-4">
                 {section.title && (
                   <div className="px-3 py-2">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                       {section.title}
                     </p>
                   </div>
@@ -438,7 +438,7 @@ export default function Sidebar() {
                         >
                           {item.icon && (
                             <item.icon
-                              size={17}
+                              size={18}
                               className={`flex-shrink-0 ${
                                 isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'
                               }`}
@@ -467,7 +467,7 @@ export default function Sidebar() {
                           >
                             {item.icon && (
                               <item.icon
-                                size={17}
+                                size={18}
                                 className={`flex-shrink-0 ${
                                   isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'
                                 }`}
@@ -494,7 +494,7 @@ export default function Sidebar() {
                               >
                                 {item.icon && (
                                   <item.icon
-                                    size={17}
+                                    size={18}
                                     className={`flex-shrink-0 ${
                                       childActive || showExpanded
                                         ? 'text-emerald-400'
@@ -525,7 +525,7 @@ export default function Sidebar() {
                               >
                                 {item.icon && (
                                   <item.icon
-                                    size={17}
+                                    size={18}
                                     className={`flex-shrink-0 ${
                                       childActive || showExpanded
                                         ? 'text-emerald-400'
@@ -563,7 +563,7 @@ export default function Sidebar() {
                                     >
                                       {child.icon && (
                                         <child.icon
-                                          size={14}
+                                          size={15}
                                           className={`flex-shrink-0 ${
                                             childActive ? 'text-emerald-400' : 'text-slate-500'
                                           }`}
