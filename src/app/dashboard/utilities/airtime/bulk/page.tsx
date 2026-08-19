@@ -14,6 +14,8 @@ import {
   X,
   Check,
   AlertCircle,
+  Send,
+  Printer,
 } from 'lucide-react';
 
 interface BulkItem {
@@ -26,12 +28,42 @@ interface BulkItem {
 
 export default function BulkAirtimePage() {
   const router = useRouter();
-  const [items, setItems] = useState<BulkItem[]>([]);
+  const [items, setItems] = useState<BulkItem[]>([
+    {
+      id: '1',
+      phone: '0712071385',
+      amount: 100.00,
+      status: 'draft',
+      updatedAt: '8/19/2026, 12:38:16 PM',
+    },
+    {
+      id: '2',
+      phone: '0712071385',
+      amount: 10.00,
+      status: 'draft',
+      updatedAt: '8/19/2026, 12:38:37 PM',
+    },
+    {
+      id: '3',
+      phone: '0712345678',
+      amount: 100.00,
+      status: 'draft',
+      updatedAt: '8/19/2026, 12:45:24 PM',
+    },
+    {
+      id: '4',
+      phone: '0722113344',
+      amount: 250.00,
+      status: 'draft',
+      updatedAt: '8/19/2026, 12:45:24 PM',
+    },
+  ]);
   const [phone, setPhone] = useState('');
   const [amount, setAmount] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [showPasteModal, setShowPasteModal] = useState(false);
   const [pasteData, setPasteData] = useState('');
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Calculate total
@@ -59,13 +91,25 @@ export default function BulkAirtimePage() {
     setItems(items.filter(item => item.id !== id));
   };
 
-  // Save item (mark as ready)
-  const handleSaveItem = (id: string) => {
+  // Process item (mark as processing)
+  const handleProcessItem = (id: string) => {
     setItems(items.map(item => 
       item.id === id 
         ? { ...item, status: 'processing' as const, updatedAt: new Date().toLocaleString() }
         : item
     ));
+  };
+
+  // Process all items
+  const handleProcessAll = () => {
+    if (items.length === 0) return;
+    if (window.confirm(`Are you sure you want to process all ${items.length} items?`)) {
+      setItems(items.map(item => 
+        item.status === 'draft'
+          ? { ...item, status: 'processing' as const, updatedAt: new Date().toLocaleString() }
+          : item
+      ));
+    }
   };
 
   // Delete all items
@@ -80,6 +124,7 @@ export default function BulkAirtimePage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setSelectedFile(file.name);
     setIsUploading(true);
     const reader = new FileReader();
 
@@ -169,13 +214,32 @@ export default function BulkAirtimePage() {
     window.URL.revokeObjectURL(url);
   };
 
+  // Export list
+  const handleExportList = () => {
+    if (items.length === 0) return;
+    
+    const headers = 'Phone,Amount,Status,Updated\n';
+    const rows = items.map(item => 
+      `${item.phone},${item.amount.toFixed(2)},${item.status},${item.updatedAt}`
+    ).join('\n');
+    const csv = headers + rows;
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bulk-airtime-export-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   // Get status badge color
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'draft':
         return 'bg-gray-100 text-gray-600';
       case 'processing':
-        return 'bg-yellow-100 text-yellow-600';
+        return 'bg-blue-100 text-blue-600';
       case 'completed':
         return 'bg-green-100 text-green-600';
       case 'failed':
@@ -204,11 +268,23 @@ export default function BulkAirtimePage() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
+        {/* Back Button */}
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-4"
+        >
+          <ArrowLeft size={20} />
+          <span>Back to lists</span>
+        </button>
+
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Bulk Airtime</h1>
-            <p className="text-gray-500 text-sm">Total: <span className="font-semibold text-emerald-600">KES {totalAmount.toFixed(2)}</span></p>
+            <h1 className="text-2xl font-bold text-gray-900">Bulk Items</h1>
+            <p className="text-gray-500 text-sm">
+              {selectedFile ? `Loaded CSV file: ${selectedFile}` : 'No file loaded'}
+              <span className="ml-3 font-semibold text-emerald-600">Total: KES {totalAmount.toFixed(2)}</span>
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -297,6 +373,40 @@ export default function BulkAirtimePage() {
           </div>
         </div>
 
+        {/* Actions Bar */}
+        {items.length > 0 && (
+          <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3 mb-4 shadow-sm">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600">
+                {items.length} item{items.length > 1 ? 's' : ''} • Total: <span className="font-semibold text-emerald-600">KES {totalAmount.toFixed(2)}</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleProcessAll}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm font-medium"
+              >
+                <Send size={16} />
+                Process List
+              </button>
+              <button
+                onClick={handleExportList}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+              >
+                <Download size={16} />
+                Export
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+              >
+                <Printer size={16} />
+                Print
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Items Table */}
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
@@ -333,11 +443,11 @@ export default function BulkAirtimePage() {
                         <div className="flex items-center justify-end gap-2">
                           {item.status === 'draft' && (
                             <button
-                              onClick={() => handleSaveItem(item.id)}
+                              onClick={() => handleProcessItem(item.id)}
                               className="text-emerald-500 hover:text-emerald-600 transition-colors"
-                              title="Save"
+                              title="Process"
                             >
-                              <Save size={16} />
+                              <Check size={16} />
                             </button>
                           )}
                           <button
@@ -357,19 +467,13 @@ export default function BulkAirtimePage() {
                 <tfoot className="bg-gray-50 border-t border-gray-200">
                   <tr>
                     <td colSpan={5} className="px-4 py-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-sm text-gray-600">Total Items: <span className="text-gray-900 font-semibold">{items.length}</span></span>
-                          <span className="text-sm text-gray-600 ml-4">Total Amount: <span className="text-emerald-600 font-semibold">KES {totalAmount.toFixed(2)}</span></span>
-                        </div>
-                        <button
-                          onClick={handleDeleteAll}
-                          className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
-                        >
-                          <Trash2 size={16} />
-                          Delete list
-                        </button>
-                      </div>
+                      <button
+                        onClick={handleDeleteAll}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+                      >
+                        <Trash2 size={16} />
+                        Delete list
+                      </button>
                     </td>
                   </tr>
                 </tfoot>
