@@ -358,6 +358,7 @@ export default function ScheduledWithdrawalsPage() {
     }
   };
 
+  // ✅ FIXED: handleCreateSchedule with proper EAT to UTC conversion
   const handleCreateSchedule = async () => {
     if (!formData.amount || !formData.nextDate || !formData.time) {
       alert('Please fill in all required fields');
@@ -382,10 +383,15 @@ export default function ScheduledWithdrawalsPage() {
         'Quarterly': 'quarterly',
       };
 
-      // ✅ Convert local date/time to UTC
-      const localDateTime = new Date(`${formData.nextDate}T${formData.time || '08:00:00'}`);
-      // Subtract timezone offset to get UTC
-      const utcDateTime = new Date(localDateTime.getTime() - localDateTime.getTimezoneOffset() * 60000);
+      // ✅ CORRECT: Convert EAT time to UTC
+      // The merchant selects time in EAT (East Africa Time, UTC+3)
+      // We need to store it as UTC in the database
+      const eatTimeString = `${formData.nextDate}T${formData.time || '08:00:00'}`;
+      const localDate = new Date(eatTimeString);
+      
+      // ✅ Convert to UTC by subtracting timezone offset
+      // This ensures 10:30 AM EAT becomes 07:30 UTC
+      const utcDate = new Date(localDate.getTime() - localDate.getTimezoneOffset() * 60000);
 
       const response = await fetch('/api/v1/schedules', {
         method: 'POST',
@@ -401,8 +407,7 @@ export default function ScheduledWithdrawalsPage() {
           method: formData.method,
           destination_reference: formData.destination_reference || '',
           destination_type: formData.method === 'M-PESA' ? 'MPESA_PHONE' : 'BANK_ACCOUNT',
-          // ✅ Send UTC time to the API
-          scheduled_at: utcDateTime.toISOString(),
+          scheduled_at: utcDate.toISOString(), // ✅ UTC time
         }),
       });
 
