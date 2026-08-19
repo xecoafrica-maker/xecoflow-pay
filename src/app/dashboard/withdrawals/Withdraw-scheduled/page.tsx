@@ -382,6 +382,11 @@ export default function ScheduledWithdrawalsPage() {
         'Quarterly': 'quarterly',
       };
 
+      // ✅ Convert local date/time to UTC
+      const localDateTime = new Date(`${formData.nextDate}T${formData.time || '08:00:00'}`);
+      // Subtract timezone offset to get UTC
+      const utcDateTime = new Date(localDateTime.getTime() - localDateTime.getTimezoneOffset() * 60000);
+
       const response = await fetch('/api/v1/schedules', {
         method: 'POST',
         headers: {
@@ -396,6 +401,8 @@ export default function ScheduledWithdrawalsPage() {
           method: formData.method,
           destination_reference: formData.destination_reference || '',
           destination_type: formData.method === 'M-PESA' ? 'MPESA_PHONE' : 'BANK_ACCOUNT',
+          // ✅ Send UTC time to the API
+          scheduled_at: utcDateTime.toISOString(),
         }),
       });
 
