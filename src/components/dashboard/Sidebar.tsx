@@ -58,7 +58,6 @@ import {
   Code,
   Brackets,
   Phone,
-  Users as UsersIcon,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -118,7 +117,7 @@ const sidebarSections: SidebarSection[] = [
     ],
   },
   {
-    title: 'PAYMENTS & COLLECTION',
+    title: 'PAYMENTS',
     items: [
       {
         icon: CreditCard,
@@ -139,6 +138,11 @@ const sidebarSections: SidebarSection[] = [
           { icon: Clock, label: 'Scheduled Withdraws', href: '/dashboard/withdrawals/Withdraw-scheduled' },
         ],
       },
+    ],
+  },
+  {
+    title: 'PRODUCTS',
+    items: [
       {
         icon: Send,
         label: 'Send STK Push',
@@ -164,11 +168,6 @@ const sidebarSections: SidebarSection[] = [
           { icon: Smartphone, label: 'Retail Quick Top-Up', href: '/dashboard/utilities/airtime/retail' },
           { icon: Box, label: 'Bulk Airtime', href: '/dashboard/utilities/airtime/bulk' },
         ],
-      },
-      {
-        icon: Zap,
-        label: 'Buy KPLC Token',
-        href: '/dashboard/utilities/kplc',
       },
     ],
   },
@@ -210,18 +209,24 @@ const sidebarSections: SidebarSection[] = [
     items: [
       {
         icon: Code,
-        label: 'API Keys & Webhooks',
+        label: 'API Keys & Webhooks', // ✅ Renamed
         href: '/dashboard/account/api-keys',
       },
+      // ✅ Removed Custom Integrations
     ],
   },
   {
-    title: 'DEVELOPER',
+    title: 'HELP',
     items: [
       {
+        icon: HelpCircle,
+        label: 'Support',
+        href: '/dashboard/support',
+      },
+      {
         icon: BookOpen,
-        label: 'Developer Hub (API Keys & Docs)',
-        href: '/dashboard/developer',
+        label: 'Documentation',
+        href: '/dashboard/docs',
       },
     ],
   },
