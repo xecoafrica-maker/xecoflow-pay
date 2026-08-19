@@ -160,6 +160,37 @@ export async function POST(req: NextRequest) {
       destinationReference = '254712071385';
     }
 
+    // ✅ TIMEZONE FIX: Convert EAT to UTC
+    // The frontend sends time in EAT (East Africa Time, UTC+3)
+    // We need to convert it to UTC before storing in the database
+    let scheduledAtUTC: string;
+
+    // Check if the frontend sent scheduled_at directly
+    if (body.scheduled_at) {
+      const date = new Date(body.scheduled_at);
+      // If the string doesn't have Z or +, assume it's local time (EAT)
+      if (!body.scheduled_at.includes('Z') && !body.scheduled_at.includes('+')) {
+        // Convert EAT to UTC (subtract 3 hours)
+        const utcDate = new Date(date.getTime() - 3 * 60 * 60 * 1000);
+        scheduledAtUTC = utcDate.toISOString();
+      } else {
+        scheduledAtUTC = date.toISOString();
+      }
+    } else {
+      // Fallback: construct from nextDate and time
+      const localDateTime = new Date(`${nextDate}T${time || '08:00:00'}`);
+      // Convert EAT to UTC (subtract 3 hours)
+      const utcDate = new Date(localDateTime.getTime() - 3 * 60 * 60 * 1000);
+      scheduledAtUTC = utcDate.toISOString();
+    }
+
+    // Log the conversion for debugging
+    console.log('📍 Timezone Conversion:', {
+      input: nextDate + 'T' + (time || '08:00:00'),
+      output: scheduledAtUTC,
+      utc: new Date().toISOString(),
+    });
+
     const scheduleData = {
       merchant_id: merchantId,
       source_account_number: sourceAccountNumber,
@@ -168,7 +199,7 @@ export async function POST(req: NextRequest) {
       schedule_type: 'WITHDRAWAL',
       action: 'EXECUTE_WITHDRAWAL',
       amount: Number(amount),
-      scheduled_at: new Date(`${nextDate}T${time || '08:00:00'}`).toISOString(),
+      scheduled_at: scheduledAtUTC, // ✅ UTC time
       frequency: frequency.toLowerCase(),
       status: 'PENDING',
       max_attempts: 3,
@@ -176,6 +207,8 @@ export async function POST(req: NextRequest) {
         source: 'dashboard',
         created_by: 'merchant',
         method: method || 'M-PESA',
+        // Store the original time for reference
+        original_time: nextDate + 'T' + (time || '08:00:00'),
       },
     };
 
