@@ -1,4 +1,3 @@
-// src/app/dashboard/paybill/automated/page.tsx
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -31,21 +30,20 @@ export default function AutomatedPayBillPage() {
   const [exporting, setExporting] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // ============================================================
-  // BRAND COLORS
-  // ============================================================
+  // ------------------------------------------------------------
+  // Brand colors
+  // ------------------------------------------------------------
 
-  const GREEN = '#099447';
-  const DARK_BLUE = '#073B73';
-  const LIGHT_GREEN = '#EAF6EF';
-  const BORDER = '#B8B8B8';
+  const GREEN = '#079447';
+  const DARK_BLUE = '#063B70';
+  const BORDER = '#AEB7BD';
 
-  // ============================================================
-  // LOAD MERCHANT DATA
-  // ============================================================
+  // ------------------------------------------------------------
+  // Load merchant
+  // ------------------------------------------------------------
 
   useEffect(() => {
-    const fetchMerchantData = async () => {
+    const loadMerchant = async () => {
       try {
         const stored = getStoredMerchant();
 
@@ -59,7 +57,7 @@ export default function AutomatedPayBillPage() {
           shortcode: '4049263',
         });
       } catch (error) {
-        console.error('Error fetching merchant data:', error);
+        console.error('Failed to load merchant:', error);
 
         setMerchant({
           businessName: 'Xecoflow Smart PayBill',
@@ -71,34 +69,41 @@ export default function AutomatedPayBillPage() {
       }
     };
 
-    fetchMerchantData();
+    loadMerchant();
   }, []);
 
-  // ============================================================
-  // COPY DETAILS
-  // ============================================================
+  // ------------------------------------------------------------
+  // Copy details
+  // ------------------------------------------------------------
 
   const handleCopyDetails = useCallback(() => {
     if (!merchant) return;
 
-    const text =
-      `XECO SMART PAYBILL\n\n` +
-      `PayBill Number: ${merchant.shortcode}\n` +
-      `Account Name: ${merchant.businessName}\n` +
-      `Account Number: ${merchant.virtualAccount}`;
+    const text = [
+      'XECO SMART PAYBILL',
+      '',
+      `PayBill Number: ${merchant.shortcode}`,
+      `Account Name: ${merchant.businessName}`,
+      `Account Number: ${merchant.virtualAccount}`,
+    ].join('\n');
 
-    navigator.clipboard.writeText(text);
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopied(true);
 
-    setCopied(true);
-
-    setTimeout(() => {
-      setCopied(false);
-    }, 3000);
+        window.setTimeout(() => {
+          setCopied(false);
+        }, 3000);
+      })
+      .catch((error) => {
+        console.error('Failed to copy:', error);
+      });
   }, [merchant]);
 
-  // ============================================================
-  // DOWNLOAD PDF
-  // ============================================================
+  // ------------------------------------------------------------
+  // Download PDF
+  // ------------------------------------------------------------
 
   const handleDownloadPDF = useCallback(async () => {
     if (!posterRef.current || !merchant) return;
@@ -107,13 +112,13 @@ export default function AutomatedPayBillPage() {
 
     try {
       const canvas = await html2canvas(posterRef.current, {
-        scale: 4,
+        scale: 3,
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
       });
 
-      const imgData = canvas.toDataURL('image/png');
+      const imageData = canvas.toDataURL('image/png');
 
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -126,74 +131,75 @@ export default function AutomatedPayBillPage() {
 
       const imageRatio = canvas.width / canvas.height;
 
-      let pdfWidth = pageWidth;
-      let pdfHeight = pdfWidth / imageRatio;
+      let imageWidth = pageWidth;
+      let imageHeight = imageWidth / imageRatio;
 
-      if (pdfHeight > pageHeight) {
-        pdfHeight = pageHeight;
-        pdfWidth = pdfHeight * imageRatio;
+      if (imageHeight > pageHeight) {
+        imageHeight = pageHeight;
+        imageWidth = imageHeight * imageRatio;
       }
 
-      const x = (pageWidth - pdfWidth) / 2;
-      const y = (pageHeight - pdfHeight) / 2;
+      const x = (pageWidth - imageWidth) / 2;
+      const y = (pageHeight - imageHeight) / 2;
 
       pdf.addImage(
-        imgData,
+        imageData,
         'PNG',
         x,
         y,
-        pdfWidth,
-        pdfHeight
+        imageWidth,
+        imageHeight
       );
 
       pdf.save(
         `xecoflow-smart-paybill-${merchant.shortcode}.pdf`
       );
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      console.error('Failed to generate PDF:', error);
     } finally {
       setExporting(false);
     }
   }, [merchant]);
 
-  // ============================================================
-  // PRINT
-  // ============================================================
+  // ------------------------------------------------------------
+  // Print
+  // ------------------------------------------------------------
 
   const handlePrint = useCallback(() => {
     window.print();
   }, []);
 
-  // ============================================================
-  // WHATSAPP
-  // ============================================================
+  // ------------------------------------------------------------
+  // WhatsApp
+  // ------------------------------------------------------------
 
   const handleShareWhatsApp = useCallback(() => {
     if (!merchant) return;
 
-    const message = encodeURIComponent(
-      `XECO SMART PAYBILL\n\n` +
-        `PayBill Number: ${merchant.shortcode}\n` +
-        `Account Name: ${merchant.businessName}\n` +
-        `Account Number: ${merchant.virtualAccount}`
-    );
+    const message = [
+      'XECO SMART PAYBILL',
+      '',
+      `PayBill Number: ${merchant.shortcode}`,
+      `Account Name: ${merchant.businessName}`,
+      `Account Number: ${merchant.virtualAccount}`,
+    ].join('\n');
 
-    window.open(
-      `https://api.whatsapp.com/send?text=${message}`,
-      '_blank'
-    );
+    const whatsappUrl =
+      `https://api.whatsapp.com/send?text=${encodeURIComponent(
+        message
+      )}`;
+
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
   }, [merchant]);
 
-  // ============================================================
-  // LOADING
-  // ============================================================
+  // ------------------------------------------------------------
+  // Loading
+  // ------------------------------------------------------------
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-center">
-
           <Loader2
             className="w-12 h-12 animate-spin mx-auto mb-4"
             style={{ color: GREEN }}
@@ -202,53 +208,43 @@ export default function AutomatedPayBillPage() {
           <p className="text-gray-600">
             Loading your PayBill details...
           </p>
-
         </div>
-
       </div>
     );
   }
 
-  // ============================================================
-  // DIGITS
-  // ============================================================
+  const shortcode = merchant?.shortcode || '4049263';
 
-  const paybillDigits = (
-    merchant?.shortcode || '4049263'
-  ).split('');
+  const virtualAccount =
+    merchant?.virtualAccount || '01500520015312';
 
-  const accountDigits = (
-    merchant?.virtualAccount || '01500520015312'
-  ).split('');
+  const businessName =
+    merchant?.businessName || 'Xecoflow Smart PayBill';
+
+  const paybillDigits = shortcode.split('');
+  const accountDigits = virtualAccount.split('');
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 md:p-8">
-
       <div className="max-w-5xl mx-auto">
 
-        {/* ====================================================== */}
-        {/* HEADER */}
-        {/* ====================================================== */}
+        {/* ======================================================
+            PAGE HEADER
+        ====================================================== */}
 
         <div className="flex items-center justify-between mb-6 no-print">
-
           <div className="flex items-center gap-4">
 
             <button
+              type="button"
               onClick={() => router.back()}
-              className="
-                p-2
-                hover:bg-gray-200
-                rounded-lg
-                transition-colors
-              "
+              className="p-2 rounded-lg hover:bg-gray-200 transition-colors"
               aria-label="Go back"
             >
               <ArrowLeft className="w-5 h-5 text-gray-600" />
             </button>
 
             <div>
-
               <h1 className="text-2xl font-bold text-gray-900">
                 Xecoflow Smart PayBill
               </h1>
@@ -256,27 +252,15 @@ export default function AutomatedPayBillPage() {
               <p className="text-sm text-gray-500">
                 Simple PayBill Poster
               </p>
-
             </div>
 
           </div>
 
           <button
+            type="button"
             onClick={handleCopyDetails}
-            className="
-              flex
-              items-center
-              gap-2
-              px-4
-              py-2
-              text-sm
-              bg-gray-200
-              hover:bg-gray-300
-              rounded-lg
-              transition-colors
-            "
+            className="flex items-center gap-2 px-4 py-2 text-sm bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors"
           >
-
             {copied ? (
               <Check
                 className="w-4 h-4"
@@ -287,855 +271,458 @@ export default function AutomatedPayBillPage() {
             )}
 
             {copied ? 'Copied!' : 'Copy Details'}
-
           </button>
-
         </div>
 
+        {/* ======================================================
+            POSTER PREVIEW
+        ====================================================== */}
 
-        {/* ====================================================== */}
-        {/* POSTER PREVIEW */}
-        {/* ====================================================== */}
-
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6 no-print">
-
+        <div className="bg-white rounded-xl shadow-lg p-4 md:p-8 mb-6 no-print">
           <div className="flex justify-center">
 
             <div
               ref={posterRef}
-              className="xecoflow-simple-poster"
+              className="xecoflow-poster"
             >
 
-              {/* ================================================= */}
-              {/* XECO SMART PAYBILL */}
-              {/* ================================================= */}
+              {/* ==================================================
+                  BRAND
+              ================================================== */}
 
               <div
-                className="xecoflow-title"
-                style={{
-                  color: GREEN,
-                }}
+                className="xecoflow-brand"
+                style={{ color: GREEN }}
               >
                 XECO SMART PAYBILL
               </div>
 
-
-              {/* ================================================= */}
-              {/* PAYBILL NUMBER LABEL */}
-              {/* ================================================= */}
+              {/* ==================================================
+                  PAYBILL NUMBER LABEL
+              ================================================== */}
 
               <div
-                className="field-label"
-                style={{
-                  color: GREEN,
-                }}
+                className="field-title"
+                style={{ color: GREEN }}
               >
                 PAYBILL NUMBER
               </div>
 
+              {/* ==================================================
+                  PAYBILL NUMBER
+              ================================================== */}
 
-              {/* ================================================= */}
-              {/* PAYBILL NUMBER */}
-              {/* ================================================= */}
-
-              <div className="number-row paybill-row">
-
+              <div className="digit-row paybill-digits">
                 {paybillDigits.map((digit, index) => (
                   <div
                     key={`paybill-${index}`}
-                    className="number-box"
-                    style={{
-                      color: DARK_BLUE,
-                    }}
+                    className="digit-box"
+                    style={{ color: DARK_BLUE }}
                   >
                     {digit}
                   </div>
                 ))}
-
               </div>
 
-
-              {/* ================================================= */}
-              {/* ACCOUNT NAME */}
-              {/* ================================================= */}
+              {/* ==================================================
+                  ACCOUNT NAME LABEL
+              ================================================== */}
 
               <div
-                className="field-label account-name-label"
-                style={{
-                  color: GREEN,
-                }}
+                className="field-title account-title"
+                style={{ color: GREEN }}
               >
                 ACCOUNT NAME
               </div>
 
-
-              {/* ================================================= */}
-              {/* BUSINESS NAME */}
-              {/* ================================================= */}
+              {/* ==================================================
+                  ACCOUNT NAME
+              ================================================== */}
 
               <div
-                className="business-name-box"
-                style={{
-                  color: DARK_BLUE,
-                }}
+                className="business-box"
+                style={{ color: DARK_BLUE }}
               >
-                {merchant?.businessName ||
-                  'Xecoflow Smart PayBill'}
+                {businessName}
               </div>
 
-
-              {/* ================================================= */}
-              {/* ACCOUNT NUMBER */}
-              {/* ================================================= */}
+              {/* ==================================================
+                  ACCOUNT NUMBER LABEL
+              ================================================== */}
 
               <div
-                className="field-label account-number-label"
-                style={{
-                  color: GREEN,
-                }}
+                className="field-title account-number-title"
+                style={{ color: GREEN }}
               >
                 ACCOUNT NUMBER
               </div>
 
+              {/* ==================================================
+                  ACCOUNT NUMBER
+              ================================================== */}
 
-              {/* ================================================= */}
-              {/* ACCOUNT NUMBER DIGITS */}
-              {/* ================================================= */}
-
-              <div className="number-row account-row">
-
+              <div className="digit-row account-digits">
                 {accountDigits.map((digit, index) => (
                   <div
                     key={`account-${index}`}
-                    className="number-box account-box"
-                    style={{
-                      color: DARK_BLUE,
-                    }}
+                    className="digit-box account-digit"
+                    style={{ color: DARK_BLUE }}
                   >
                     {digit}
                   </div>
                 ))}
-
               </div>
 
-
-              {/* ================================================= */}
-              {/* FOOTER */}
-              {/* ================================================= */}
+              {/* ==================================================
+                  FOOTER
+              ================================================== */}
 
               <div className="poster-footer">
-
-                <span>
-                  Powered by
-                </span>
-
-                <strong>
-                  Xecoflow Smart PayBill
-                </strong>
-
+                Xecoflow Smart PayBill
               </div>
 
             </div>
-
           </div>
-
         </div>
 
-
-        {/* ====================================================== */}
-        {/* ACTION BUTTONS */}
-        {/* ====================================================== */}
+        {/* ======================================================
+            ACTION BUTTONS
+        ====================================================== */}
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 no-print">
 
-          {/* DOWNLOAD */}
-
           <button
+            type="button"
             onClick={handleDownloadPDF}
             disabled={exporting}
-            className="
-              flex
-              items-center
-              justify-center
-              gap-2
-              px-4
-              py-3
-              text-white
-              rounded-xl
-              font-medium
-              transition-colors
-              shadow-sm
-              disabled:opacity-60
-            "
-            style={{
-              backgroundColor: GREEN,
-            }}
+            className="flex items-center justify-center gap-2 px-4 py-3 text-white rounded-xl font-medium shadow-sm transition-colors disabled:opacity-60"
+            style={{ backgroundColor: GREEN }}
           >
-
             {exporting ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <Download className="w-5 h-5" />
             )}
 
-            {exporting
-              ? 'Generating...'
-              : 'Download PDF'}
-
+            {exporting ? 'Generating...' : 'Download PDF'}
           </button>
 
-
-          {/* PRINT */}
-
           <button
+            type="button"
             onClick={handlePrint}
-            className="
-              flex
-              items-center
-              justify-center
-              gap-2
-              px-4
-              py-3
-              bg-gray-200
-              hover:bg-gray-300
-              text-gray-800
-              rounded-xl
-              font-medium
-              transition-colors
-            "
+            className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-medium transition-colors"
           >
-
             <Printer className="w-5 h-5" />
-
             Print Poster
-
           </button>
 
-
-          {/* WHATSAPP */}
-
           <button
+            type="button"
             onClick={handleShareWhatsApp}
-            className="
-              flex
-              items-center
-              justify-center
-              gap-2
-              px-4
-              py-3
-              bg-green-500
-              hover:bg-green-600
-              text-white
-              rounded-xl
-              font-medium
-              transition-colors
-              shadow-sm
-            "
+            className="flex items-center justify-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-medium transition-colors shadow-sm"
           >
-
             <Share2 className="w-5 h-5" />
-
             Share via WhatsApp
-
           </button>
 
         </div>
 
-
-        {/* ====================================================== */}
-        {/* DETAILS CARD */}
-        {/* ====================================================== */}
+        {/* ======================================================
+            DETAILS
+        ====================================================== */}
 
         <div className="mt-6 bg-white rounded-xl p-5 border border-gray-200 no-print">
 
-          <p className="text-sm font-semibold text-gray-700 mb-4">
+          <h2 className="text-sm font-semibold text-gray-700 mb-4">
             Xecoflow Smart PayBill Details
-          </p>
+          </h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
             <div>
-
-              <p className="text-gray-400 text-xs">
-                PAYBILL NUMBER
+              <p className="text-xs text-gray-400 uppercase">
+                PayBill Number
               </p>
 
               <p
-                className="font-bold text-lg"
-                style={{
-                  color: DARK_BLUE,
-                }}
+                className="text-xl font-bold mt-1"
+                style={{ color: DARK_BLUE }}
               >
-                {merchant?.shortcode}
+                {shortcode}
               </p>
-
             </div>
 
-
             <div>
-
-              <p className="text-gray-400 text-xs">
-                ACCOUNT NAME
+              <p className="text-xs text-gray-400 uppercase">
+                Account Name
               </p>
 
               <p
-                className="font-bold text-lg"
-                style={{
-                  color: DARK_BLUE,
-                }}
+                className="text-xl font-bold mt-1 break-words"
+                style={{ color: DARK_BLUE }}
               >
-                {merchant?.businessName}
+                {businessName}
               </p>
-
             </div>
 
-
             <div>
-
-              <p className="text-gray-400 text-xs">
-                ACCOUNT NUMBER
+              <p className="text-xs text-gray-400 uppercase">
+                Account Number
               </p>
 
               <p
-                className="font-bold text-lg"
-                style={{
-                  color: DARK_BLUE,
-                }}
+                className="text-xl font-bold mt-1"
+                style={{ color: DARK_BLUE }}
               >
-                {merchant?.virtualAccount}
+                {virtualAccount}
               </p>
-
             </div>
 
           </div>
-
         </div>
-
       </div>
 
-
-      {/* ======================================================== */}
-      {/* POSTER CSS */}
-      {/* ======================================================== */}
+      {/* ========================================================
+          POSTER STYLES
+      ======================================================== */}
 
       <style jsx global>{`
-
-        /* ========================================================
-           MAIN POSTER
-        ======================================================== */
-
-        .xecoflow-simple-poster {
-
+        .xecoflow-poster {
           width: 800px;
-
           max-width: 100%;
-
-          aspect-ratio: 1.55 / 1;
-
+          aspect-ratio: 1.45 / 1;
           background: #ffffff;
-
           box-sizing: border-box;
-
-          padding: 45px 55px 25px;
-
+          padding: 42px 55px 25px;
           display: flex;
-
           flex-direction: column;
-
           align-items: center;
-
           overflow: hidden;
-
-          font-family:
-            Arial,
-            Helvetica,
-            sans-serif;
-
+          font-family: Arial, Helvetica, sans-serif;
         }
 
-
-        /* ========================================================
-           XECO SMART PAYBILL
-        ======================================================== */
-
-        .xecoflow-title {
-
+        .xecoflow-brand {
           width: 100%;
-
           text-align: center;
-
-          font-size: clamp(
-            36px,
-            7vw,
-            68px
-          );
-
+          font-size: 52px;
           font-weight: 900;
-
           letter-spacing: -1.5px;
-
           line-height: 1;
-
-          margin-bottom: 20px;
-
+          margin-bottom: 28px;
         }
 
-
-        /* ========================================================
-           FIELD LABELS
-        ======================================================== */
-
-        .field-label {
-
+        .field-title {
           width: 100%;
-
           text-align: center;
-
-          font-size: clamp(
-            19px,
-            3.5vw,
-            31px
-          );
-
+          font-size: 27px;
           font-weight: 900;
-
           line-height: 1;
-
           margin-bottom: 10px;
-
         }
 
-
-        /* ========================================================
-           NUMBER ROW
-        ======================================================== */
-
-        .number-row {
-
+        .digit-row {
           width: 100%;
-
           display: flex;
-
-          justify-content: center;
-
           align-items: stretch;
-
+          justify-content: center;
         }
 
-
-        /* ========================================================
-           NUMBER BOX
-        ======================================================== */
-
-        .number-box {
-
+        .digit-box {
           flex: 1;
-
           min-width: 0;
-
-          height: 65px;
-
+          height: 68px;
           border: 1.5px solid ${BORDER};
-
           background: #ffffff;
-
           display: flex;
-
           align-items: center;
-
           justify-content: center;
-
-          font-size: 48px;
-
+          box-sizing: border-box;
+          font-size: 50px;
           font-weight: 900;
-
           line-height: 1;
-
-          box-sizing: border-box;
-
         }
 
-
-        /* ========================================================
-           ACCOUNT NAME
-        ======================================================== */
-
-        .account-name-label {
-
-          margin-top: 20px;
-
-          margin-bottom: 9px;
-
+        .account-title {
+          margin-top: 25px;
+          margin-bottom: 10px;
         }
 
-
-        .business-name-box {
-
+        .business-box {
           width: 100%;
-
-          min-height: 64px;
-
+          min-height: 68px;
           border: 1.5px solid ${BORDER};
-
           background: #ffffff;
-
           display: flex;
-
           align-items: center;
-
           justify-content: center;
-
           text-align: center;
-
-          padding: 7px 15px;
-
           box-sizing: border-box;
-
-          font-size: clamp(
-            23px,
-            4vw,
-            40px
-          );
-
+          padding: 8px 15px;
+          font-size: 34px;
           font-weight: 900;
-
           text-transform: uppercase;
-
           line-height: 1.1;
-
           overflow: hidden;
-
         }
 
-
-        /* ========================================================
-           ACCOUNT NUMBER
-        ======================================================== */
-
-        .account-number-label {
-
-          margin-top: 19px;
-
-          margin-bottom: 9px;
-
+        .account-number-title {
+          margin-top: 25px;
+          margin-bottom: 10px;
         }
 
-
-        .account-row {
-
-          width: 100%;
-
+        .account-digit {
+          height: 62px;
+          font-size: 42px;
         }
-
-
-        .account-box {
-
-          height: 58px;
-
-          font-size: clamp(
-            22px,
-            4vw,
-            38px
-          );
-
-        }
-
-
-        /* ========================================================
-           FOOTER
-        ======================================================== */
 
         .poster-footer {
-
-          margin-top: auto;
-
           width: 100%;
-
-          display: flex;
-
-          justify-content: flex-end;
-
-          align-items: center;
-
-          gap: 4px;
-
-          color: #999999;
-
-          font-size: 8px;
-
-        }
-
-
-        .poster-footer strong {
-
+          text-align: right;
           color: ${GREEN};
-
+          font-size: 9px;
+          font-weight: 700;
+          margin-top: auto;
         }
-
-
-        /* ========================================================
-           TABLET
-        ======================================================== */
 
         @media (max-width: 768px) {
-
-          .xecoflow-simple-poster {
-
+          .xecoflow-poster {
             padding: 30px 25px 18px;
-
           }
 
-
-          .xecoflow-title {
-
-            font-size: 42px;
-
-            margin-bottom: 14px;
-
+          .xecoflow-brand {
+            font-size: 40px;
+            margin-bottom: 20px;
           }
 
-
-          .field-label {
-
-            font-size: 23px;
-
+          .field-title {
+            font-size: 21px;
           }
 
-
-          .number-box {
-
-            height: 53px;
-
+          .digit-box {
+            height: 54px;
             font-size: 38px;
-
           }
 
-
-          .business-name-box {
-
-            min-height: 52px;
-
-            font-size: 27px;
-
+          .business-box {
+            min-height: 54px;
+            font-size: 25px;
           }
 
-
-          .account-box {
-
-            height: 48px;
-
-            font-size: 29px;
-
+          .account-digit {
+            height: 50px;
+            font-size: 30px;
           }
-
         }
-
-
-        /* ========================================================
-           MOBILE
-        ======================================================== */
 
         @media (max-width: 640px) {
-
-          .xecoflow-simple-poster {
-
+          .xecoflow-poster {
             aspect-ratio: 1.05 / 1;
-
-            padding: 22px 9px 10px;
-
+            padding: 22px 8px 10px;
           }
 
-
-          .xecoflow-title {
-
-            font-size: 28px;
-
+          .xecoflow-brand {
+            font-size: 27px;
             letter-spacing: -0.8px;
-
-            margin-bottom: 12px;
-
+            margin-bottom: 13px;
           }
 
-
-          .field-label {
-
-            font-size: 15px;
-
+          .field-title {
+            font-size: 14px;
             margin-bottom: 5px;
-
           }
 
-
-          .number-box {
-
-            height: 38px;
-
-            font-size: 26px;
-
+          .digit-box {
+            height: 37px;
+            font-size: 25px;
           }
 
-
-          .account-name-label {
-
+          .account-title {
             margin-top: 11px;
-
           }
 
-
-          .business-name-box {
-
+          .business-box {
             min-height: 38px;
-
-            font-size: 17px;
-
-            padding: 4px 7px;
-
+            font-size: 16px;
+            padding: 4px 6px;
           }
 
-
-          .account-number-label {
-
+          .account-number-title {
             margin-top: 11px;
-
           }
 
-
-          .account-box {
-
+          .account-digit {
             height: 34px;
-
             font-size: 18px;
-
           }
-
 
           .poster-footer {
-
             font-size: 5px;
-
           }
-
         }
 
-
-        /* ========================================================
-           PRINT
-        ======================================================== */
-
         @media print {
-
           @page {
-
             size: A4 portrait;
-
             margin: 0;
-
           }
-
 
           html,
           body {
-
             margin: 0 !important;
-
             padding: 0 !important;
-
             background: #ffffff !important;
-
           }
-
 
           .no-print {
-
             display: none !important;
-
           }
 
-
-          .xecoflow-simple-poster {
-
+          .xecoflow-poster {
             width: 100vw !important;
-
             height: 100vh !important;
-
             max-width: none !important;
-
             aspect-ratio: auto !important;
-
             padding: 10vh 6vw 5vh !important;
-
           }
 
-
-          .xecoflow-title {
-
-            font-size: 75px !important;
-
-            margin-bottom: 30px !important;
-
+          .xecoflow-brand {
+            font-size: 76px !important;
+            margin-bottom: 35px !important;
           }
 
-
-          .field-label {
-
-            font-size: 38px !important;
-
-            margin-bottom: 14px !important;
-
+          .field-title {
+            font-size: 40px !important;
+            margin-bottom: 15px !important;
           }
 
-
-          .number-box {
-
-            height: 85px !important;
-
-            font-size: 65px !important;
-
+          .digit-box {
+            height: 90px !important;
+            font-size: 68px !important;
           }
 
-
-          .account-name-label {
-
-            margin-top: 30px !important;
-
+          .account-title {
+            margin-top: 35px !important;
           }
 
-
-          .business-name-box {
-
-            min-height: 82px !important;
-
-            font-size: 48px !important;
-
+          .business-box {
+            min-height: 90px !important;
+            font-size: 50px !important;
           }
 
-
-          .account-number-label {
-
-            margin-top: 28px !important;
-
+          .account-number-title {
+            margin-top: 35px !important;
           }
 
-
-          .account-box {
-
-            height: 75px !important;
-
-            font-size: 48px !important;
-
+          .account-digit {
+            height: 78px !important;
+            font-size: 50px !important;
           }
-
 
           .poster-footer {
-
-            font-size: 10px !important;
-
+            font-size: 11px !important;
           }
-
         }
-
       `}</style>
-
     </div>
   );
 }
