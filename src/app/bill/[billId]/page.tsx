@@ -83,6 +83,7 @@ export default function BillViewPage() {
     }
   }, [billId]);
 
+  // ✅ FIXED: Changed /v1/ to /api/
   const fetchBill = async () => {
     try {
       const response = await fetch(`/api/bills/${billId}`);
@@ -90,7 +91,6 @@ export default function BillViewPage() {
 
       if (data.success) {
         setBill(data.data);
-        // Pre-fill phone if available
         if (data.data.customer_phone) {
           setPhoneNumber(data.data.customer_phone);
         }
@@ -122,6 +122,7 @@ export default function BillViewPage() {
     setErrorMessage('');
 
     try {
+      // ✅ FIXED: Changed /v1/ to /api/
       const response = await fetch('/api/bills/pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -156,17 +157,16 @@ export default function BillViewPage() {
     }
   };
 
-  // ✅ FIX: Reset stuck PROCESSING status
+  // ✅ FIXED: Changed /v1/ to /api/
   const resetProcessing = async () => {
     if (!bill) return;
-    // Reset the bill status back to PENDING so the user can try again
     const res = await fetch(`/api/bills/reset-status`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ billId: bill.bill_id }),
     });
     if (res.ok) {
-      fetchBill(); // Reload the bill data
+      fetchBill();
     }
   };
 
