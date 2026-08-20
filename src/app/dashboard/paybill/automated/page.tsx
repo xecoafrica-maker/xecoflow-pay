@@ -12,9 +12,7 @@ import {
   Check,
   Loader2,
   Building2,
-  Smartphone,
 } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { getStoredMerchant } from '@/lib/auth';
@@ -32,7 +30,6 @@ export default function AutomatedPayBillPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [qrValue, setQrValue] = useState('');
 
   // ─── Load merchant data ──────────────────────────────────────────
   useEffect(() => {
@@ -47,7 +44,6 @@ export default function AutomatedPayBillPage() {
         };
         
         setMerchant(mockData);
-        setQrValue(`mpesa://paybill?shortcode=${mockData.shortcode}&account=${mockData.virtualAccount}`);
       } catch (error) {
         console.error('Error fetching merchant data:', error);
         setMerchant({
@@ -55,7 +51,6 @@ export default function AutomatedPayBillPage() {
           virtualAccount: '742790442',
           shortcode: '247247',
         });
-        setQrValue('mpesa://paybill?shortcode=247247&account=742790442');
       } finally {
         setLoading(false);
       }
@@ -63,13 +58,6 @@ export default function AutomatedPayBillPage() {
 
     fetchMerchantData();
   }, []);
-
-  // ─── Generate QR Code value ──────────────────────────────────────
-  useEffect(() => {
-    if (merchant) {
-      setQrValue(`mpesa://paybill?shortcode=${merchant.shortcode}&account=${merchant.virtualAccount}`);
-    }
-  }, [merchant]);
 
   // ─── Copy PayBill details ────────────────────────────────────────
   const handleCopyDetails = useCallback(() => {
@@ -91,13 +79,13 @@ export default function AutomatedPayBillPage() {
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
-        width: 600,
-        height: 800,
+        width: 800,
+        height: 400,
       });
 
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
-        orientation: 'portrait',
+        orientation: 'landscape',
         unit: 'mm',
         format: 'a4',
       });
@@ -127,8 +115,7 @@ export default function AutomatedPayBillPage() {
       `📱 PAY WITH M-PESA\n\n` +
       `PayBill Number: ${merchant.shortcode}\n` +
       `Account Number: ${merchant.virtualAccount}\n` +
-      `Business: ${merchant.businessName}\n\n` +
-      `Scan QR Code or use the details above to pay.`
+      `Business: ${merchant.businessName}`
     );
     
     const url = `https://api.whatsapp.com/send?text=${message}`;
@@ -181,89 +168,76 @@ export default function AutomatedPayBillPage() {
           <div className="flex justify-center">
             <div 
               ref={posterRef}
-              className="w-full max-w-[400px] aspect-[9/16] bg-white rounded-2xl shadow-2xl overflow-hidden print:shadow-none print:rounded-none"
+              className="w-full max-w-[800px] aspect-[2/1] bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-2xl shadow-2xl overflow-hidden print:shadow-none print:rounded-none"
             >
-              {/* Poster Content - M-PESA Style */}
-              <div className="h-full flex flex-col bg-gradient-to-b from-emerald-600 to-emerald-700 p-6">
-                {/* PAY WITH M-PESA Header */}
-                <div className="text-center mb-2">
-                  <p className="text-white/80 text-xs font-medium tracking-wider">PAY WITH</p>
-                  <div className="flex items-center justify-center gap-3 mt-1">
+              {/* Poster Content - Exact match to image */}
+              <div className="h-full flex flex-col justify-center px-12 py-8">
+                {/* Top row: PAY WITH + M-PESA + Equity */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/70 text-xs font-medium tracking-wider">PAY WITH</span>
                     <span className="text-white font-bold text-2xl">M-PESA</span>
-                    <span className="text-white/50 text-xl font-light">/</span>
+                    <span className="text-white/40 text-xl font-light">/</span>
                     <span className="text-white font-bold text-2xl">Equity</span>
                   </div>
-                </div>
-
-                {/* Divider */}
-                <div className="border-t border-white/20 my-3" />
-
-                {/* PAYBILL Section */}
-                <div className="text-center">
-                  <p className="text-white/70 text-[10px] font-medium tracking-[0.2em]">PAYBILL</p>
-                  <p className="text-white font-bold text-4xl tracking-[0.3em] mt-1">
-                    {merchant?.shortcode || '247247'}
-                  </p>
-                </div>
-
-                {/* Divider */}
-                <div className="border-t border-white/20 my-3" />
-
-                {/* Account Number Section */}
-                <div className="text-center">
-                  <p className="text-white/70 text-[10px] font-medium tracking-[0.2em]">EQUITYTILLNO./ACCOUNTNO</p>
-                  <div className="flex justify-center gap-1 mt-1">
-                    {(merchant?.virtualAccount || '742790442').split('').map((digit, index) => (
-                      <span 
-                        key={index} 
-                        className="text-white font-bold text-3xl tracking-wider"
-                      >
-                        {digit}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Divider */}
-                <div className="border-t border-white/20 my-3" />
-
-                {/* Account Name */}
-                <div className="text-center">
-                  <p className="text-white/70 text-[10px] font-medium tracking-[0.2em]">ACCOUNTNAME</p>
-                  <p className="text-white font-bold text-xl tracking-wider mt-1">
-                    {merchant?.businessName || 'BRIANONUONGA'}
-                  </p>
-                </div>
-
-                {/* Divider */}
-                <div className="border-t border-white/20 my-3" />
-
-                {/* QR Code and Mobile App Section */}
-                <div className="flex-1 flex items-center justify-between mt-2">
-                  {/* QR Code */}
-                  <div className="bg-white rounded-xl p-2 shadow-lg">
-                    <QRCodeSVG
-                      value={qrValue}
-                      size={120}
-                      level="H"
-                      includeMargin={false}
-                      className="w-[120px] h-[120px]"
-                    />
-                  </div>
-
-                  {/* Mobile App Info */}
                   <div className="text-right">
+                    <span className="text-white/50 text-[10px] font-medium tracking-wider">airtel</span>
+                    <span className="text-white font-bold text-2xl ml-2">247247</span>
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-white/20 my-3" />
+
+                {/* Middle section */}
+                <div className="flex items-center justify-between">
+                  {/* Left side - PAYBILL */}
+                  <div>
+                    <p className="text-white/70 text-[10px] font-medium tracking-[0.2em]">PAYBILL</p>
+                    <p className="text-white font-bold text-4xl tracking-[0.3em] mt-1">
+                      {merchant?.shortcode || '247247'}
+                    </p>
+                  </div>
+
+                  {/* Center - Mobile App */}
+                  <div className="text-center">
                     <p className="text-white/70 text-[10px] font-medium tracking-[0.2em]">MOBILEAPP</p>
-                    <p className="text-white font-bold text-xl">EQUITY</p>
-                    <div className="flex items-center justify-end gap-2 mt-1">
-                      <span className="text-white font-semibold text-sm">Equitel</span>
+                    <p className="text-white font-bold text-2xl">EQUITY</p>
+                    <div className="flex items-center justify-center gap-2 mt-1">
+                      <span className="text-white font-semibold text-base">Equitel</span>
                       <span className="text-white/50 text-xs">money</span>
                     </div>
                     <div className="mt-2">
                       <p className="text-white/50 text-[10px]">DIAL</p>
-                      <p className="text-white font-bold text-lg">*247#</p>
+                      <p className="text-white font-bold text-xl">*247#</p>
                     </div>
                   </div>
+
+                  {/* Right side - Account Number */}
+                  <div className="text-right">
+                    <p className="text-white/70 text-[10px] font-medium tracking-[0.2em]">EQUITYTILLNO./ACCOUNTNO</p>
+                    <div className="flex justify-end gap-1 mt-1">
+                      {(merchant?.virtualAccount || '742790442').split('').map((digit, index) => (
+                        <span 
+                          key={index} 
+                          className="text-white font-bold text-3xl tracking-wider"
+                        >
+                          {digit}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-white/20 my-3" />
+
+                {/* Bottom - Account Name */}
+                <div className="flex justify-between items-center">
+                  <p className="text-white/70 text-[10px] font-medium tracking-[0.2em]">ACCOUNTNAME</p>
+                  <p className="text-white font-bold text-2xl tracking-wider">
+                    {merchant?.businessName || 'BRIANONUONGA'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -337,7 +311,7 @@ export default function AutomatedPayBillPage() {
             top: 50%;
             transform: translate(-50%, -50%);
             width: 100%;
-            max-width: 400px;
+            max-width: 800px;
             box-shadow: none !important;
             border-radius: 0 !important;
           }
