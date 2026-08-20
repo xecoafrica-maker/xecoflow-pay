@@ -58,6 +58,7 @@ import {
   Code,
   Brackets,
   Phone,
+  Building2,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -156,6 +157,11 @@ const sidebarSections: SidebarSection[] = [
           { icon: BarChart3, label: 'Active Bills & Analytics', href: '/dashboard/smart-bills/analytics' },
         ],
       },
+      {
+        icon: Building2,
+        label: 'Get Automated PayBill',
+        href: '/dashboard/paybill/automated',
+      },
     ],
   },
   {
@@ -206,7 +212,6 @@ const sidebarSections: SidebarSection[] = [
     ],
   },
 ];
-
 
 // ─── Component ──────────────────────────────────────────────────────
 export default function Sidebar() {
