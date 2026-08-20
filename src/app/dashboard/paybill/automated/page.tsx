@@ -171,7 +171,6 @@ export default function AutomatedPayBillPage() {
 
     const message = encodeURIComponent(
       `Xecoflow Smart PayBill\n\n` +
-        `LIPA NA MPESA\n` +
         `PayBill Number: ${merchant.shortcode}\n` +
         `Account Number: ${merchant.virtualAccount}`
     );
@@ -238,7 +237,7 @@ export default function AutomatedPayBillPage() {
               </h1>
 
               <p className="text-sm text-gray-500">
-                Lipa na M-Pesa PayBill Poster
+                PayBill Poster
               </p>
             </div>
 
@@ -295,14 +294,6 @@ export default function AutomatedPayBillPage() {
                   Smart PayBill
                 </div>
 
-              </div>
-
-              {/* ─────────────────────────────────────────────── */}
-              {/* LIPA NA MPESA */}
-              {/* ─────────────────────────────────────────────── */}
-
-              <div className="lipa-title">
-                LIPA NA MPESA
               </div>
 
               {/* ─────────────────────────────────────────────── */}
@@ -549,10 +540,6 @@ export default function AutomatedPayBillPage() {
 
         .xecoflow-main {
 
-          /*
-           * MUCH BIGGER THAN LIPA NA MPESA
-           */
-
           font-size: clamp(
             52px,
             9vw,
@@ -570,10 +557,6 @@ export default function AutomatedPayBillPage() {
 
         .xecoflow-smart {
 
-          /*
-           * Also large, but smaller than Xecoflow
-           */
-
           font-size: clamp(
             28px,
             5vw,
@@ -587,37 +570,6 @@ export default function AutomatedPayBillPage() {
           margin-top: 8px;
 
           letter-spacing: -0.5px;
-
-        }
-
-
-        /* ========================================================
-           LIPA NA MPESA
-        ======================================================== */
-
-        .lipa-title {
-
-          color: #050505;
-
-          /*
-           * Smaller than Xecoflow
-           */
-
-          font-size: clamp(
-            30px,
-            5vw,
-            48px
-          );
-
-          font-weight: 900;
-
-          line-height: 1;
-
-          letter-spacing: -1px;
-
-          text-align: center;
-
-          margin-top: 10px;
 
         }
 
@@ -693,10 +645,6 @@ export default function AutomatedPayBillPage() {
           justify-content: center;
 
           background: #ffffff;
-
-          /*
-           * DARK BLUE NUMBERS
-           */
 
           font-size: clamp(
             31px,
@@ -791,12 +739,6 @@ export default function AutomatedPayBillPage() {
 
           }
 
-          .lipa-title {
-
-            font-size: 32px;
-
-          }
-
           .paybill-title {
 
             font-size: 27px;
@@ -842,17 +784,6 @@ export default function AutomatedPayBillPage() {
             font-size: 22px;
 
             margin-top: 4px;
-
-          }
-
-
-          .lipa-title {
-
-            font-size: 25px;
-
-            letter-spacing: -0.5px;
-
-            margin-top: 6px;
 
           }
 
@@ -960,13 +891,6 @@ export default function AutomatedPayBillPage() {
           .xecoflow-smart {
 
             font-size: 52px !important;
-
-          }
-
-
-          .lipa-title {
-
-            font-size: 58px !important;
 
           }
 
