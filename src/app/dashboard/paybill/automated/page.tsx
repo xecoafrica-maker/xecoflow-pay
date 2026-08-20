@@ -14,12 +14,14 @@ import {
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { getStoredMerchant } from '@/lib/auth';
+import { getStoredMerchant, getToken } from '@/lib/auth';
+import { getMerchantProfile } from '@/lib/auth-api';
 
 interface MerchantData {
   businessName: string;
   virtualAccount: string;
   shortcode: string;
+  merchantId: string;
 }
 
 export default function AutomatedPayBillPage() {
@@ -40,30 +42,45 @@ export default function AutomatedPayBillPage() {
   const DARK_BLUE = '#073B73';
 
   // ─────────────────────────────────────────────────────────────
-  // Load merchant data
+  // Load merchant data from database
   // ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
     const fetchMerchantData = async () => {
       try {
+        const token = getToken();
+        if (!token) {
+          router.push('/login');
+          return;
+        }
+
+        // Get merchant profile from API
+        const profile = await getMerchantProfile(token);
+        
+        // Also get stored merchant data
         const stored = getStoredMerchant();
+        
+        // Use merchant_id from profile as the account number
+        const merchantId = profile?.merchant_id || stored?.merchantId || stored?.merchant_id || '';
 
         setMerchant({
-          businessName:
-            stored?.businessName || 'Xecoflow Smart PayBill',
-
-          virtualAccount:
-            stored?.virtualAccount || '01500520015312',
-
+          businessName: profile?.business_name || stored?.businessName || stored?.business_name || 'Xeco BIZ Account',
+          virtualAccount: String(merchantId), // Account number = merchant ID from database
           shortcode: '4049263',
+          merchantId: String(merchantId),
         });
       } catch (error) {
         console.error('Error fetching merchant data:', error);
 
+        // Fallback - try to get from stored
+        const stored = getStoredMerchant();
+        const merchantId = stored?.merchantId || stored?.merchant_id || '';
+
         setMerchant({
-          businessName: 'Xecoflow Smart PayBill',
-          virtualAccount: '01500520015312',
+          businessName: stored?.businessName || stored?.business_name || 'Xeco BIZ Account',
+          virtualAccount: String(merchantId),
           shortcode: '4049263',
+          merchantId: String(merchantId),
         });
       } finally {
         setLoading(false);
@@ -71,7 +88,7 @@ export default function AutomatedPayBillPage() {
     };
 
     fetchMerchantData();
-  }, []);
+  }, [router]);
 
   // ─────────────────────────────────────────────────────────────
   // Copy PayBill details
@@ -83,7 +100,7 @@ export default function AutomatedPayBillPage() {
     const text =
       `PayBill: ${merchant.shortcode}\n` +
       `Account Number: ${merchant.virtualAccount}\n` +
-      `Business: Xecoflow Smart PayBill`;
+      `Business: Xeco BIZ Account`;
 
     navigator.clipboard.writeText(text);
 
@@ -145,7 +162,7 @@ export default function AutomatedPayBillPage() {
       );
 
       pdf.save(
-        `xecoflow-smart-paybill-${merchant.shortcode}.pdf`
+        `xeco-biz-account-paybill-${merchant.shortcode}.pdf`
       );
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -170,7 +187,7 @@ export default function AutomatedPayBillPage() {
     if (!merchant) return;
 
     const message = encodeURIComponent(
-      `Xecoflow Smart PayBill\n\n` +
+      `Xeco BIZ Account\n\n` +
         `PayBill Number: ${merchant.shortcode}\n` +
         `Account Number: ${merchant.virtualAccount}`
     );
@@ -233,7 +250,7 @@ export default function AutomatedPayBillPage() {
 
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
-                Xecoflow Smart PayBill
+                Xeco BIZ Account
               </h1>
 
               <p className="text-sm text-gray-500">
@@ -284,14 +301,14 @@ export default function AutomatedPayBillPage() {
                   className="xecoflow-main"
                   style={{ color: XECOfLOW_GREEN }}
                 >
-                  Xecoflow
+                  Xeco
                 </div>
 
                 <div
                   className="xecoflow-smart"
                   style={{ color: XECOfLOW_PINK }}
                 >
-                  Smart PayBill
+                  BIZ Account
                 </div>
 
               </div>
@@ -343,7 +360,7 @@ export default function AutomatedPayBillPage() {
               </div>
 
               {/* ─────────────────────────────────────────────── */}
-              {/* ACCOUNT NUMBER */}
+              {/* ACCOUNT NUMBER (Merchant ID from database) */}
               {/* ─────────────────────────────────────────────── */}
 
               <div className="digit-row account-row">
@@ -432,7 +449,7 @@ export default function AutomatedPayBillPage() {
         <div className="mt-6 bg-white rounded-xl p-5 border border-gray-200 no-print">
 
           <p className="text-sm font-semibold text-gray-700 mb-4">
-            Xecoflow Smart PayBill Details
+            Xeco BIZ Account Details
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -478,7 +495,7 @@ export default function AutomatedPayBillPage() {
                   color: XECOfLOW_GREEN,
                 }}
               >
-                Smart PayBill
+                BIZ Account
               </p>
             </div>
 
