@@ -31,33 +31,39 @@ export default function AutomatedPayBillPage() {
   const [exporting, setExporting] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  /*
-   * Tower SACCO branding colors
-   */
-  const TOWER_GREEN = '#099447';
-  const TOWER_PINK = '#ec0878';
+  // ─────────────────────────────────────────────────────────────
+  // BRAND COLORS
+  // ─────────────────────────────────────────────────────────────
+
+  const XECOfLOW_GREEN = '#099447';
+  const XECOfLOW_PINK = '#EC0878';
+  const DARK_BLUE = '#073B73';
 
   // ─────────────────────────────────────────────────────────────
-  // Load merchant details
+  // Load merchant data
   // ─────────────────────────────────────────────────────────────
+
   useEffect(() => {
     const fetchMerchantData = async () => {
       try {
         const stored = getStoredMerchant();
 
         setMerchant({
-          businessName: stored?.businessName || 'TOWER SACCO',
+          businessName:
+            stored?.businessName || 'Xecoflow Smart PayBill',
+
           virtualAccount:
             stored?.virtualAccount || '01500520015312',
-          shortcode: '506900',
+
+          shortcode: '4049263',
         });
       } catch (error) {
         console.error('Error fetching merchant data:', error);
 
         setMerchant({
-          businessName: 'TOWER SACCO',
+          businessName: 'Xecoflow Smart PayBill',
           virtualAccount: '01500520015312',
-          shortcode: '506900',
+          shortcode: '4049263',
         });
       } finally {
         setLoading(false);
@@ -68,8 +74,9 @@ export default function AutomatedPayBillPage() {
   }, []);
 
   // ─────────────────────────────────────────────────────────────
-  // Copy details
+  // Copy PayBill details
   // ─────────────────────────────────────────────────────────────
+
   const handleCopyDetails = useCallback(() => {
     if (!merchant) return;
 
@@ -77,7 +84,7 @@ export default function AutomatedPayBillPage() {
       `LIPA NA MPESA\n` +
       `PayBill: ${merchant.shortcode}\n` +
       `Account Number: ${merchant.virtualAccount}\n` +
-      `Business: ${merchant.businessName}`;
+      `Business: Xecoflow Smart PayBill`;
 
     navigator.clipboard.writeText(text);
 
@@ -91,6 +98,7 @@ export default function AutomatedPayBillPage() {
   // ─────────────────────────────────────────────────────────────
   // Download PDF
   // ─────────────────────────────────────────────────────────────
+
   const handleDownloadPDF = useCallback(async () => {
     if (!posterRef.current || !merchant) return;
 
@@ -138,7 +146,7 @@ export default function AutomatedPayBillPage() {
       );
 
       pdf.save(
-        `tower-saccco-paybill-${merchant.virtualAccount}.pdf`
+        `xecoflow-smart-paybill-${merchant.shortcode}.pdf`
       );
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -150,21 +158,23 @@ export default function AutomatedPayBillPage() {
   // ─────────────────────────────────────────────────────────────
   // Print
   // ─────────────────────────────────────────────────────────────
+
   const handlePrint = useCallback(() => {
     window.print();
   }, []);
 
   // ─────────────────────────────────────────────────────────────
-  // WhatsApp
+  // Share via WhatsApp
   // ─────────────────────────────────────────────────────────────
+
   const handleShareWhatsApp = useCallback(() => {
     if (!merchant) return;
 
     const message = encodeURIComponent(
-      `LIPA NA MPESA\n\n` +
-        `PayBill: ${merchant.shortcode}\n` +
-        `Account Number: ${merchant.virtualAccount}\n` +
-        `Tower SACCO`
+      `Xecoflow Smart PayBill\n\n` +
+        `LIPA NA MPESA\n` +
+        `PayBill Number: ${merchant.shortcode}\n` +
+        `Account Number: ${merchant.virtualAccount}`
     );
 
     window.open(
@@ -174,19 +184,20 @@ export default function AutomatedPayBillPage() {
   }, [merchant]);
 
   // ─────────────────────────────────────────────────────────────
-  // Loading
+  // Loading state
   // ─────────────────────────────────────────────────────────────
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <Loader2
-            className="w-10 h-10 animate-spin mx-auto mb-4"
-            style={{ color: TOWER_GREEN }}
+            className="w-12 h-12 animate-spin mx-auto mb-4"
+            style={{ color: XECOfLOW_GREEN }}
           />
 
           <p className="text-gray-600">
-            Loading your Tower SACCO PayBill...
+            Loading your PayBill details...
           </p>
         </div>
       </div>
@@ -194,7 +205,7 @@ export default function AutomatedPayBillPage() {
   }
 
   const paybillDigits = (
-    merchant?.shortcode || '506900'
+    merchant?.shortcode || '4049263'
   ).split('');
 
   const accountDigits = (
@@ -203,13 +214,17 @@ export default function AutomatedPayBillPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+
       <div className="max-w-5xl mx-auto">
 
-        {/* ─────────────────────────────────────────────────────── */}
-        {/* Header */}
-        {/* ─────────────────────────────────────────────────────── */}
+        {/* ───────────────────────────────────────────────────── */}
+        {/* HEADER */}
+        {/* ───────────────────────────────────────────────────── */}
+
         <div className="flex items-center justify-between mb-6 no-print">
+
           <div className="flex items-center gap-4">
+
             <button
               onClick={() => router.back()}
               className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
@@ -220,13 +235,14 @@ export default function AutomatedPayBillPage() {
 
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
-                Tower SACCO PayBill
+                Xecoflow Smart PayBill
               </h1>
 
               <p className="text-sm text-gray-500">
                 Lipa na M-Pesa PayBill Poster
               </p>
             </div>
+
           </div>
 
           <button
@@ -236,7 +252,7 @@ export default function AutomatedPayBillPage() {
             {copied ? (
               <Check
                 className="w-4 h-4"
-                style={{ color: TOWER_GREEN }}
+                style={{ color: XECOfLOW_GREEN }}
               />
             ) : (
               <Copy className="w-4 h-4" />
@@ -244,133 +260,141 @@ export default function AutomatedPayBillPage() {
 
             {copied ? 'Copied!' : 'Copy Details'}
           </button>
+
         </div>
 
-        {/* ─────────────────────────────────────────────────────── */}
-        {/* Poster */}
-        {/* ─────────────────────────────────────────────────────── */}
+        {/* ───────────────────────────────────────────────────── */}
+        {/* POSTER PREVIEW */}
+        {/* ───────────────────────────────────────────────────── */}
+
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6 no-print">
+
           <div className="flex justify-center">
 
             <div
               ref={posterRef}
-              className="tower-poster"
+              className="xecoflow-poster"
             >
 
-              {/* ──────────────────────────────────────────────── */}
-              {/* Tower SACCO Logo */}
-              {/* ──────────────────────────────────────────────── */}
-              <div className="tower-logo-container">
+              {/* ─────────────────────────────────────────────── */}
+              {/* XECOfLOW BRANDING */}
+              {/* ─────────────────────────────────────────────── */}
 
-                {/* 
-                  Put your actual Tower SACCO logo here:
+              <div className="xecoflow-brand">
 
-                  public/tower-sacco-logo.png
-                */}
-
-                <img
-                  src="/tower-sacco-logo.png"
-                  alt="Tower SACCO"
-                  className="tower-logo"
-                  crossOrigin="anonymous"
-                />
-
-                {/* Fallback text if logo image is unavailable */}
-                <div className="tower-logo-fallback">
-                  <div className="tower-icon">
-                    <span>♟</span>
-                  </div>
-
-                  <div>
-                    <div className="tower-name">
-                      TOWER SACCO
-                    </div>
-
-                    <div className="tower-tagline">
-                      A better life for your financial needs
-                    </div>
-                  </div>
+                <div
+                  className="xecoflow-main"
+                  style={{ color: XECOfLOW_GREEN }}
+                >
+                  Xecoflow
                 </div>
+
+                <div
+                  className="xecoflow-smart"
+                  style={{ color: XECOfLOW_PINK }}
+                >
+                  Smart PayBill
+                </div>
+
               </div>
 
-              {/* ──────────────────────────────────────────────── */}
+              {/* ─────────────────────────────────────────────── */}
               {/* LIPA NA MPESA */}
-              {/* ──────────────────────────────────────────────── */}
+              {/* ─────────────────────────────────────────────── */}
+
               <div className="lipa-title">
                 LIPA NA MPESA
               </div>
 
-              {/* ──────────────────────────────────────────────── */}
+              {/* ─────────────────────────────────────────────── */}
               {/* PAYBILL */}
-              {/* ──────────────────────────────────────────────── */}
+              {/* ─────────────────────────────────────────────── */}
+
               <div
                 className="paybill-title"
-                style={{ color: TOWER_GREEN }}
+                style={{
+                  color: XECOfLOW_GREEN,
+                }}
               >
                 PAYBILL
               </div>
 
-              {/* ──────────────────────────────────────────────── */}
-              {/* PayBill Number */}
-              {/* ──────────────────────────────────────────────── */}
-              <div className="digit-row">
+              {/* ─────────────────────────────────────────────── */}
+              {/* PAYBILL NUMBER */}
+              {/* ─────────────────────────────────────────────── */}
+
+              <div className="digit-row paybill-row">
+
                 {paybillDigits.map((digit, index) => (
                   <div
                     key={`paybill-${index}`}
                     className="digit-box"
                     style={{
-                      color: TOWER_PINK,
+                      color: DARK_BLUE,
                     }}
                   >
                     {digit}
                   </div>
                 ))}
+
               </div>
 
-              {/* ──────────────────────────────────────────────── */}
-              {/* Account Number Label */}
-              {/* ──────────────────────────────────────────────── */}
+              {/* ─────────────────────────────────────────────── */}
+              {/* ACCOUNT NUMBER TITLE */}
+              {/* ─────────────────────────────────────────────── */}
+
               <div
                 className="account-title"
-                style={{ color: TOWER_GREEN }}
+                style={{
+                  color: XECOfLOW_GREEN,
+                }}
               >
                 ACCOUNT NUMBER
               </div>
 
-              {/* ──────────────────────────────────────────────── */}
-              {/* Account Number */}
-              {/* ──────────────────────────────────────────────── */}
+              {/* ─────────────────────────────────────────────── */}
+              {/* ACCOUNT NUMBER */}
+              {/* ─────────────────────────────────────────────── */}
+
               <div className="digit-row account-row">
+
                 {accountDigits.map((digit, index) => (
                   <div
                     key={`account-${index}`}
                     className="digit-box account-digit"
                     style={{
-                      color: TOWER_PINK,
+                      color: DARK_BLUE,
                     }}
                   >
                     {digit}
                   </div>
                 ))}
+
               </div>
 
             </div>
+
           </div>
+
         </div>
 
-        {/* ─────────────────────────────────────────────────────── */}
-        {/* Actions */}
-        {/* ─────────────────────────────────────────────────────── */}
+        {/* ───────────────────────────────────────────────────── */}
+        {/* ACTION BUTTONS */}
+        {/* ───────────────────────────────────────────────────── */}
+
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 no-print">
+
+          {/* Download */}
 
           <button
             onClick={handleDownloadPDF}
             disabled={exporting}
             className="flex items-center justify-center gap-2 px-4 py-3 text-white rounded-xl font-medium transition-colors shadow-sm disabled:opacity-60"
             style={{
-              backgroundColor: TOWER_GREEN,
+              backgroundColor: XECOfLOW_GREEN,
             }}
           >
+
             {exporting ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
@@ -380,35 +404,48 @@ export default function AutomatedPayBillPage() {
             {exporting
               ? 'Generating...'
               : 'Download PDF'}
+
           </button>
+
+          {/* Print */}
 
           <button
             onClick={handlePrint}
             className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl font-medium transition-colors"
           >
+
             <Printer className="w-5 h-5" />
+
             Print Poster
+
           </button>
+
+          {/* WhatsApp */}
 
           <button
             onClick={handleShareWhatsApp}
             className="flex items-center justify-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-medium transition-colors shadow-sm"
           >
+
             <Share2 className="w-5 h-5" />
+
             Share via WhatsApp
+
           </button>
 
         </div>
 
-        {/* ─────────────────────────────────────────────────────── */}
-        {/* Details */}
-        {/* ─────────────────────────────────────────────────────── */}
+        {/* ───────────────────────────────────────────────────── */}
+        {/* DETAILS */}
+        {/* ───────────────────────────────────────────────────── */}
+
         <div className="mt-6 bg-white rounded-xl p-5 border border-gray-200 no-print">
-          <p className="text-sm font-semibold text-gray-700 mb-3">
-            Tower SACCO PayBill Details
+
+          <p className="text-sm font-semibold text-gray-700 mb-4">
+            Xecoflow Smart PayBill Details
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
             <div>
               <p className="text-gray-400 text-xs">
@@ -417,7 +454,9 @@ export default function AutomatedPayBillPage() {
 
               <p
                 className="font-bold text-lg"
-                style={{ color: TOWER_GREEN }}
+                style={{
+                  color: DARK_BLUE,
+                }}
               >
                 {merchant?.shortcode}
               </p>
@@ -428,143 +467,173 @@ export default function AutomatedPayBillPage() {
                 ACCOUNT NUMBER
               </p>
 
-              <p className="font-bold text-lg text-gray-800">
+              <p
+                className="font-bold text-lg"
+                style={{
+                  color: DARK_BLUE,
+                }}
+              >
                 {merchant?.virtualAccount}
               </p>
             </div>
 
             <div>
               <p className="text-gray-400 text-xs">
-                BUSINESS
+                SERVICE
               </p>
 
-              <p className="font-bold text-lg text-gray-800">
-                {merchant?.businessName}
+              <p
+                className="font-bold text-lg"
+                style={{
+                  color: XECOfLOW_GREEN,
+                }}
+              >
+                Smart PayBill
               </p>
             </div>
 
           </div>
+
         </div>
 
       </div>
 
       {/* ───────────────────────────────────────────────────────── */}
-      {/* Styling */}
+      {/* POSTER + PRINT STYLES */}
       {/* ───────────────────────────────────────────────────────── */}
+
       <style jsx global>{`
 
-        /*
-         * Main Tower SACCO poster
-         */
-        .tower-poster {
+        /* ========================================================
+           MAIN POSTER
+        ======================================================== */
+
+        .xecoflow-poster {
+
           width: 800px;
           max-width: 100%;
+
           aspect-ratio: 3 / 2;
 
           background: #ffffff;
 
           display: flex;
           flex-direction: column;
+
           align-items: center;
+
+          justify-content: center;
 
           overflow: hidden;
 
-          padding:
-            clamp(20px, 4vw, 38px)
-            clamp(18px, 4vw, 42px);
+          padding: 35px 42px;
 
           box-sizing: border-box;
+
         }
 
-        /*
-         * Logo
-         */
-        .tower-logo-container {
+
+        /* ========================================================
+           XECOfLOW BRAND
+        ======================================================== */
+
+        .xecoflow-brand {
+
           width: 100%;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-
-          min-height: 72px;
-
-          margin-bottom: 8px;
-        }
-
-        .tower-logo {
-          display: block;
-
-          width: 190px;
-          height: auto;
-
-          object-fit: contain;
-        }
-
-        /*
-         * Only show this if you don't have the actual
-         * tower-sacco-logo.png.
-         */
-        .tower-logo-fallback {
-          display: none;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .tower-icon {
-          width: 34px;
-          height: 42px;
-
-          border: 3px solid ${TOWER_GREEN};
-
-          border-radius: 50% 50% 45% 45%;
-
-          display: flex;
-          align-items: center;
-          justify-content: center;
-
-          color: ${TOWER_PINK};
-        }
-
-        .tower-name {
-          color: ${TOWER_PINK};
-
-          font-size: 25px;
-          font-weight: 700;
-
-          line-height: 1;
-        }
-
-        .tower-tagline {
-          color: ${TOWER_GREEN};
-
-          font-size: 7px;
-
-          margin-top: 3px;
-        }
-
-        /*
-         * LIPA NA MPESA
-         */
-        .lipa-title {
-          color: #050505;
-
-          font-size: clamp(28px, 5vw, 52px);
-
-          font-weight: 900;
-
-          letter-spacing: -1.5px;
-
-          line-height: 1;
 
           text-align: center;
 
-          margin-top: 4px;
+          margin-bottom: 15px;
+
         }
 
-        /*
-         * PAYBILL
-         */
+
+        .xecoflow-main {
+
+          /*
+           * MUCH BIGGER THAN LIPA NA MPESA
+           */
+
+          font-size: clamp(
+            52px,
+            9vw,
+            86px
+          );
+
+          font-weight: 900;
+
+          line-height: 0.95;
+
+          letter-spacing: -2px;
+
+        }
+
+
+        .xecoflow-smart {
+
+          /*
+           * Also large, but smaller than Xecoflow
+           */
+
+          font-size: clamp(
+            28px,
+            5vw,
+            46px
+          );
+
+          font-weight: 800;
+
+          line-height: 1;
+
+          margin-top: 8px;
+
+          letter-spacing: -0.5px;
+
+        }
+
+
+        /* ========================================================
+           LIPA NA MPESA
+        ======================================================== */
+
+        .lipa-title {
+
+          color: #050505;
+
+          /*
+           * Smaller than Xecoflow
+           */
+
+          font-size: clamp(
+            30px,
+            5vw,
+            48px
+          );
+
+          font-weight: 900;
+
+          line-height: 1;
+
+          letter-spacing: -1px;
+
+          text-align: center;
+
+          margin-top: 10px;
+
+        }
+
+
+        /* ========================================================
+           PAYBILL
+        ======================================================== */
+
         .paybill-title {
-          font-size: clamp(24px, 4.5vw, 43px);
+
+          font-size: clamp(
+            26px,
+            4.5vw,
+            40px
+          );
 
           font-weight: 800;
 
@@ -575,15 +644,20 @@ export default function AutomatedPayBillPage() {
           margin-top: 13px;
 
           margin-bottom: 14px;
+
         }
 
-        /*
-         * Number boxes
-         */
+
+        /* ========================================================
+           NUMBER ROW
+        ======================================================== */
+
         .digit-row {
+
           display: flex;
 
           justify-content: center;
+
           align-items: stretch;
 
           width: 100%;
@@ -591,27 +665,47 @@ export default function AutomatedPayBillPage() {
           max-width: 620px;
 
           margin: 0 auto;
+
         }
 
+
+        /* ========================================================
+           NUMBER BOX
+        ======================================================== */
+
         .digit-box {
+
           flex: 1;
 
           min-width: 0;
 
-          height: clamp(48px, 8vw, 76px);
+          height: clamp(
+            48px,
+            8vw,
+            76px
+          );
 
-          border: 1.5px solid #333;
+          border: 1.5px solid #333333;
 
           display: flex;
 
           align-items: center;
+
           justify-content: center;
 
-          background: #fff;
+          background: #ffffff;
 
-          font-size: clamp(31px, 6vw, 57px);
+          /*
+           * DARK BLUE NUMBERS
+           */
 
-          font-weight: 800;
+          font-size: clamp(
+            31px,
+            6vw,
+            57px
+          );
+
+          font-weight: 900;
 
           line-height: 1;
 
@@ -619,13 +713,21 @@ export default function AutomatedPayBillPage() {
             Arial,
             Helvetica,
             sans-serif;
+
         }
 
-        /*
-         * Account label
-         */
+
+        /* ========================================================
+           ACCOUNT NUMBER
+        ======================================================== */
+
         .account-title {
-          font-size: clamp(22px, 4vw, 39px);
+
+          font-size: clamp(
+            23px,
+            4vw,
+            38px
+          );
 
           font-weight: 800;
 
@@ -633,97 +735,209 @@ export default function AutomatedPayBillPage() {
 
           text-align: center;
 
-          margin-top: 17px;
+          margin-top: 18px;
 
           margin-bottom: 13px;
+
         }
 
-        /*
-         * Account number row
-         */
+
         .account-row {
+
           max-width: 100%;
+
         }
+
 
         .account-digit {
-          font-size: clamp(20px, 4vw, 40px);
 
-          height: clamp(42px, 7vw, 65px);
+          height: clamp(
+            42px,
+            7vw,
+            65px
+          );
 
-          font-weight: 800;
+          font-size: clamp(
+            20px,
+            4vw,
+            39px
+          );
+
+          font-weight: 900;
+
         }
 
-        /*
-         * Mobile
-         */
-        @media (max-width: 640px) {
 
-          .tower-poster {
-            aspect-ratio: 3 / 2;
+        /* ========================================================
+           TABLET
+        ======================================================== */
 
-            padding: 18px 10px;
+        @media (max-width: 768px) {
+
+          .xecoflow-poster {
+
+            padding: 28px 20px;
+
           }
 
-          .tower-logo-container {
-            min-height: 45px;
+          .xecoflow-main {
+
+            font-size: 55px;
+
           }
 
-          .tower-logo {
-            width: 125px;
+          .xecoflow-smart {
+
+            font-size: 30px;
+
           }
 
           .lipa-title {
-            font-size: 25px;
-            letter-spacing: -0.5px;
+
+            font-size: 32px;
+
           }
 
           .paybill-title {
-            font-size: 23px;
-            margin-top: 8px;
-            margin-bottom: 8px;
+
+            font-size: 27px;
+
           }
 
-          .digit-box {
-            height: 43px;
-            font-size: 28px;
-          }
-
-          .account-title {
-            font-size: 21px;
-            margin-top: 11px;
-            margin-bottom: 8px;
-          }
-
-          .account-digit {
-            height: 38px;
-            font-size: 18px;
-          }
         }
 
-        /*
-         * Print
-         */
+
+        /* ========================================================
+           MOBILE
+        ======================================================== */
+
+        @media (max-width: 640px) {
+
+          .xecoflow-poster {
+
+            aspect-ratio: 3 / 2;
+
+            padding: 18px 8px;
+
+          }
+
+
+          .xecoflow-brand {
+
+            margin-bottom: 7px;
+
+          }
+
+
+          .xecoflow-main {
+
+            font-size: 38px;
+
+            letter-spacing: -1px;
+
+          }
+
+
+          .xecoflow-smart {
+
+            font-size: 22px;
+
+            margin-top: 4px;
+
+          }
+
+
+          .lipa-title {
+
+            font-size: 25px;
+
+            letter-spacing: -0.5px;
+
+            margin-top: 6px;
+
+          }
+
+
+          .paybill-title {
+
+            font-size: 22px;
+
+            margin-top: 8px;
+
+            margin-bottom: 8px;
+
+          }
+
+
+          .digit-box {
+
+            height: 43px;
+
+            font-size: 27px;
+
+          }
+
+
+          .account-title {
+
+            font-size: 20px;
+
+            margin-top: 11px;
+
+            margin-bottom: 8px;
+
+          }
+
+
+          .account-digit {
+
+            height: 38px;
+
+            font-size: 17px;
+
+          }
+
+        }
+
+
+        /* ========================================================
+           PRINT
+        ======================================================== */
+
         @media print {
 
           @page {
+
             size: A4 portrait;
+
             margin: 0;
+
           }
+
 
           html,
           body {
+
             margin: 0 !important;
+
             padding: 0 !important;
 
-            background: white !important;
+            background: #ffffff !important;
+
           }
+
 
           .no-print {
+
             display: none !important;
+
           }
 
-          .tower-poster {
+
+          .xecoflow-poster {
+
             width: 100vw !important;
+
             height: 100vh !important;
 
             max-width: none !important;
@@ -732,36 +946,67 @@ export default function AutomatedPayBillPage() {
 
             box-shadow: none !important;
 
-            padding: 10vh 5vw !important;
+            padding: 9vh 5vw !important;
+
           }
 
-          .tower-logo {
-            width: 240px !important;
+
+          .xecoflow-main {
+
+            font-size: 90px !important;
+
           }
+
+
+          .xecoflow-smart {
+
+            font-size: 52px !important;
+
+          }
+
 
           .lipa-title {
+
             font-size: 58px !important;
+
           }
+
 
           .paybill-title {
-            font-size: 50px !important;
+
+            font-size: 48px !important;
+
           }
+
 
           .digit-box {
+
             height: 85px !important;
-            font-size: 65px !important;
+
+            font-size: 64px !important;
+
           }
+
 
           .account-title {
-            font-size: 46px !important;
+
+            font-size: 45px !important;
+
           }
 
+
           .account-digit {
-            font-size: 42px !important;
+
             height: 72px !important;
+
+            font-size: 42px !important;
+
           }
+
         }
+
       `}</style>
+
     </div>
   );
 }
