@@ -35,11 +35,10 @@ export default function AutomatedPayBillPage() {
   // BRAND COLORS
   // ============================================================
 
-  const DARK_BLUE = '#073B73';
-  const BLUE = '#0A4D8C';
   const GREEN = '#099447';
-  const LIGHT_BLUE = '#EAF2F8';
-  const BORDER = '#B9C5CF';
+  const DARK_BLUE = '#073B73';
+  const LIGHT_GREEN = '#EAF6EF';
+  const BORDER = '#B8B8B8';
 
   // ============================================================
   // LOAD MERCHANT DATA
@@ -83,11 +82,10 @@ export default function AutomatedPayBillPage() {
     if (!merchant) return;
 
     const text =
-      `Xecoflow Smart PayBill\n\n` +
-      `PAY WITH: M-PESA\n` +
+      `XECO SMART PAYBILL\n\n` +
       `PayBill Number: ${merchant.shortcode}\n` +
-      `Account Number: ${merchant.virtualAccount}\n` +
-      `Business Name: ${merchant.businessName}`;
+      `Account Name: ${merchant.businessName}\n` +
+      `Account Number: ${merchant.virtualAccount}`;
 
     navigator.clipboard.writeText(text);
 
@@ -118,7 +116,7 @@ export default function AutomatedPayBillPage() {
       const imgData = canvas.toDataURL('image/png');
 
       const pdf = new jsPDF({
-        orientation: 'landscape',
+        orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
       });
@@ -174,11 +172,10 @@ export default function AutomatedPayBillPage() {
     if (!merchant) return;
 
     const message = encodeURIComponent(
-      `Xecoflow Smart PayBill\n\n` +
-        `PAY WITH: M-PESA\n` +
+      `XECO SMART PAYBILL\n\n` +
         `PayBill Number: ${merchant.shortcode}\n` +
-        `Account Number: ${merchant.virtualAccount}\n` +
-        `Business Name: ${merchant.businessName}`
+        `Account Name: ${merchant.businessName}\n` +
+        `Account Number: ${merchant.virtualAccount}`
     );
 
     window.open(
@@ -194,7 +191,9 @@ export default function AutomatedPayBillPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+
         <div className="text-center">
+
           <Loader2
             className="w-12 h-12 animate-spin mx-auto mb-4"
             style={{ color: GREEN }}
@@ -203,10 +202,16 @@ export default function AutomatedPayBillPage() {
           <p className="text-gray-600">
             Loading your PayBill details...
           </p>
+
         </div>
+
       </div>
     );
   }
+
+  // ============================================================
+  // DIGITS
+  // ============================================================
 
   const paybillDigits = (
     merchant?.shortcode || '4049263'
@@ -219,10 +224,10 @@ export default function AutomatedPayBillPage() {
   return (
     <div className="min-h-screen bg-gray-100 p-4 md:p-8">
 
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-5xl mx-auto">
 
         {/* ====================================================== */}
-        {/* PAGE HEADER */}
+        {/* HEADER */}
         {/* ====================================================== */}
 
         <div className="flex items-center justify-between mb-6 no-print">
@@ -243,13 +248,15 @@ export default function AutomatedPayBillPage() {
             </button>
 
             <div>
+
               <h1 className="text-2xl font-bold text-gray-900">
                 Xecoflow Smart PayBill
               </h1>
 
               <p className="text-sm text-gray-500">
-                M-PESA PayBill Poster
+                Simple PayBill Poster
               </p>
+
             </div>
 
           </div>
@@ -269,6 +276,7 @@ export default function AutomatedPayBillPage() {
               transition-colors
             "
           >
+
             {copied ? (
               <Check
                 className="w-4 h-4"
@@ -279,130 +287,66 @@ export default function AutomatedPayBillPage() {
             )}
 
             {copied ? 'Copied!' : 'Copy Details'}
+
           </button>
 
         </div>
 
 
         {/* ====================================================== */}
-        {/* POSTER CONTAINER */}
+        {/* POSTER PREVIEW */}
         {/* ====================================================== */}
 
-        <div className="bg-white rounded-xl shadow-lg p-5 md:p-8 mb-6 no-print">
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6 no-print">
 
           <div className="flex justify-center">
 
             <div
               ref={posterRef}
-              className="xecoflow-poster"
+              className="xecoflow-simple-poster"
             >
 
               {/* ================================================= */}
-              {/* TOP HEADER */}
+              {/* XECO SMART PAYBILL */}
               {/* ================================================= */}
 
-              <div className="poster-top">
-
-                {/* Xecoflow corner branding */}
-
-                <div className="xecoflow-corner">
-
-                  <div className="xecoflow-name">
-                    Xecoflow
-                  </div>
-
-                  <div className="xecoflow-paybill">
-                    Smart PayBill
-                  </div>
-
-                </div>
-
-
-                {/* PAY WITH */}
-
-                <div className="pay-with">
-
-                  <div className="pay-with-label">
-                    PAY WITH
-                  </div>
-
-                  <div className="mpesa-brand">
-
-                    <img
-                      src="/mpesa-logo.png"
-                      alt="M-PESA"
-                      className="mpesa-logo"
-                      crossOrigin="anonymous"
-                    />
-
-                    <span className="mpesa-text">
-                      M-PESA
-                    </span>
-
-                  </div>
-
-                </div>
-
+              <div
+                className="xecoflow-title"
+                style={{
+                  color: GREEN,
+                }}
+              >
+                XECO SMART PAYBILL
               </div>
 
 
               {/* ================================================= */}
-              {/* PAYMENT OPTIONS / PAYBILL */}
+              {/* PAYBILL NUMBER LABEL */}
               {/* ================================================= */}
 
-              <div className="payment-area">
-
-                {/* PAYBILL LABEL */}
-
-                <div className="payment-heading">
-                  PAYBILL
-                </div>
-
-
-                {/* PAYBILL NUMBER */}
-
-                <div className="paybill-number">
-
-                  {paybillDigits.map((digit, index) => (
-                    <div
-                      key={`paybill-${index}`}
-                      className="large-digit"
-                    >
-                      {digit}
-                    </div>
-                  ))}
-
-                </div>
-
-
-                {/* SMALL INFORMATION */}
-
-                <div className="charge-note">
-                  Use M-PESA to make your payment
-                </div>
-
+              <div
+                className="field-label"
+                style={{
+                  color: GREEN,
+                }}
+              >
+                PAYBILL NUMBER
               </div>
 
 
               {/* ================================================= */}
-              {/* ACCOUNT NUMBER HEADER */}
+              {/* PAYBILL NUMBER */}
               {/* ================================================= */}
 
-              <div className="section-label">
-                ACCOUNT / TILL NUMBER
-              </div>
+              <div className="number-row paybill-row">
 
-
-              {/* ================================================= */}
-              {/* ACCOUNT NUMBER */}
-              {/* ================================================= */}
-
-              <div className="account-number">
-
-                {accountDigits.map((digit, index) => (
+                {paybillDigits.map((digit, index) => (
                   <div
-                    key={`account-${index}`}
-                    className="account-digit"
+                    key={`paybill-${index}`}
+                    className="number-box"
+                    style={{
+                      color: DARK_BLUE,
+                    }}
                   >
                     {digit}
                   </div>
@@ -412,11 +356,16 @@ export default function AutomatedPayBillPage() {
 
 
               {/* ================================================= */}
-              {/* BUSINESS NAME HEADER */}
+              {/* ACCOUNT NAME */}
               {/* ================================================= */}
 
-              <div className="section-label business-label">
-                BUSINESS NAME
+              <div
+                className="field-label account-name-label"
+                style={{
+                  color: GREEN,
+                }}
+              >
+                ACCOUNT NAME
               </div>
 
 
@@ -424,9 +373,49 @@ export default function AutomatedPayBillPage() {
               {/* BUSINESS NAME */}
               {/* ================================================= */}
 
-              <div className="business-name">
+              <div
+                className="business-name-box"
+                style={{
+                  color: DARK_BLUE,
+                }}
+              >
                 {merchant?.businessName ||
                   'Xecoflow Smart PayBill'}
+              </div>
+
+
+              {/* ================================================= */}
+              {/* ACCOUNT NUMBER */}
+              {/* ================================================= */}
+
+              <div
+                className="field-label account-number-label"
+                style={{
+                  color: GREEN,
+                }}
+              >
+                ACCOUNT NUMBER
+              </div>
+
+
+              {/* ================================================= */}
+              {/* ACCOUNT NUMBER DIGITS */}
+              {/* ================================================= */}
+
+              <div className="number-row account-row">
+
+                {accountDigits.map((digit, index) => (
+                  <div
+                    key={`account-${index}`}
+                    className="number-box account-box"
+                    style={{
+                      color: DARK_BLUE,
+                    }}
+                  >
+                    {digit}
+                  </div>
+                ))}
+
               </div>
 
 
@@ -554,7 +543,7 @@ export default function AutomatedPayBillPage() {
 
 
         {/* ====================================================== */}
-        {/* DETAILS */}
+        {/* DETAILS CARD */}
         {/* ====================================================== */}
 
         <div className="mt-6 bg-white rounded-xl p-5 border border-gray-200 no-print">
@@ -566,8 +555,9 @@ export default function AutomatedPayBillPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
             <div>
-              <p className="text-gray-400 text-xs uppercase">
-                PayBill Number
+
+              <p className="text-gray-400 text-xs">
+                PAYBILL NUMBER
               </p>
 
               <p
@@ -578,12 +568,32 @@ export default function AutomatedPayBillPage() {
               >
                 {merchant?.shortcode}
               </p>
+
             </div>
 
 
             <div>
-              <p className="text-gray-400 text-xs uppercase">
-                Account / Till Number
+
+              <p className="text-gray-400 text-xs">
+                ACCOUNT NAME
+              </p>
+
+              <p
+                className="font-bold text-lg"
+                style={{
+                  color: DARK_BLUE,
+                }}
+              >
+                {merchant?.businessName}
+              </p>
+
+            </div>
+
+
+            <div>
+
+              <p className="text-gray-400 text-xs">
+                ACCOUNT NUMBER
               </p>
 
               <p
@@ -594,22 +604,7 @@ export default function AutomatedPayBillPage() {
               >
                 {merchant?.virtualAccount}
               </p>
-            </div>
 
-
-            <div>
-              <p className="text-gray-400 text-xs uppercase">
-                Payment Method
-              </p>
-
-              <p
-                className="font-bold text-lg"
-                style={{
-                  color: GREEN,
-                }}
-              >
-                M-PESA
-              </p>
             </div>
 
           </div>
@@ -626,30 +621,30 @@ export default function AutomatedPayBillPage() {
       <style jsx global>{`
 
         /* ========================================================
-           POSTER
+           MAIN POSTER
         ======================================================== */
 
-        .xecoflow-poster {
+        .xecoflow-simple-poster {
 
-          width: 900px;
+          width: 800px;
 
           max-width: 100%;
 
-          aspect-ratio: 1.65 / 1;
+          aspect-ratio: 1.55 / 1;
 
           background: #ffffff;
 
-          overflow: hidden;
-
-          padding: 30px 38px 18px;
-
           box-sizing: border-box;
+
+          padding: 45px 55px 25px;
 
           display: flex;
 
           flex-direction: column;
 
-          color: ${DARK_BLUE};
+          align-items: center;
+
+          overflow: hidden;
 
           font-family:
             Arial,
@@ -660,18 +655,51 @@ export default function AutomatedPayBillPage() {
 
 
         /* ========================================================
-           TOP
+           XECO SMART PAYBILL
         ======================================================== */
 
-        .poster-top {
+        .xecoflow-title {
 
           width: 100%;
 
-          display: flex;
+          text-align: center;
 
-          align-items: flex-start;
+          font-size: clamp(
+            36px,
+            7vw,
+            68px
+          );
 
-          justify-content: space-between;
+          font-weight: 900;
+
+          letter-spacing: -1.5px;
+
+          line-height: 1;
+
+          margin-bottom: 20px;
+
+        }
+
+
+        /* ========================================================
+           FIELD LABELS
+        ======================================================== */
+
+        .field-label {
+
+          width: 100%;
+
+          text-align: center;
+
+          font-size: clamp(
+            19px,
+            3.5vw,
+            31px
+          );
+
+          font-weight: 900;
+
+          line-height: 1;
 
           margin-bottom: 10px;
 
@@ -679,150 +707,12 @@ export default function AutomatedPayBillPage() {
 
 
         /* ========================================================
-           XECOfLOW CORNER
+           NUMBER ROW
         ======================================================== */
 
-        .xecoflow-corner {
-
-          text-align: left;
-
-          padding-top: 2px;
-
-        }
-
-
-        .xecoflow-name {
-
-          color: ${GREEN};
-
-          font-size: 38px;
-
-          font-weight: 900;
-
-          line-height: 0.95;
-
-          letter-spacing: -1.5px;
-
-        }
-
-
-        .xecoflow-paybill {
-
-          color: ${DARK_BLUE};
-
-          font-size: 18px;
-
-          font-weight: 800;
-
-          margin-top: 5px;
-
-          letter-spacing: 0.2px;
-
-        }
-
-
-        /* ========================================================
-           PAY WITH
-        ======================================================== */
-
-        .pay-with {
-
-          text-align: center;
-
-          min-width: 260px;
-
-        }
-
-
-        .pay-with-label {
-
-          color: ${DARK_BLUE};
-
-          font-size: 27px;
-
-          font-weight: 900;
-
-          line-height: 1;
-
-          margin-bottom: 7px;
-
-        }
-
-
-        .mpesa-brand {
-
-          display: flex;
-
-          align-items: center;
-
-          justify-content: center;
-
-          gap: 9px;
-
-        }
-
-
-        .mpesa-logo {
-
-          width: 42px;
-
-          height: 32px;
-
-          object-fit: contain;
-
-        }
-
-
-        .mpesa-text {
-
-          color: #00A651;
-
-          font-size: 30px;
-
-          font-weight: 900;
-
-          letter-spacing: -1px;
-
-        }
-
-
-        /* ========================================================
-           PAYMENT AREA
-        ======================================================== */
-
-        .payment-area {
+        .number-row {
 
           width: 100%;
-
-          text-align: center;
-
-          margin-top: 2px;
-
-          margin-bottom: 14px;
-
-        }
-
-
-        .payment-heading {
-
-          color: ${DARK_BLUE};
-
-          font-size: 34px;
-
-          font-weight: 900;
-
-          line-height: 1;
-
-          margin-bottom: 9px;
-
-        }
-
-
-        /* ========================================================
-           PAYBILL DIGITS
-        ======================================================== */
-
-        .paybill-number {
 
           display: flex;
 
@@ -830,20 +720,24 @@ export default function AutomatedPayBillPage() {
 
           align-items: stretch;
 
-          width: 100%;
-
-          max-width: 620px;
-
-          margin: auto;
-
         }
 
 
-        .large-digit {
+        /* ========================================================
+           NUMBER BOX
+        ======================================================== */
+
+        .number-box {
 
           flex: 1;
 
-          height: 72px;
+          min-width: 0;
+
+          height: 65px;
+
+          border: 1.5px solid ${BORDER};
+
+          background: #ffffff;
 
           display: flex;
 
@@ -851,61 +745,65 @@ export default function AutomatedPayBillPage() {
 
           justify-content: center;
 
-          border: 1.5px solid ${BORDER};
-
-          background: #f8fbfd;
-
-          color: ${DARK_BLUE};
-
-          font-size: 55px;
+          font-size: 48px;
 
           font-weight: 900;
 
           line-height: 1;
 
-        }
-
-
-        /* ========================================================
-           NOTE
-        ======================================================== */
-
-        .charge-note {
-
-          color: #777;
-
-          font-size: 12px;
-
-          margin-top: 7px;
+          box-sizing: border-box;
 
         }
 
 
         /* ========================================================
-           BLUE SECTION LABEL
+           ACCOUNT NAME
         ======================================================== */
 
-        .section-label {
+        .account-name-label {
+
+          margin-top: 20px;
+
+          margin-bottom: 9px;
+
+        }
+
+
+        .business-name-box {
 
           width: 100%;
 
-          background: ${DARK_BLUE};
+          min-height: 64px;
 
-          color: #ffffff;
+          border: 1.5px solid ${BORDER};
+
+          background: #ffffff;
+
+          display: flex;
+
+          align-items: center;
+
+          justify-content: center;
 
           text-align: center;
 
-          font-size: 21px;
+          padding: 7px 15px;
+
+          box-sizing: border-box;
+
+          font-size: clamp(
+            23px,
+            4vw,
+            40px
+          );
 
           font-weight: 900;
 
-          letter-spacing: 0.4px;
+          text-transform: uppercase;
 
-          line-height: 1;
+          line-height: 1.1;
 
-          padding: 7px 10px;
-
-          box-sizing: border-box;
+          overflow: hidden;
 
         }
 
@@ -914,100 +812,31 @@ export default function AutomatedPayBillPage() {
            ACCOUNT NUMBER
         ======================================================== */
 
-        .account-number {
+        .account-number-label {
 
-          width: 100%;
-
-          display: flex;
-
-          justify-content: center;
-
-          align-items: stretch;
+          margin-top: 19px;
 
           margin-bottom: 9px;
 
         }
 
 
-        .account-digit {
-
-          flex: 1;
-
-          min-width: 0;
-
-          height: 61px;
-
-          border-left: 1.5px solid ${BORDER};
-
-          border-right: 1.5px solid ${BORDER};
-
-          border-bottom: 1.5px solid ${BORDER};
-
-          background: #ffffff;
-
-          display: flex;
-
-          align-items: center;
-
-          justify-content: center;
-
-          color: ${DARK_BLUE};
-
-          font-size: 40px;
-
-          font-weight: 900;
-
-          line-height: 1;
-
-        }
-
-
-        /* ========================================================
-           BUSINESS
-        ======================================================== */
-
-        .business-label {
-
-          margin-top: 1px;
-
-        }
-
-
-        .business-name {
+        .account-row {
 
           width: 100%;
 
-          min-height: 55px;
+        }
 
-          border-left: 1.5px solid ${BORDER};
 
-          border-right: 1.5px solid ${BORDER};
+        .account-box {
 
-          border-bottom: 1.5px solid ${BORDER};
+          height: 58px;
 
-          background: #ffffff;
-
-          color: ${DARK_BLUE};
-
-          display: flex;
-
-          align-items: center;
-
-          justify-content: center;
-
-          text-align: center;
-
-          font-size: 31px;
-
-          font-weight: 900;
-
-          text-transform: uppercase;
-
-          letter-spacing: 1px;
-
-          padding: 5px 12px;
-
-          box-sizing: border-box;
+          font-size: clamp(
+            22px,
+            4vw,
+            38px
+          );
 
         }
 
@@ -1018,17 +847,19 @@ export default function AutomatedPayBillPage() {
 
         .poster-footer {
 
+          margin-top: auto;
+
+          width: 100%;
+
           display: flex;
 
           justify-content: flex-end;
 
           align-items: center;
 
-          gap: 5px;
+          gap: 4px;
 
-          margin-top: auto;
-
-          color: #8a8a8a;
+          color: #999999;
 
           font-size: 8px;
 
@@ -1048,76 +879,52 @@ export default function AutomatedPayBillPage() {
 
         @media (max-width: 768px) {
 
-          .xecoflow-poster {
+          .xecoflow-simple-poster {
 
-            padding: 22px 20px 12px;
-
-          }
-
-
-          .xecoflow-name {
-
-            font-size: 31px;
+            padding: 30px 25px 18px;
 
           }
 
 
-          .xecoflow-paybill {
+          .xecoflow-title {
 
-            font-size: 15px;
+            font-size: 42px;
 
-          }
-
-
-          .pay-with-label {
-
-            font-size: 22px;
+            margin-bottom: 14px;
 
           }
 
 
-          .mpesa-text {
-
-            font-size: 25px;
-
-          }
-
-
-          .payment-heading {
-
-            font-size: 28px;
-
-          }
-
-
-          .large-digit {
-
-            height: 58px;
-
-            font-size: 43px;
-
-          }
-
-
-          .section-label {
-
-            font-size: 17px;
-
-          }
-
-
-          .account-digit {
-
-            height: 50px;
-
-            font-size: 31px;
-
-          }
-
-
-          .business-name {
+          .field-label {
 
             font-size: 23px;
+
+          }
+
+
+          .number-box {
+
+            height: 53px;
+
+            font-size: 38px;
+
+          }
+
+
+          .business-name-box {
+
+            min-height: 52px;
+
+            font-size: 27px;
+
+          }
+
+
+          .account-box {
+
+            height: 48px;
+
+            font-size: 29px;
 
           }
 
@@ -1130,136 +937,74 @@ export default function AutomatedPayBillPage() {
 
         @media (max-width: 640px) {
 
-          .xecoflow-poster {
+          .xecoflow-simple-poster {
 
-            aspect-ratio: 1.1 / 1;
+            aspect-ratio: 1.05 / 1;
 
-            padding: 16px 8px 8px;
-
-          }
-
-
-          .poster-top {
-
-            margin-bottom: 7px;
+            padding: 22px 9px 10px;
 
           }
 
 
-          .xecoflow-name {
-
-            font-size: 22px;
-
-          }
-
-
-          .xecoflow-paybill {
-
-            font-size: 10px;
-
-            margin-top: 2px;
-
-          }
-
-
-          .pay-with {
-
-            min-width: 145px;
-
-          }
-
-
-          .pay-with-label {
-
-            font-size: 16px;
-
-            margin-bottom: 3px;
-
-          }
-
-
-          .mpesa-logo {
-
-            width: 27px;
-
-            height: 21px;
-
-          }
-
-
-          .mpesa-text {
-
-            font-size: 17px;
-
-          }
-
-
-          .payment-area {
-
-            margin-bottom: 8px;
-
-          }
-
-
-          .payment-heading {
-
-            font-size: 20px;
-
-            margin-bottom: 5px;
-
-          }
-
-
-          .large-digit {
-
-            height: 40px;
+          .xecoflow-title {
 
             font-size: 28px;
 
-          }
+            letter-spacing: -0.8px;
 
-
-          .charge-note {
-
-            font-size: 7px;
-
-            margin-top: 3px;
+            margin-bottom: 12px;
 
           }
 
 
-          .section-label {
+          .field-label {
 
-            font-size: 11px;
-
-            padding: 4px 5px;
-
-          }
-
-
-          .account-number {
+            font-size: 15px;
 
             margin-bottom: 5px;
 
           }
 
 
-          .account-digit {
+          .number-box {
 
-            height: 34px;
+            height: 38px;
 
-            font-size: 19px;
+            font-size: 26px;
 
           }
 
 
-          .business-name {
+          .account-name-label {
 
-            min-height: 32px;
+            margin-top: 11px;
 
-            font-size: 14px;
+          }
 
-            letter-spacing: 0.5px;
+
+          .business-name-box {
+
+            min-height: 38px;
+
+            font-size: 17px;
+
+            padding: 4px 7px;
+
+          }
+
+
+          .account-number-label {
+
+            margin-top: 11px;
+
+          }
+
+
+          .account-box {
+
+            height: 34px;
+
+            font-size: 18px;
 
           }
 
@@ -1281,7 +1026,7 @@ export default function AutomatedPayBillPage() {
 
           @page {
 
-            size: A4 landscape;
+            size: A4 portrait;
 
             margin: 0;
 
@@ -1307,7 +1052,7 @@ export default function AutomatedPayBillPage() {
           }
 
 
-          .xecoflow-poster {
+          .xecoflow-simple-poster {
 
             width: 100vw !important;
 
@@ -1317,85 +1062,73 @@ export default function AutomatedPayBillPage() {
 
             aspect-ratio: auto !important;
 
-            padding: 6vh 5vw 3vh !important;
+            padding: 10vh 6vw 5vh !important;
 
           }
 
 
-          .xecoflow-name {
+          .xecoflow-title {
 
-            font-size: 62px !important;
+            font-size: 75px !important;
 
-          }
-
-
-          .xecoflow-paybill {
-
-            font-size: 28px !important;
+            margin-bottom: 30px !important;
 
           }
 
 
-          .pay-with-label {
+          .field-label {
 
-            font-size: 39px !important;
+            font-size: 38px !important;
 
-          }
-
-
-          .mpesa-text {
-
-            font-size: 42px !important;
+            margin-bottom: 14px !important;
 
           }
 
 
-          .payment-heading {
+          .number-box {
+
+            height: 85px !important;
+
+            font-size: 65px !important;
+
+          }
+
+
+          .account-name-label {
+
+            margin-top: 30px !important;
+
+          }
+
+
+          .business-name-box {
+
+            min-height: 82px !important;
 
             font-size: 48px !important;
 
           }
 
 
-          .large-digit {
+          .account-number-label {
 
-            height: 92px !important;
-
-            font-size: 72px !important;
+            margin-top: 28px !important;
 
           }
 
 
-          .section-label {
+          .account-box {
 
-            font-size: 28px !important;
+            height: 75px !important;
 
-            padding: 10px !important;
-
-          }
-
-
-          .account-digit {
-
-            height: 80px !important;
-
-            font-size: 52px !important;
+            font-size: 48px !important;
 
           }
 
 
-          .business-name {
+          .poster-footer {
 
-            min-height: 72px !important;
-
-            font-size: 42px !important;
-
-          }
-
-
-          .charge-note {
-
-            font-size: 14px !important;
+            font-size: 10px !important;
 
           }
 
