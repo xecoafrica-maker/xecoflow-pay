@@ -81,7 +81,6 @@ export default function AutomatedPayBillPage() {
     if (!merchant) return;
 
     const text =
-      `LIPA NA MPESA\n` +
       `PayBill: ${merchant.shortcode}\n` +
       `Account Number: ${merchant.virtualAccount}\n` +
       `Business: Xecoflow Smart PayBill`;
