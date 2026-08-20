@@ -213,6 +213,7 @@ const sidebarSections: SidebarSection[] = [
   },
 ];
 
+
 // ─── Component ──────────────────────────────────────────────────────
 export default function Sidebar() {
   const pathname = usePathname();
@@ -397,16 +398,16 @@ export default function Sidebar() {
             if (section.items.length === 0) return null;
 
             return (
-              <div key={section.title || 'section'} className="mb-5">
+              <div key={section.title || 'section'} className="mb-4">
                 {section.title && (
-                  <div className="px-3 py-2">
-                    <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  <div className="px-3 py-1.5">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                       {section.title}
                     </p>
                   </div>
                 )}
 
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {section.items.map((item) => {
                     const isLeaf = !item.children || item.children.length === 0;
                     const isActive =
@@ -427,7 +428,7 @@ export default function Sidebar() {
                         <button
                           key={item.label}
                           onClick={handleLoanClick}
-                          className={`w-full group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                          className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all ${
                             isActive
                               ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/5'
                               : 'text-slate-400 hover:bg-slate-800/50 hover:text-white border border-transparent'
@@ -435,15 +436,15 @@ export default function Sidebar() {
                         >
                           {item.icon && (
                             <item.icon
-                              size={18}
+                              size={16}
                               className={`flex-shrink-0 ${
                                 isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'
                               }`}
                             />
                           )}
-                          <span className="truncate text-sm">{item.label}</span>
+                          <span className="truncate text-[11px]">{item.label}</span>
                           {item.badge && (
-                            <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+                            <span className="ml-auto text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full">
                               {item.badge}
                             </span>
                           )}
@@ -456,7 +457,7 @@ export default function Sidebar() {
                         {isLeaf ? (
                           <Link
                             href={item.href!}
-                            className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                            className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all ${
                               isActive
                                 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/5'
                                 : 'text-slate-400 hover:bg-slate-800/50 hover:text-white border border-transparent'
@@ -464,15 +465,15 @@ export default function Sidebar() {
                           >
                             {item.icon && (
                               <item.icon
-                                size={18}
+                                size={16}
                                 className={`flex-shrink-0 ${
                                   isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'
                                 }`}
                               />
                             )}
-                            <span className="truncate text-sm">{item.label}</span>
+                            <span className="truncate text-[11px]">{item.label}</span>
                             {item.badge && (
-                              <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+                              <span className="ml-auto text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full">
                                 {item.badge}
                               </span>
                             )}
@@ -483,7 +484,7 @@ export default function Sidebar() {
                               <Link
                                 href={item.href!}
                                 onClick={() => toggleExpand(item.label)}
-                                className={`w-full group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                                className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all ${
                                   childActive || showExpanded
                                     ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/10'
                                     : 'text-slate-400 hover:bg-slate-800/50 hover:text-white border border-transparent'
@@ -491,7 +492,7 @@ export default function Sidebar() {
                               >
                                 {item.icon && (
                                   <item.icon
-                                    size={18}
+                                    size={16}
                                     className={`flex-shrink-0 ${
                                       childActive || showExpanded
                                         ? 'text-emerald-400'
@@ -499,22 +500,22 @@ export default function Sidebar() {
                                     }`}
                                   />
                                 )}
-                                <span className="flex-1 text-left truncate text-sm">{item.label}</span>
+                                <span className="flex-1 text-left truncate text-[11px]">{item.label}</span>
                                 {item.badge && (
-                                  <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+                                  <span className="ml-auto text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full">
                                     {item.badge}
                                   </span>
                                 )}
                                 <span className={`text-slate-500 transition-transform duration-200 ${
                                   showExpanded ? 'rotate-90' : ''
                                 }`}>
-                                  <ChevronRight size={16} />
+                                  <ChevronRight size={14} />
                                 </span>
                               </Link>
                             ) : (
                               <button
                                 onClick={() => toggleExpand(item.label)}
-                                className={`w-full group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                                className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all ${
                                   childActive || showExpanded
                                     ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/10'
                                     : 'text-slate-400 hover:bg-slate-800/50 hover:text-white border border-transparent'
@@ -522,7 +523,7 @@ export default function Sidebar() {
                               >
                                 {item.icon && (
                                   <item.icon
-                                    size={18}
+                                    size={16}
                                     className={`flex-shrink-0 ${
                                       childActive || showExpanded
                                         ? 'text-emerald-400'
@@ -530,29 +531,29 @@ export default function Sidebar() {
                                     }`}
                                   />
                                 )}
-                                <span className="flex-1 text-left truncate text-sm">{item.label}</span>
+                                <span className="flex-1 text-left truncate text-[11px]">{item.label}</span>
                                 {item.badge && (
-                                  <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+                                  <span className="ml-auto text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full">
                                     {item.badge}
                                   </span>
                                 )}
                                 <span className={`text-slate-500 transition-transform duration-200 ${
                                   showExpanded ? 'rotate-90' : ''
                                 }`}>
-                                  <ChevronRight size={16} />
+                                  <ChevronRight size={14} />
                                 </span>
                               </button>
                             )}
 
                             {showExpanded && (
-                              <div className="ml-7 mt-1 space-y-1 border-l border-slate-700/50 pl-2">
+                              <div className="ml-6 mt-0.5 space-y-0.5 border-l border-slate-700/50 pl-2">
                                 {item.children!.map((child) => {
                                   const childActive = pathname === child.href;
                                   return (
                                     <Link
                                       key={child.label}
                                       href={child.href!}
-                                      className={`flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+                                      className={`flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all ${
                                         childActive
                                           ? 'bg-emerald-500/10 text-emerald-300'
                                           : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
@@ -560,13 +561,13 @@ export default function Sidebar() {
                                     >
                                       {child.icon && (
                                         <child.icon
-                                          size={15}
+                                          size={14}
                                           className={`flex-shrink-0 ${
                                             childActive ? 'text-emerald-400' : 'text-slate-500'
                                           }`}
                                         />
                                       )}
-                                      <span className="truncate text-sm">{child.label}</span>
+                                      <span className="truncate text-[11px]">{child.label}</span>
                                       {childActive && (
                                         <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400" />
                                       )}
