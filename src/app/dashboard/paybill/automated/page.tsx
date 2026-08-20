@@ -3,19 +3,16 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import {
   ArrowLeft,
   Download,
   Printer,
   Share2,
-  QrCode,
   Copy,
   Check,
   Loader2,
   Building2,
   Smartphone,
-  Send,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas';
@@ -41,31 +38,24 @@ export default function AutomatedPayBillPage() {
   useEffect(() => {
     const fetchMerchantData = async () => {
       try {
-        // Replace with your actual API call
-        // const response = await fetch('/api/merchant/profile');
-        // const data = await response.json();
-        
-        // Using stored merchant data from auth
         const stored = getStoredMerchant();
         
-        // Mock data - replace with actual API response
         const mockData = {
-          businessName: stored?.businessName || 'KIAMBU HARDWARE STORES',
-          virtualAccount: stored?.virtualAccount || 'XC-102-KIAMBU',
-          shortcode: '404926',
+          businessName: stored?.businessName || 'BRIANONUONGA',
+          virtualAccount: stored?.virtualAccount || '742790442',
+          shortcode: '247247',
         };
         
         setMerchant(mockData);
         setQrValue(`mpesa://paybill?shortcode=${mockData.shortcode}&account=${mockData.virtualAccount}`);
       } catch (error) {
         console.error('Error fetching merchant data:', error);
-        // Fallback default values
         setMerchant({
-          businessName: 'BUSINESS NAME',
-          virtualAccount: 'XC-000-DEFAULT',
-          shortcode: '404926',
+          businessName: 'BRIANONUONGA',
+          virtualAccount: '742790442',
+          shortcode: '247247',
         });
-        setQrValue('mpesa://paybill?shortcode=404926&account=XC-000-DEFAULT');
+        setQrValue('mpesa://paybill?shortcode=247247&account=742790442');
       } finally {
         setLoading(false);
       }
@@ -161,7 +151,7 @@ export default function AutomatedPayBillPage() {
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-5xl mx-auto">
         {/* ─── Header ────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 no-print">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.back()}
@@ -187,79 +177,91 @@ export default function AutomatedPayBillPage() {
         </div>
 
         {/* ─── Poster Preview ───────────────────────────────────────── */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6 no-print">
           <div className="flex justify-center">
             <div 
               ref={posterRef}
-              className="w-full max-w-[500px] aspect-[3/4] bg-gradient-to-br from-emerald-50 to-white rounded-2xl border-2 border-emerald-200 shadow-xl overflow-hidden print:border-2 print:border-emerald-300"
+              className="w-full max-w-[400px] aspect-[9/16] bg-white rounded-2xl shadow-2xl overflow-hidden print:shadow-none print:rounded-none"
             >
-              {/* Poster Content */}
-              <div className="h-full flex flex-col p-6">
-                {/* Top Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
-                      <Smartphone className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full">
-                      PAY WITH M-PESA
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-lg font-bold text-gray-900">Xeco</span>
-                    <span className="text-lg font-bold text-emerald-500">Flow</span>
+              {/* Poster Content - M-PESA Style */}
+              <div className="h-full flex flex-col bg-gradient-to-b from-emerald-600 to-emerald-700 p-6">
+                {/* PAY WITH M-PESA Header */}
+                <div className="text-center mb-2">
+                  <p className="text-white/80 text-xs font-medium tracking-wider">PAY WITH</p>
+                  <div className="flex items-center justify-center gap-3 mt-1">
+                    <span className="text-white font-bold text-2xl">M-PESA</span>
+                    <span className="text-white/50 text-xl font-light">/</span>
+                    <span className="text-white font-bold text-2xl">Equity</span>
                   </div>
                 </div>
 
-                {/* Main Content */}
-                <div className="flex-1 flex flex-col items-center justify-center space-y-4">
-                  {/* PayBill Number */}
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">PayBill Number</p>
-                    <p className="text-4xl md:text-5xl font-bold text-gray-900 tracking-widest">
-                      {merchant?.shortcode || '404926'}
-                    </p>
+                {/* Divider */}
+                <div className="border-t border-white/20 my-3" />
+
+                {/* PAYBILL Section */}
+                <div className="text-center">
+                  <p className="text-white/70 text-[10px] font-medium tracking-[0.2em]">PAYBILL</p>
+                  <p className="text-white font-bold text-4xl tracking-[0.3em] mt-1">
+                    {merchant?.shortcode || '247247'}
+                  </p>
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-white/20 my-3" />
+
+                {/* Account Number Section */}
+                <div className="text-center">
+                  <p className="text-white/70 text-[10px] font-medium tracking-[0.2em]">EQUITYTILLNO./ACCOUNTNO</p>
+                  <div className="flex justify-center gap-1 mt-1">
+                    {(merchant?.virtualAccount || '742790442').split('').map((digit, index) => (
+                      <span 
+                        key={index} 
+                        className="text-white font-bold text-3xl tracking-wider"
+                      >
+                        {digit}
+                      </span>
+                    ))}
                   </div>
+                </div>
 
-                  {/* Divider */}
-                  <div className="w-16 h-0.5 bg-emerald-300 rounded-full" />
+                {/* Divider */}
+                <div className="border-t border-white/20 my-3" />
 
-                  {/* Account Number */}
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Account Number</p>
-                    <p className="text-xl md:text-2xl font-bold text-emerald-600 tracking-wide">
-                      {merchant?.virtualAccount || 'XC-000-DEFAULT'}
-                    </p>
-                  </div>
+                {/* Account Name */}
+                <div className="text-center">
+                  <p className="text-white/70 text-[10px] font-medium tracking-[0.2em]">ACCOUNTNAME</p>
+                  <p className="text-white font-bold text-xl tracking-wider mt-1">
+                    {merchant?.businessName || 'BRIANONUONGA'}
+                  </p>
+                </div>
 
-                  {/* Account Name */}
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Account Name</p>
-                    <p className="text-lg font-semibold text-gray-800">
-                      {merchant?.businessName || 'BUSINESS NAME'}
-                    </p>
-                  </div>
+                {/* Divider */}
+                <div className="border-t border-white/20 my-3" />
 
+                {/* QR Code and Mobile App Section */}
+                <div className="flex-1 flex items-center justify-between mt-2">
                   {/* QR Code */}
-                  <div className="mt-2 p-3 bg-white rounded-xl shadow-md">
+                  <div className="bg-white rounded-xl p-2 shadow-lg">
                     <QRCodeSVG
                       value={qrValue}
-                      size={140}
+                      size={120}
                       level="H"
-                      includeMargin
-                      className="w-32 h-32"
+                      includeMargin={false}
+                      className="w-[120px] h-[120px]"
                     />
                   </div>
 
-                  {/* Footer */}
-                  <div className="text-center mt-auto pt-2">
-                    <p className="text-[10px] text-gray-400">
-                      Scan to pay securely via M-PESA
-                    </p>
-                    <div className="flex items-center justify-center gap-4 mt-1">
-                      <span className="text-[10px] text-gray-400">✓ Secure</span>
-                      <span className="text-[10px] text-gray-400">✓ Instant</span>
-                      <span className="text-[10px] text-gray-400">✓ Reliable</span>
+                  {/* Mobile App Info */}
+                  <div className="text-right">
+                    <p className="text-white/70 text-[10px] font-medium tracking-[0.2em]">MOBILEAPP</p>
+                    <p className="text-white font-bold text-xl">EQUITY</p>
+                    <div className="flex items-center justify-end gap-2 mt-1">
+                      <span className="text-white font-semibold text-sm">Equitel</span>
+                      <span className="text-white/50 text-xs">money</span>
+                    </div>
+                    <div className="mt-2">
+                      <p className="text-white/50 text-[10px]">DIAL</p>
+                      <p className="text-white font-bold text-lg">*247#</p>
                     </div>
                   </div>
                 </div>
@@ -269,7 +271,7 @@ export default function AutomatedPayBillPage() {
         </div>
 
         {/* ─── Action Buttons ───────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 no-print">
           <button
             onClick={handleDownloadPDF}
             disabled={exporting}
@@ -301,14 +303,14 @@ export default function AutomatedPayBillPage() {
         </div>
 
         {/* ─── Additional Info ──────────────────────────────────────── */}
-        <div className="mt-6 bg-white rounded-xl p-4 border border-gray-200">
+        <div className="mt-6 bg-white rounded-xl p-4 border border-gray-200 no-print">
           <div className="flex items-start gap-3">
             <Building2 className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-gray-700">Virtual Account Details</p>
               <p className="text-xs text-gray-500 mt-1">
-                <span className="font-medium">PayBill:</span> {merchant?.shortcode || '404926'} &bull;{' '}
-                <span className="font-medium">Account:</span> {merchant?.virtualAccount || 'XC-000-DEFAULT'}
+                <span className="font-medium">PayBill:</span> {merchant?.shortcode || '247247'} &bull;{' '}
+                <span className="font-medium">Account:</span> {merchant?.virtualAccount || '742790442'}
               </p>
               <p className="text-xs text-gray-400 mt-1">
                 Share these details with your customers for seamless M-PESA payments.
@@ -321,11 +323,13 @@ export default function AutomatedPayBillPage() {
       {/* ─── Print Styles ───────────────────────────────────────────── */}
       <style jsx global>{`
         @media print {
-          body * {
-            visibility: hidden;
+          .no-print {
+            display: none !important;
           }
-          [ref="posterRef"] * {
-            visibility: visible;
+          body {
+            background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
           [ref="posterRef"] {
             position: absolute;
@@ -333,10 +337,12 @@ export default function AutomatedPayBillPage() {
             top: 50%;
             transform: translate(-50%, -50%);
             width: 100%;
-            max-width: 500px;
+            max-width: 400px;
+            box-shadow: none !important;
+            border-radius: 0 !important;
           }
-          .no-print {
-            display: none !important;
+          [ref="posterRef"] * {
+            visibility: visible !important;
           }
         }
       `}</style>
