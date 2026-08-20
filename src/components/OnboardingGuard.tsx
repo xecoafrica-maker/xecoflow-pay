@@ -1,74 +1,78 @@
-'use client';
+// src/app/api/merchant/onboarding/route.ts
 
-import { useEffect, useState, createContext, useContext } from 'react';
-import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
-import { getToken, getStoredMerchant } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { getTokenFromRequest, verifyToken } from '@/lib/auth';
 
-// ─── Context to pass onboarding state down to children ─────────────
-const OnboardingContext = createContext<{ isOnboarded: boolean; isLoading: boolean }>({
-  isOnboarded: false,
-  isLoading: true,
-});
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
-export const useOnboarding = () => useContext(OnboardingContext);
+export async function GET(req: NextRequest) {
+  try {
+    const token = getTokenFromRequest(req);
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
 
-interface OnboardingGuardProps {
-  children: React.ReactNode;
-}
+    const user = verifyToken(token);
+    if (!user || !user.merchantId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
 
-export default function OnboardingGuard({ children }: OnboardingGuardProps) {
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isOnboarded, setIsOnboarded] = useState(false);
+    const searchParams = req.nextUrl.searchParams;
+    const merchantId = searchParams.get('merchantId');
 
-  useEffect(() => {
-    const checkOnboarding = async () => {
-      const token = getToken();
-      if (!token) {
-        router.push('/login');
-        return;
-      }
+    if (!merchantId) {
+      return NextResponse.json(
+        { success: false, error: 'Merchant ID is required' },
+        { status: 400 }
+      );
+    }
 
-      const merchant = getStoredMerchant();
-      const merchantId = merchant?.merchantId || merchant?.merchant_id;
+    const { data, error } = await supabase
+      .from('kyc')
+      .select('onboarding_status, stage1_status, stage2_status, stage3_status, stage4_status')
+      .eq('merchant_id', parseInt(merchantId))
+      .single();
 
-      if (!merchantId) {
-        router.push('/login');
-        return;
-      }
+    if (error) {
+      console.error('Supabase error:', error);
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 500 }
+      );
+    }
 
-      try {
-        const response = await fetch(`/api/merchant/onboarding?merchantId=${merchantId}`);
-        const data = await response.json();
+    // ✅ FIX: Check if onboarding is COMPLETED OR SUBMITTED
+    const status = data?.onboarding_status;
+    const isComplete = status === 'COMPLETED' || status === 'SUBMITTED';
 
-        if (data.success) {
-          setIsOnboarded(data.data.isComplete);
+    return NextResponse.json({
+      success: true,
+      data: {
+        isComplete,
+        onboardingStatus: status,
+        stages: {
+          stage1: data?.stage1_status,
+          stage2: data?.stage2_status,
+          stage3: data?.stage3_status,
+          stage4: data?.stage4_status,
         }
-      } catch (error) {
-        console.error('Onboarding check failed:', error);
-      } finally {
-        setIsLoading(false);
       }
-    };
-
-    checkOnboarding();
-  }, [router]);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-[400px] flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-indigo-500 mx-auto" />
-          <p className="mt-4 text-gray-600">Verifying account setup...</p>
-        </div>
-      </div>
+    });
+  } catch (error: any) {
+    console.error('API error:', error);
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
     );
   }
-
-  return (
-    <OnboardingContext.Provider value={{ isOnboarded, isLoading }}>
-      {children}
-    </OnboardingContext.Provider>
-  );
 }

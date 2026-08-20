@@ -48,14 +48,22 @@ export function getAllowedStage(status: OnboardingStatus): number {
 }
 
 /**
+ * Checks if the user is fully onboarded (COMPLETED or SUBMITTED).
+ */
+export function isFullyOnboarded(status: OnboardingStatus): boolean {
+  return status.overallStatus === 'COMPLETED' || 
+         status.overallStatus === 'SUBMITTED';
+}
+
+/**
  * Redirects the user to the correct stage based on the database state.
  */
 export async function redirectToCurrentOnboardingStage(router: any) {
   try {
     const status = await getOnboardingStatus();
 
-    // If fully submitted, go to dashboard.
-    if (status.overallStatus === 'SUBMITTED') {
+    // ✅ FIX: If SUBMITTED or COMPLETED, go to dashboard
+    if (status.overallStatus === 'SUBMITTED' || status.overallStatus === 'COMPLETED') {
       router.replace('/dashboard');
       return;
     }
