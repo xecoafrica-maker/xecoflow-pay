@@ -3,10 +3,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// ✅ Only initialize Supabase if we have the required keys
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+// ✅ Don't throw during build - check at runtime
+let supabase: any = null;
+let supabaseInitialized = false;
+
+if (supabaseUrl && supabaseKey) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseKey);
+    supabaseInitialized = true;
+    console.log('✅ Supabase client initialized for upload API');
+  } catch (error) {
+    console.warn('⚠️ Supabase client initialization failed:', error);
+  }
+} else {
+  console.warn('⚠️ Supabase credentials not available for upload API');
+}
 
 // ─── Configuration ──────────────────────────────────────────────
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
@@ -43,14 +58,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ─── 2. Check Supabase is initialized ──────────────────────────
+    if (!supabaseInitialized || !supabase) {
+      return NextResponse.json(
+        { success: false, error: 'Storage service is not available. Please check configuration.' },
+        { status: 503 }
+      );
+    }
+
     const merchantId = user.merchantId;
 
-    // ─── 2. Parse Form Data ─────────────────────────────────────────
+    // ─── 3. Parse Form Data ─────────────────────────────────────────
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const productId = formData.get('productId') as string | null;
 
-    // ─── 3. Validate File ────────────────────────────────────────────
+    // ─── 4. Validate File ────────────────────────────────────────────
     if (!file) {
       return NextResponse.json(
         { success: false, error: 'No file uploaded' },
@@ -72,7 +95,6 @@ export async function POST(request: NextRequest) {
 
     // Check file type
     if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-      // Also check by extension as fallback
       const fileExt = file.name.split('.').pop()?.toLowerCase();
       if (!fileExt || !ALLOWED_EXTENSIONS.includes(fileExt)) {
         return NextResponse.json(
@@ -86,7 +108,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ─── 4. Generate Safe File Name ─────────────────────────────────
+    // ─── 5. Generate Safe File Name ─────────────────────────────────
     const fileExt = file.name.split('.').pop()?.toLowerCase() || 'pdf';
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 8);
@@ -94,7 +116,7 @@ export async function POST(request: NextRequest) {
       ? `product_${productId}_${timestamp}_${random}.${fileExt}`
       : `merchant_${merchantId}_${timestamp}_${random}.${fileExt}`;
 
-    // ─── 5. Upload to Supabase Storage ──────────────────────────────
+    // ─── 6. Upload to Supabase Storage ──────────────────────────────
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
@@ -114,7 +136,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ─── 6. Get Public URL ──────────────────────────────────────────
+    // ─── 7. Get Public URL ──────────────────────────────────────────
     const { data: urlData } = supabase.storage
       .from('products')
       .getPublicUrl(safeFileName);
@@ -123,7 +145,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`✅ File uploaded successfully for merchant ${merchantId}:`, fileUrl);
 
-    // ─── 7. Return Response ─────────────────────────────────────────
+    // ─── 8. Return Response ─────────────────────────────────────────
     return NextResponse.json({
       success: true,
       data: {
