@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Building2,
-  Upload,
+  Package,
   FileText,
-  Image as ImageIcon,
+  Wifi,
+  Upload,
   X,
   Loader2,
   ArrowRight,
@@ -15,33 +15,34 @@ import {
   Copy,
   Check,
   Lock,
-  Shield,
-  Clock,
-  Download,
-  Calendar,
   Globe,
+  ChevronDown,
+  ChevronUp,
+  Rocket,
+  Share2,
 } from 'lucide-react';
 import { getStoredMerchant, getToken } from '@/lib/auth';
 import OnboardingGuard, { useOnboarding } from '@/components/OnboardingGuard';
 
-function InnerCreateProductPage() {
+type FulfillmentType = 'physical' | 'digital' | 'airtime';
+
+function InnerCreateProductLink() {
   const router = useRouter();
   const { isOnboarded, isLoading } = useOnboarding();
-  
-  // ─── State ──────────────────────────────────────────────────────────
-  const [productName, setProductName] = useState('');
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── Form State ──────────────────────────────────────────────────────
+  const [name, setName] = useState('');
   const [price, setPrice] = useState('');
-  const [description, setDescription] = useState('');
-  const [currency, setCurrency] = useState('KES');
-  const [file, setFile] = useState<File | null>(null);
-  const [filePreview, setFilePreview] = useState<string | null>(null);
-  const [redirectUrl, setRedirectUrl] = useState('');
-  const [expiryDays, setExpiryDays] = useState(7);
-  const [maxDownloads, setMaxDownloads] = useState(3);
-  const [sendSms, setSendSms] = useState(true);
-  const [watermarkPreview, setWatermarkPreview] = useState(true);
-  
-  // Generation State
+  const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>('physical');
+  const [stockQuantity, setStockQuantity] = useState<string>('');
+  const [customSlug, setCustomSlug] = useState('');
+  const [deliveryAddressRequired, setDeliveryAddressRequired] = useState(true);
+  const [productImage, setProductImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [showOptional, setShowOptional] = useState(false);
+
+  // ─── Generation State ──────────────────────────────────────────────
   const [isGenerating, setIsGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
   const [productLink, setProductLink] = useState('');
@@ -49,43 +50,44 @@ function InnerCreateProductPage() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ─── Auto-load Business Name ──────────────────────────────────────
+  // ─── Auto-load Business Data ──────────────────────────────────────
   const merchantData = getStoredMerchant();
-  const businessName = merchantData?.businessName || merchantData?.business_name || 'Your Business';
 
-  // ─── Handle File Upload ──────────────────────────────────────────
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      // Validate file size (25MB max)
-      if (selectedFile.size > 25 * 1024 * 1024) {
-        setError('File too large. Maximum size is 25MB.');
-        return;
-      }
-      setFile(selectedFile);
-      const objectUrl = URL.createObjectURL(selectedFile);
-      setFilePreview(objectUrl);
-      setError(null);
+  // ─── Auto-focus on mount ──────────────────────────────────────────
+  useEffect(() => {
+    if (!isLoading && isOnboarded) {
+      setTimeout(() => nameInputRef.current?.focus(), 200);
+    }
+  }, [isLoading, isOnboarded]);
+
+  // ─── Handle Image Upload ──────────────────────────────────────────
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setProductImage(file);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setImagePreview(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  const removeFile = () => {
-    setFile(null);
-    if (filePreview) URL.revokeObjectURL(filePreview);
-    setFilePreview(null);
+  const removeImage = () => {
+    setProductImage(null);
+    setImagePreview(null);
   };
 
-  // ─── Cleanup preview URL on unmount ──────────────────────────────
-  useEffect(() => {
-    return () => {
-      if (filePreview) URL.revokeObjectURL(filePreview);
-    };
-  }, [filePreview]);
-
-  // ─── Generate Product Link ────────────────────────────────────────
+  // ─── Generate Product Link ──────────────────────────────────────────
   const handleGenerate = async () => {
-    if (!productName || !price || !file) {
-      setError('Please fill in all fields and upload a file.');
+    if (!name.trim()) {
+      setError('Product name is required');
+      nameInputRef.current?.focus();
+      return;
+    }
+
+    if (!price || parseFloat(price) <= 0) {
+      setError('Please enter a valid price');
       return;
     }
 
@@ -93,34 +95,29 @@ function InnerCreateProductPage() {
     setError(null);
 
     try {
-      // ─── 1. Upload file to Supabase Storage ─────────────────────────
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('merchantId', String(merchantData?.merchant_id || merchantData?.merchantId));
-
       const token = getToken();
-      const uploadRes = await fetch('/api/products/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      });
+      
+      // ─── Upload image if present ──────────────────────────────────
+      let imageUrl = '';
+      if (productImage) {
+        const formData = new FormData();
+        formData.append('file', productImage);
+        formData.append('merchantId', String(merchantData?.merchant_id || merchantData?.merchantId));
 
-      if (!uploadRes.ok) {
-        const err = await uploadRes.json();
-        throw new Error(err.error || 'Failed to upload file');
+        const uploadRes = await fetch('/api/products/upload', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData,
+        });
+
+        if (uploadRes.ok) {
+          const data = await uploadRes.json();
+          imageUrl = data.data?.fileUrl || data.fileUrl || '';
+        }
       }
 
-      const uploadData = await uploadRes.json();
-      const fileUrl = uploadData.data?.fileUrl || uploadData.fileUrl;
-
-      if (!fileUrl) {
-        throw new Error('File upload returned no URL');
-      }
-
-      // ─── 2. Create the Product Record ──────────────────────────────
-      const createRes = await fetch('/api/digital/products', {
+      // ─── Create Product Link ──────────────────────────────────────
+      const createRes = await fetch('/api/product-links', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -128,51 +125,50 @@ function InnerCreateProductPage() {
         },
         body: JSON.stringify({
           merchantId: merchantData?.merchant_id || merchantData?.merchantId,
-          businessName: businessName,
-          title: productName,
-          description: description || '',
-          price: Number(price),
-          currency: currency,
-          fileUrl: fileUrl,
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          redirectUrl: redirectUrl || '',
-          expiryDays: expiryDays,
-          maxDownloads: maxDownloads,
-          sendSms: sendSms,
-          watermarkPreview: watermarkPreview,
+          name: name.trim(),
+          price: parseFloat(price),
+          fulfillmentType,
+          stockQuantity: stockQuantity ? parseInt(stockQuantity) : null,
+          slug: customSlug.trim() || undefined,
+          deliveryAddressRequired,
+          imageUrl,
         }),
       });
 
       const data = await createRes.json();
 
       if (!createRes.ok) {
-        throw new Error(data.error || 'Failed to create product');
+        throw new Error(data.error || 'Failed to create product link');
       }
 
-      // ─── 3. Generate Shareable Link ────────────────────────────────
-      const link = `${window.location.origin}/p/${data.data.product_id}`;
+      const link = `${window.location.origin}/p/${data.data.slug}`;
       setProductLink(link);
-      setProductId(data.data.product_id);
+      setProductId(data.data.id);
       setGenerated(true);
-      setCopied(false);
+
+      // ─── Auto-copy to clipboard ──────────────────────────────────
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
 
     } catch (error: any) {
-      console.error('Error generating product:', error);
-      setError(error.message || 'Failed to generate product link');
+      setError(error.message || 'Failed to create product link');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard?.writeText(productLink);
+  const copyToClipboard = async () => {
+    await navigator.clipboard.writeText(productLink);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), 3000);
   };
 
-  const isFormValid = productName && price && file;
+  const shareToWhatsApp = () => {
+    if (!productLink) return;
+    window.open(`https://wa.me/?text=${encodeURIComponent(`🛍️ Check this out!\n${productLink}`)}`, '_blank');
+  };
+
+  const isFormValid = name.trim() && price && parseFloat(price) > 0;
 
   // ─── ONBOARDING GUARD ──────────────────────────────────────────────
   if (!isLoading && !isOnboarded) {
@@ -183,34 +179,26 @@ function InnerCreateProductPage() {
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Setup Required</h2>
         <p className="text-gray-500 max-w-md mb-6">
-          You need to complete your business details before you can create product pages.
+          Complete your business details before creating product links.
         </p>
         <button
           onClick={() => router.push('/dashboard')}
           className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors"
         >
-          Go to Dashboard to Setup
+          Go to Dashboard
         </button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6">
       {/* ─── Page Header ────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Create Product Page</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Upload a digital file and generate a secure pay-to-download link.
-          </p>
-        </div>
-        <button
-          onClick={() => router.push('/dashboard/digital-products')}
-          className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all"
-        >
-          Cancel
-        </button>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Create Product Link</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Sell products with a single reusable link
+        </p>
       </div>
 
       {/* ─── Error Message ───────────────────────────────────────────── */}
@@ -225,336 +213,270 @@ function InnerCreateProductPage() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* ─── LEFT: Form ────────────────────────────────────────────── */}
-        <div className="space-y-6">
-          
-          {/* Business Details (Read-Only) */}
-          <div className="bg-gray-50/80 border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2 mb-4">
-              <Building2 className="w-4 h-4 text-indigo-500" />
-              Business
-            </h2>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Business Name</label>
-              <input
-                type="text"
-                value={businessName}
-                readOnly
-                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-600 cursor-not-allowed"
-              />
-            </div>
-          </div>
+      {/* ─── Form ────────────────────────────────────────────────────── */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-5">
 
-          {/* Product Details */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2 mb-4">
-              <FileText className="w-4 h-4 text-indigo-500" />
-              Product Details
-            </h2>
-            <div className="space-y-4">
+        {/* ─── 1. Product Name ───────────────────────────────────────── */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Product Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            ref={nameInputRef}
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Air Force 1 Sneakers"
+            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+            onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+          />
+        </div>
+
+        {/* ─── 2. Price ───────────────────────────────────────────────── */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Price (KES) <span className="text-red-500">*</span>
+          </label>
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">KES</span>
+            <input
+              type="number"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="2,500"
+              className="w-full pl-14 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+              min="1"
+              step="1"
+              onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+            />
+          </div>
+        </div>
+
+        {/* ─── 3. Fulfillment Type ───────────────────────────────────── */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Fulfillment Type
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { id: 'physical', label: '📦 Physical Good', desc: 'Ships to customer' },
+              { id: 'digital', label: '📄 Digital File', desc: 'Instant download' },
+              { id: 'airtime', label: '📡 Airtime', desc: 'Auto-delivery' },
+            ].map((type) => (
+              <button
+                key={type.id}
+                onClick={() => setFulfillmentType(type.id as FulfillmentType)}
+                className={`px-4 py-3 rounded-xl border text-center transition-all ${
+                  fulfillmentType === type.id
+                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500/20'
+                    : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <div className="text-sm font-medium">{type.label}</div>
+                <div className="text-[10px] text-gray-400">{type.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ─── ⚙️ Optional Settings ──────────────────────────────────── */}
+        <div>
+          <button
+            onClick={() => setShowOptional(!showOptional)}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            ⚙️ Optional Settings
+            {showOptional ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+
+          {showOptional && (
+            <div className="mt-3 p-4 bg-gray-50 rounded-xl space-y-4 border border-gray-200">
+              {/* Stock Quantity */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Product Name <span className="text-red-500">*</span>
+                  Stock Quantity
                 </label>
-                <input
-                  type="text"
-                  value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
-                  placeholder="e.g. Professional CV Template"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  required
-                />
+                <select
+                  value={stockQuantity}
+                  onChange={(e) => setStockQuantity(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                >
+                  <option value="">Unlimited</option>
+                  <option value="1">1</option>
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Price <span className="text-red-500">*</span>
-                  </label>
+              {/* Custom Slug */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Custom Slug
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 whitespace-nowrap">xecoflow.com/p/</span>
                   <input
-                    type="number"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    min="0"
-                    step="0.01"
-                    required
+                    type="text"
+                    value={customSlug}
+                    onChange={(e) => setCustomSlug(e.target.value)}
+                    placeholder="auto-generated"
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
-                  <select
-                    value={currency}
-                    onChange={(e) => setCurrency(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    <option value="KES">KES</option>
-                    <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="GBP">GBP</option>
-                  </select>
-                </div>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Leave blank for auto-generated slug
+                </p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe what the customer will get..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 h-24 resize-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* File Upload */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2 mb-4">
-              <Upload className="w-4 h-4 text-indigo-500" />
-              Upload File <span className="text-red-500">*</span>
-            </h2>
-            
-            {!file ? (
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-indigo-400 transition-colors cursor-pointer bg-gray-50/50 relative">
-                <input
-                  type="file"
-                  onChange={handleFileChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
-                />
-                <div className="flex flex-col items-center gap-2 pointer-events-none">
-                  <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-500">
-                    <Upload className="w-6 h-6" />
-                  </div>
-                  <p className="text-sm font-medium text-gray-700">Click to upload a file</p>
-                  <p className="text-xs text-gray-400">PDF, Images, Documents (Max 25MB)</p>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">{file.name}</p>
-                    <p className="text-xs text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                  </div>
-                </div>
-                <button
-                  onClick={removeFile}
-                  className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-400 hover:text-red-500"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Security Settings */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2 mb-4">
-              <Shield className="w-4 h-4 text-indigo-500" />
-              Security & Delivery
-            </h2>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <Clock className="w-3 h-3 inline mr-1" />
-                    Link Expires
-                  </label>
-                  <select
-                    value={expiryDays}
-                    onChange={(e) => setExpiryDays(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    <option value="1">1 day</option>
-                    <option value="3">3 days</option>
-                    <option value="7">7 days</option>
-                    <option value="14">14 days</option>
-                    <option value="30">30 days</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <Download className="w-3 h-3 inline mr-1" />
-                    Max Downloads
-                  </label>
-                  <select
-                    value={maxDownloads}
-                    onChange={(e) => setMaxDownloads(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    <option value="1">1</option>
-                    <option value="3">3</option>
-                    <option value="5">5</option>
-                    <option value="10">10</option>
-                    <option value="999">Unlimited</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="watermarkPreview"
-                  checked={watermarkPreview}
-                  onChange={(e) => setWatermarkPreview(e.target.checked)}
-                  className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                />
-                <label htmlFor="watermarkPreview" className="text-sm text-gray-700">
-                  Watermark/blur preview before payment
-                </label>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="sendSms"
-                  checked={sendSms}
-                  onChange={(e) => setSendSms(e.target.checked)}
-                  className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                />
-                <label htmlFor="sendSms" className="text-sm text-gray-700">
-                  Send download link via SMS after payment
-                </label>
-              </div>
-
+              {/* Product Image */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <Globe className="w-3 h-3 inline mr-1" />
-                  Redirect URL (optional)
+                  Product Image
                 </label>
-                <input
-                  type="url"
-                  value={redirectUrl}
-                  onChange={(e) => setRedirectUrl(e.target.value)}
-                  placeholder="https://yourdomain.com/thank-you"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ─── RIGHT: Preview & Actions ─────────────────────────────── */}
-        <div className="space-y-6">
-          {/* Preview Card */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm sticky top-4">
-            <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Eye className="w-4 h-4 text-indigo-500" />
-              Preview
-            </h2>
-
-            {!generated ? (
-              <div className="text-center py-8 text-gray-400">
-                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FileText className="w-8 h-8 text-gray-300" />
-                </div>
-                <p className="text-sm">Fill in the details and upload a file</p>
-                <p className="text-xs mt-1">A preview of your product page will appear here</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Product Preview */}
-                <div className="bg-white rounded-xl p-4 border-2 border-gray-200">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900">
-                        {productName}
-                      </h3>
-                      <p className="text-xs text-gray-500">Digital Product</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs font-mono text-gray-400">#{productId}</div>
-                    </div>
-                  </div>
-
-                  <p className="text-sm text-gray-600 line-clamp-2 mb-3">{description}</p>
-
-                  <div className="bg-gray-50 rounded-lg p-3 flex items-center gap-2 text-xs text-gray-500 border border-gray-200">
-                    <FileText className="w-3 h-3" />
-                    <span>{file?.name || 'File attached'}</span>
-                  </div>
-
-                  <div className="border-t border-gray-200 mt-3 pt-3 space-y-1">
-                    <div className="flex justify-between text-lg font-bold">
-                      <span className="text-gray-800">Price</span>
-                      <span className="text-indigo-600">
-                        {currency} {Number(price).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex items-center gap-4 text-xs text-gray-400">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      Expires in {expiryDays} days
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Download className="w-3 h-3" />
-                      Max {maxDownloads} downloads
-                    </span>
-                  </div>
-                </div>
-
-                {/* Shareable Link */}
-                <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-200">
-                  <p className="text-xs font-medium text-indigo-900 mb-2">Shareable Link</p>
-                  <div className="flex items-center gap-2">
+                {!imagePreview ? (
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-400 transition-colors cursor-pointer relative">
                     <input
-                      type="text"
-                      value={productLink}
-                      readOnly
-                      className="flex-1 px-3 py-1.5 bg-white border border-indigo-200 rounded-lg text-sm text-gray-700 focus:outline-none"
+                      type="file"
+                      onChange={handleImageChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      accept=".jpg,.jpeg,.png,.webp"
+                    />
+                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">Upload image</p>
+                    <p className="text-xs text-gray-400">JPG, PNG, WebP (Max 5MB)</p>
+                  </div>
+                ) : (
+                  <div className="relative inline-block">
+                    <img
+                      src={imagePreview}
+                      alt="Product"
+                      className="w-32 h-32 object-cover rounded-lg border border-gray-200"
                     />
                     <button
-                      onClick={copyToClipboard}
-                      className="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all"
+                      onClick={removeImage}
+                      className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
                     >
-                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
-                  {copied && <p className="text-xs text-green-600 mt-1">Copied to clipboard!</p>}
-                </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Generate Button */}
-          <button
-            onClick={handleGenerate}
-            disabled={!isFormValid || isGenerating}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed text-white rounded-xl font-semibold text-sm transition-all shadow-sm flex items-center justify-center gap-2"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Creating Product...
-              </>
-            ) : (
-              <>
-                <ArrowRight className="w-4 h-4" />
-                Generate Product Link
-              </>
-            )}
-          </button>
+              {/* Delivery Address Required */}
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="deliveryAddress"
+                  checked={deliveryAddressRequired}
+                  onChange={(e) => setDeliveryAddressRequired(e.target.checked)}
+                  className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                />
+                <label htmlFor="deliveryAddress" className="text-sm text-gray-700">
+                  Request delivery address at checkout
+                </label>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* ─── Generate Button ─────────────────────────────────────────── */}
+      <button
+        onClick={handleGenerate}
+        disabled={!isFormValid || isGenerating}
+        className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed text-white rounded-xl font-semibold text-base transition-all shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2"
+      >
+        {isGenerating ? (
+          <>
+            <Loader2 className="w-5 h-5 animate-spin" />
+            Creating...
+          </>
+        ) : (
+          <>
+            <Rocket className="w-5 h-5" />
+            Generate Link & Copy
+          </>
+        )}
+      </button>
+
+      {/* ─── Success State ───────────────────────────────────────────── */}
+      {generated && productLink && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-center animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-emerald-600" />
+          </div>
+          <h3 className="text-lg font-bold text-gray-900">🎉 Link Created!</h3>
+          <p className="text-sm text-gray-500 mt-1">Share this link with your customers</p>
+
+          <div className="mt-4 bg-white rounded-xl p-3 flex items-center gap-2 border border-emerald-200">
+            <input
+              type="text"
+              value={productLink}
+              readOnly
+              className="flex-1 bg-transparent text-sm text-gray-700 focus:outline-none"
+            />
+            <button
+              onClick={copyToClipboard}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-gray-500" />}
+            </button>
+          </div>
+          {copied && <p className="text-xs text-emerald-600 mt-1">✅ Copied to clipboard!</p>}
+
+          <div className="mt-4 flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={shareToWhatsApp}
+              className="flex-1 py-2.5 bg-[#25D366] hover:bg-[#1DA851] text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all"
+            >
+              <Share2 className="w-4 h-4" />
+              Share to WhatsApp
+            </button>
+            <button
+              onClick={() => window.open(productLink, '_blank')}
+              className="flex-1 py-2.5 border border-gray-200 hover:bg-gray-50 rounded-lg text-sm font-medium text-gray-700 flex items-center justify-center gap-2 transition-all"
+            >
+              <Eye className="w-4 h-4" />
+              View Page
+            </button>
+            <button
+              onClick={() => {
+                setGenerated(false);
+                setProductLink('');
+                setName('');
+                setPrice('');
+                setCustomSlug('');
+                setStockQuantity('');
+                setProductImage(null);
+                setImagePreview(null);
+                setCopied(false);
+                setShowOptional(false);
+                setTimeout(() => nameInputRef.current?.focus(), 100);
+              }}
+              className="py-2.5 px-4 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              Create Another
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Footer ───────────────────────────────────────────────────── */}
+      <p className="text-xs text-gray-400 text-center">
+        🔒 Secure by XecoFlow · Instant payment via M-PESA
+      </p>
     </div>
   );
 }
 
-// ─── Wrap the page in the Onboarding Guard ──────────────────────────
-export default function WrappedCreateProductPage() {
+// ─── Wrap with Onboarding Guard ──────────────────────────────────────
+export default function WrappedCreateProductLink() {
   return (
     <OnboardingGuard>
-      <InnerCreateProductPage />
+      <InnerCreateProductLink />
     </OnboardingGuard>
   );
 }
