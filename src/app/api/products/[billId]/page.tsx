@@ -11,7 +11,6 @@ import {
   ArrowRight,
   FileText,
   Download,
-  Eye,
   Shield,
   Mail,
   Send,
@@ -23,32 +22,24 @@ import {
 
 interface ProductData {
   id: string;
-  product_id: string;
-  merchant_id: string;
-  business_name: string;
-  title: string;
-  description: string;
-  amount: number;
+  productId: string;
+  merchantId: string;
+  businessName: string;
+  name: string;
+  price: number;
   currency: string;
-  file_url: string;
-  file_name: string;
-  preview_image_url: string;
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'PROCESSING';
-  expiry_date: string;
-  created_at: string;
-  customer_email?: string;
-  customer_phone?: string;
-  customer_name?: string;
-  download_token?: string;
-  download_count?: number;
-  max_downloads?: number;
-  return_url?: string;
+  fileUrl: string;
+  fileName: string;
+  status: string;
+  createdAt: string;
+  expiryDate: string;
+  returnUrl: string;
 }
 
 export default function ProductPage() {
   const params = useParams();
   const router = useRouter();
-  const productId = params.billId as string;
+  const slug = params.slug as string;
 
   const [product, setProduct] = useState<ProductData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,9 +53,16 @@ export default function ProductPage() {
   const [isDownloading, setIsDownloading] = useState(false);
 
   // ─── Fetch Product Data ──────────────────────────────────────────────
+  useEffect(() => {
+    if (slug) {
+      fetchProduct();
+    }
+  }, [slug]);
+
   const fetchProduct = async () => {
     try {
-      const response = await fetch(`/api/digital/products/${productId}`);
+      // ✅ Call the product-links API with slug
+      const response = await fetch(`/api/product-links/${slug}`);
       const data = await response.json();
 
       if (data.success) {
@@ -76,15 +74,12 @@ export default function ProductPage() {
         setError(data.error || 'Product not found');
       }
     } catch (err) {
+      console.error('Error fetching product:', err);
       setError('Failed to load product');
     } finally {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (productId) fetchProduct();
-  }, [productId]);
 
   // ─── Handle Payment ──────────────────────────────────────────────
   const handlePay = async () => {
@@ -108,11 +103,12 @@ export default function ProductPage() {
     setErrorMessage('');
 
     try {
-      const response = await fetch('/api/digital/pay', {
+      // ✅ Call the product payment API
+      const response = await fetch('/api/product-links/pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          productId: product?.product_id,
+          productId: product?.productId,
           phone,
           email,
           customerName,
@@ -122,13 +118,10 @@ export default function ProductPage() {
 
       if (response.ok && data.success) {
         setPaymentStatus('success');
-        setProduct(data.data);
-        
+        // Refresh product after payment
         setTimeout(() => {
-          if (data.data?.file_url) {
-            triggerDownload(data.data.file_url);
-          }
-        }, 1500);
+          fetchProduct();
+        }, 2000);
       } else {
         setPaymentStatus('error');
         setErrorMessage(data.error || 'Payment failed');
@@ -147,7 +140,7 @@ export default function ProductPage() {
     setIsDownloading(true);
     const link = document.createElement('a');
     link.href = url;
-    link.download = product?.file_name || '';
+    link.download = product?.fileName || 'download';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -183,14 +176,20 @@ export default function ProductPage() {
           <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
             <AlertCircle className="w-10 h-10 text-red-500" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">Product Unavailable</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Product Not Found</h2>
           <p className="text-gray-500 mt-2">{error || 'This product link is invalid or expired.'}</p>
+          <button
+            onClick={() => router.push('/')}
+            className="mt-6 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            Go Home
+          </button>
         </div>
       </div>
     );
   }
 
-  const isExpired = new Date(product.expiry_date) < new Date();
+  const isExpired = new Date(product.expiryDate) < new Date();
   const isPaid = product.status === 'PAID';
 
   return (
@@ -203,10 +202,9 @@ export default function ProductPage() {
           <div className="mb-4">
             <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
               <Building2 className="w-4 h-4" />
-              {product.business_name || 'XecoFlow'}
+              {product.businessName || 'XecoFlow'}
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">{product.title || product.description}</h1>
-            <p className="text-sm text-gray-500 mt-1">{product.description}</p>
+            <h1 className="text-2xl font-bold text-gray-900">{product.name}</h1>
           </div>
 
           {/* Preview Area */}
@@ -221,13 +219,13 @@ export default function ProductPage() {
                 <p className="text-gray-500 text-sm mt-1">
                   Your file is ready for download.
                 </p>
-                {product.file_name && (
+                {product.fileName && (
                   <p className="text-xs text-gray-400 mt-2">
-                    📄 {product.file_name}
+                    📄 {product.fileName}
                   </p>
                 )}
                 <button
-                  onClick={() => triggerDownload(product.file_url)}
+                  onClick={() => triggerDownload(product.fileUrl)}
                   disabled={isDownloading}
                   className="mt-6 px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium flex items-center gap-2 transition-all shadow-lg shadow-emerald-600/25"
                 >
@@ -243,28 +241,14 @@ export default function ProductPage() {
                     </>
                   )}
                 </button>
-                {product.download_count !== undefined && product.max_downloads && (
-                  <p className="text-xs text-gray-400 mt-3">
-                    Downloads remaining: {product.max_downloads - product.download_count}
-                  </p>
-                )}
               </div>
             ) : (
               // ─── NOT PAID: Show locked preview ──────────────────────
               <div className="h-full flex flex-col">
-                {/* Preview Image with Watermark Overlay */}
                 <div className="relative flex-1 bg-gray-100">
-                  {product.preview_image_url ? (
-                    <img
-                      src={product.preview_image_url}
-                      alt="Product preview"
-                      className="w-full h-full object-contain opacity-50 blur-sm"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                      <FileText className="w-16 h-16 text-gray-300" />
-                    </div>
-                  )}
+                  <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                    <FileText className="w-16 h-16 text-gray-300" />
+                  </div>
                   
                   {/* Lock Overlay */}
                   <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center">
@@ -285,7 +269,7 @@ export default function ProductPage() {
                   <div className="flex items-center justify-between text-xs text-gray-500">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      Expires: {formatDate(product.expiry_date)}
+                      Expires: {formatDate(product.expiryDate)}
                     </span>
                     <span className="flex items-center gap-1">
                       <Shield className="w-3 h-3" />
@@ -329,9 +313,9 @@ export default function ProductPage() {
               <p className="text-gray-600 mt-2">
                 Your file has been unlocked. You can download it now.
               </p>
-              {product.file_url && (
+              {product.fileUrl && (
                 <button
-                  onClick={() => triggerDownload(product.file_url)}
+                  onClick={() => triggerDownload(product.fileUrl)}
                   className="mt-6 px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium flex items-center gap-2 mx-auto transition-all"
                 >
                   <Download className="w-4 h-4" />
@@ -341,12 +325,11 @@ export default function ProductPage() {
               <p className="text-xs text-gray-400 mt-4">
                 📧 A download link has also been sent to your email.
               </p>
-              {/* ✅ Fixed: Type-safe return_url handling */}
-              {product.return_url && (
+              {product.returnUrl && (
                 <button
                   onClick={() => {
-                    if (product.return_url) {
-                      router.push(product.return_url);
+                    if (product.returnUrl) {
+                      router.push(product.returnUrl);
                     }
                   }}
                   className="mt-4 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
@@ -364,7 +347,7 @@ export default function ProductPage() {
               <h3 className="text-xl font-bold text-gray-900">Link Expired</h3>
               <p className="text-gray-600 mt-2">This product link is no longer active.</p>
               <p className="text-xs text-gray-400 mt-1">
-                Expired on: {formatDate(product.expiry_date)}
+                Expired on: {formatDate(product.expiryDate)}
               </p>
             </div>
           ) : (
@@ -375,7 +358,7 @@ export default function ProductPage() {
                 <div>
                   <p className="text-xs text-gray-400 uppercase tracking-wider">Amount Due</p>
                   <p className="text-3xl font-bold text-gray-900">
-                    {product.currency} {Number(product.amount).toFixed(2)}
+                    {product.currency} {Number(product.price).toFixed(2)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 text-xs bg-emerald-50 px-3 py-1.5 rounded-full text-emerald-700">
@@ -473,7 +456,7 @@ export default function ProductPage() {
                     ) : (
                       <>
                         <CreditCard className="w-5 h-5" />
-                        Pay {product.currency} {Number(product.amount).toFixed(2)}
+                        Pay {product.currency} {Number(product.price).toFixed(2)}
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}
