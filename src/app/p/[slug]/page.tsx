@@ -23,6 +23,9 @@ import {
   Mail,
   Eye,
   ChevronDown,
+  Globe,
+  Zap,
+  Sparkles,
 } from 'lucide-react';
 
 interface ProductData {
@@ -204,6 +207,31 @@ export default function ProductPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      
+      {/* ─── HEADER ────────────────────────────────────────────────────── */}
+      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200/50 sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-4 md:px-8 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/25">
+              <Zap className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-sm font-bold text-gray-800">Xeco<span className="text-purple-600">Flow</span></span>
+            <span className="hidden md:inline text-xs text-gray-400 ml-2">Secure Checkout</span>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-gray-400">
+            <span className="flex items-center gap-1">
+              <Lock className="w-3 h-3 text-emerald-500" />
+              Secured
+            </span>
+            <span className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline flex items-center gap-1">
+              <Shield className="w-3 h-3 text-emerald-500" />
+              PCI-DSS
+            </span>
+          </div>
+        </div>
+      </header>
+
       {/* ─── Mobile Sticky Checkout Bar ────────────────────────────── */}
       {!isPaid && !isExpired && (
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-50">
@@ -252,13 +280,18 @@ export default function ProductPage() {
               </div>
 
               {/* ─── ACTUAL PDF PREVIEW ───────────────────────────────────── */}
-              <div className="relative aspect-[3/4] bg-gray-100 overflow-hidden">
+              <div className="relative aspect-[3/4] bg-gray-100 overflow-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {product.fileUrl ? (
                   <iframe
                     src={`${product.fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-                    className="w-full h-full"
-                    style={{ pointerEvents: 'none' }}
+                    className="w-full h-full overflow-hidden"
+                    style={{ 
+                      pointerEvents: 'none',
+                      scrollbarWidth: 'none',
+                      msOverflowStyle: 'none',
+                    }}
                     onLoad={() => setPdfLoaded(true)}
+                    sandbox="allow-same-origin"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gray-50">
@@ -267,26 +300,26 @@ export default function ProductPage() {
                 )}
 
                 {/* ─── Blur Overlay - Bottom 60% ─────────────────────────── */}
-                <div className="absolute bottom-0 left-0 right-0 h-[60%]">
-                  {/* Gradient overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/70 to-white backdrop-blur-lg"></div>
-                  
-                  {/* Lock Badge */}
-                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center">
-                    <div className="bg-purple-600 text-white px-6 py-3 rounded-full text-sm font-semibold shadow-lg flex items-center gap-2">
-                      <Lock className="w-4 h-4" />
-                      Pay {product.currency} {Number(product.price).toFixed(2)} to Unlock
+                {!isPaid && !isExpired && (
+                  <div className="absolute bottom-0 left-0 right-0 h-[60%]">
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/60 to-white backdrop-blur-md"></div>
+                    
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none">
+                      <div className="bg-gray-900/80 text-white px-5 py-2.5 rounded-full text-sm font-medium flex items-center gap-2 backdrop-blur-sm">
+                        <Lock className="w-4 h-4 text-purple-300" />
+                        <span>Full Document Locked</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2 flex items-center gap-1 bg-white/80 px-3 py-1 rounded-full">
+                        <Eye className="w-3 h-3" />
+                        Pay on the right to unlock
+                      </p>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                      <Eye className="w-3 h-3" />
-                      Full document locked · Pay to view
-                    </p>
                   </div>
-                </div>
+                )}
 
                 {/* Loading state for PDF */}
-                {!pdfLoaded && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+                {!pdfLoaded && product.fileUrl && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-50/80">
                     <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
                   </div>
                 )}
@@ -298,9 +331,9 @@ export default function ProductPage() {
                   <Clock className="w-3 h-3" />
                   Expires: {formatDate(product.expiryDate)}
                 </span>
-                <span className="flex items-center gap-1">
-                  <FileText className="w-3 h-3" />
-                  {product.fileName?.length > 30 ? product.fileName.substring(0, 30) + '...' : product.fileName}
+                <span className="flex items-center gap-1 truncate max-w-[60%]">
+                  <FileText className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate">{product.fileName || 'Document'}</span>
                 </span>
               </div>
             </div>
@@ -480,7 +513,7 @@ export default function ProductPage() {
                       <button
                         onClick={handlePay}
                         disabled={isProcessing}
-                        className="hidden md:flex w-full py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold text-base transition-all shadow-lg shadow-purple-600/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold text-base transition-all shadow-lg shadow-purple-600/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isProcessing ? (
                           <>
@@ -518,6 +551,36 @@ export default function ProductPage() {
           </div>
         </div>
       </div>
+
+      {/* ─── FOOTER ────────────────────────────────────────────────────── */}
+      <footer className="border-t border-gray-200 bg-white/80 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-4 md:px-8 py-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-400">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center">
+                <Zap className="w-3 h-3 text-white" />
+              </div>
+              <span className="text-gray-600">Xeco<span className="text-purple-600">Flow</span></span>
+              <span className="hidden sm:inline">•</span>
+              <span className="hidden sm:inline">Secure Digital Delivery</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1">
+                <Lock className="w-3 h-3 text-emerald-500" />
+                Encrypted
+              </span>
+              <span className="flex items-center gap-1">
+                <Shield className="w-3 h-3 text-emerald-500" />
+                Trusted
+              </span>
+              <span>© 2026 XecoFlow</span>
+            </div>
+          </div>
+          <div className="mt-3 text-center text-[10px] text-gray-300">
+            Powered by XecoFlow Payment Gateway · Instant delivery after payment confirmation
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
