@@ -43,7 +43,7 @@ function InnerCreateProductLink() {
   const [productImage, setProductImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   
-  // ✅ NEW: Digital File Upload
+  // ✅ Digital File Upload
   const [digitalFile, setDigitalFile] = useState<File | null>(null);
   const [digitalFileName, setDigitalFileName] = useState<string>('');
   
@@ -71,6 +71,11 @@ function InnerCreateProductLink() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate image size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image too large. Maximum size is 5MB.');
+        return;
+      }
       setProductImage(file);
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -85,7 +90,7 @@ function InnerCreateProductLink() {
     setImagePreview(null);
   };
 
-  // ✅ NEW: Handle Digital File Upload
+  // ─── Handle Digital File Upload ──────────────────────────────────
   const handleDigitalFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -118,7 +123,7 @@ function InnerCreateProductLink() {
       return;
     }
 
-    // ✅ Validate: Digital products require a file
+    // Validate: Digital products require a file
     if (fulfillmentType === 'digital' && !digitalFile) {
       setError('Please upload a digital file (PDF, DOCX, etc.)');
       return;
@@ -186,8 +191,8 @@ function InnerCreateProductLink() {
           slug: customSlug.trim() || undefined,
           deliveryAddressRequired,
           imageUrl,
-          fileUrl, // ✅ Digital file URL
-          fileName: digitalFileName, // ✅ Original file name
+          fileUrl, // Digital file URL
+          fileName: digitalFileName, // Original file name
         }),
       });
 
@@ -323,10 +328,6 @@ function InnerCreateProductLink() {
                 key={type.id}
                 onClick={() => {
                   setFulfillmentType(type.id as FulfillmentType);
-                  // Reset file errors when switching types
-                  if (type.id === 'digital') {
-                    // Digital requires file upload
-                  }
                 }}
                 className={`px-4 py-3 rounded-xl border text-center transition-all ${
                   fulfillmentType === type.id
@@ -341,7 +342,7 @@ function InnerCreateProductLink() {
           </div>
         </div>
 
-        {/* ─── ✅ NEW: Digital File Upload ───────────────────────────── */}
+        {/* ─── Digital File Upload ───────────────────────────────────── */}
         {fulfillmentType === 'digital' && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
