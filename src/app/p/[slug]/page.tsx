@@ -58,6 +58,7 @@ export default function ProductPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [pdfLoaded, setPdfLoaded] = useState(false);
 
   // ─── Fetch Product ──────────────────────────────────────────────────
   const fetchProduct = async () => {
@@ -250,106 +251,79 @@ export default function ProductPage() {
                 </p>
               </div>
 
-              {/* ─── Document Preview with Clean Top/Bottom Split ──── */}
-              <div className="relative">
-                {/* Preview Container */}
-                <div className="aspect-[4/3] bg-white relative overflow-hidden">
+              {/* ─── ACTUAL PDF PREVIEW ───────────────────────────────────── */}
+              <div className="relative aspect-[3/4] bg-gray-100 overflow-hidden">
+                {product.fileUrl ? (
+                  <iframe
+                    src={`${product.fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                    className="w-full h-full"
+                    style={{ pointerEvents: 'none' }}
+                    onLoad={() => setPdfLoaded(true)}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-50">
+                    <FileText className="w-16 h-16 text-gray-300" />
+                  </div>
+                )}
+
+                {/* ─── Blur Overlay - Bottom 60% ─────────────────────────── */}
+                <div className="absolute bottom-0 left-0 right-0 h-[60%]">
+                  {/* Gradient overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/70 to-white backdrop-blur-lg"></div>
                   
-                  {/* Document Preview Content - Clear Top 40% */}
-                  <div className="absolute inset-0 p-6 bg-white">
-                    {/* Simulated Document Preview */}
-                    <div className="h-full flex flex-col">
-                      {/* Clear Top Section - 100% readable */}
-                      <div className="flex-1">
-                        <div className="border-b-2 border-purple-600 pb-2 mb-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="text-lg font-bold text-gray-900">NAOMY WANGARI</div>
-                              <div className="text-sm text-gray-600">Software Developer | Nairobi, Kenya</div>
-                            </div>
-                            <div className="text-xs text-gray-400 text-right">
-                              <div>📧 naomy@email.com</div>
-                              <div>📱 +254 712 071 385</div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Professional Summary - Clear */}
-                        <div className="mb-3">
-                          <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Professional Summary</div>
-                          <div className="text-sm text-gray-600 mt-1">
-                            Results-driven software developer with 5+ years of experience in building scalable web applications...
-                          </div>
-                        </div>
-
-                        {/* Skills - Clear */}
-                        <div className="mb-3">
-                          <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Technical Skills</div>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">Python</span>
-                            <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">Node.js</span>
-                            <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">Express</span>
-                            <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">PostgreSQL</span>
-                            <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">React</span>
-                            <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">TypeScript</span>
-                          </div>
-                        </div>
-                      </div>
+                  {/* Lock Badge */}
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center">
+                    <div className="bg-purple-600 text-white px-6 py-3 rounded-full text-sm font-semibold shadow-lg flex items-center gap-2">
+                      <Lock className="w-4 h-4" />
+                      Pay {product.currency} {Number(product.price).toFixed(2)} to Unlock
                     </div>
-                  </div>
-
-                  {/* Blur Overlay - Bottom 60% with gradient fade */}
-                  <div className="absolute bottom-0 left-0 right-0 h-[60%]">
-                    {/* Gradient that starts transparent and becomes white/blurred */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/50 to-white backdrop-blur-md"></div>
-                    
-                    {/* Locked Content Badge */}
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center">
-                      <div className="bg-purple-600 text-white px-5 py-2.5 rounded-full text-sm font-semibold shadow-lg flex items-center gap-2">
-                        <Lock className="w-4 h-4" />
-                        Pay {product.currency} {Number(product.price).toFixed(2)} to Unlock
-                      </div>
-                      <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                        <Eye className="w-3 h-3" />
-                        Full document locked · Pay to view
-                      </p>
-                    </div>
+                    <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                      <Eye className="w-3 h-3" />
+                      Full document locked · Pay to view
+                    </p>
                   </div>
                 </div>
 
-                {/* File Info Footer */}
-                <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    Expires: {formatDate(product.expiryDate)}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <FileText className="w-3 h-3" />
-                    {product.fileName?.length > 30 ? product.fileName.substring(0, 30) + '...' : product.fileName}
-                  </span>
-                </div>
+                {/* Loading state for PDF */}
+                {!pdfLoaded && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+                    <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+                  </div>
+                )}
               </div>
 
-              {/* Share Buttons */}
-              <div className="p-4 border-t border-gray-100 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={copyLink}
-                    className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100"
-                    title="Copy link"
-                  >
-                    {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                  <button
-                    onClick={shareToWhatsApp}
-                    className="p-2 text-gray-400 hover:text-[#25D366] transition-colors rounded-lg hover:bg-gray-100"
-                    title="Share to WhatsApp"
-                  >
-                    <Share2 className="w-4 h-4" />
-                  </button>
-                </div>
-                {copied && <span className="text-xs text-emerald-600">Copied!</span>}
+              {/* File Info Footer */}
+              <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Expires: {formatDate(product.expiryDate)}
+                </span>
+                <span className="flex items-center gap-1">
+                  <FileText className="w-3 h-3" />
+                  {product.fileName?.length > 30 ? product.fileName.substring(0, 30) + '...' : product.fileName}
+                </span>
               </div>
+            </div>
+
+            {/* Share Buttons */}
+            <div className="mt-4 flex items-center justify-between bg-white rounded-xl border border-gray-200 p-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={copyLink}
+                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100"
+                  title="Copy link"
+                >
+                  {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                </button>
+                <button
+                  onClick={shareToWhatsApp}
+                  className="p-2 text-gray-400 hover:text-[#25D366] transition-colors rounded-lg hover:bg-gray-100"
+                  title="Share to WhatsApp"
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+              </div>
+              {copied && <span className="text-xs text-emerald-600">Copied!</span>}
             </div>
           </div>
 
