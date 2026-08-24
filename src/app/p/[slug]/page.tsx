@@ -1,28 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
-  Smartphone,
-  CheckCircle,
-  Loader2,
   AlertCircle,
   ArrowRight,
-  FileText,
-  Download,
-  Shield,
-  Send,
-  Clock,
-  Building2,
-  User,
-  CreditCard,
-  Lock,
-  Share2,
-  Copy,
   Check,
+  CheckCircle,
+  Copy,
+  Download,
+  Loader2,
+  Lock,
   Mail,
-  Eye,
-  ChevronDown,
+  Smartphone,
 } from 'lucide-react';
 
 interface ProductData {
@@ -41,483 +31,990 @@ interface ProductData {
   returnUrl: string;
 }
 
+type PaymentStatus =
+  | 'idle'
+  | 'processing'
+  | 'success'
+  | 'error';
+
 export default function ProductPage() {
   const params = useParams();
   const router = useRouter();
+
   const slug = params.slug as string;
 
-  const [product, setProduct] = useState<ProductData | null>(null);
+  const [product, setProduct] =
+    useState<ProductData | null>(null);
+
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [customerName, setCustomerName] = useState('');
+  const [error, setError] =
+    useState<string | null>(null);
+
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [showNameField, setShowNameField] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [phoneNumber, setPhoneNumber] =
+    useState('');
+
+  const [paymentStatus, setPaymentStatus] =
+    useState<PaymentStatus>('idle');
+
+  const [errorMessage, setErrorMessage] =
+    useState('');
+
+  const [isDownloading, setIsDownloading] =
+    useState(false);
+
   const [copied, setCopied] = useState(false);
-  const [pdfLoaded, setPdfLoaded] = useState(false);
 
-  // ─── Fetch Product ──────────────────────────────────────────────────
-  const fetchProduct = async () => {
-    try {
-      const response = await fetch(`/api/product-links/${slug}`);
-      const data = await response.json();
-
-      if (data.success) {
-        setProduct(data.data);
-      } else {
-        setError(data.error || 'Product not found');
-      }
-    } catch (err) {
-      setError('Failed to load product');
-    } finally {
-      setLoading(false);
-    }
-  };
+  /*
+  |--------------------------------------------------------------------------
+  | FETCH PRODUCT
+  |--------------------------------------------------------------------------
+  */
 
   useEffect(() => {
-    if (slug) fetchProduct();
+    if (!slug) return;
+
+    const fetchProduct = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await fetch(
+          `/api/product-links/${slug}`,
+          {
+            method: 'GET',
+            cache: 'no-store',
+          }
+        );
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          setProduct(data.data);
+        } else {
+          setError(
+            data.error ||
+              'This product could not be found.'
+          );
+        }
+      } catch (err) {
+        console.error(err);
+
+        setError(
+          'Unable to load this payment page.'
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProduct();
   }, [slug]);
 
-  // ─── Handle Payment ──────────────────────────────────────────────
-  const handlePay = async () => {
-    let phone = phoneNumber.replace(/\D/g, '');
-    if (phone.startsWith('0')) phone = '254' + phone.slice(1);
-    if (!phone.startsWith('254') && phone.length === 10) phone = '254' + phone;
-    if (!phone.startsWith('254') && phone.length === 9) phone = '254' + phone;
+  /*
+  |--------------------------------------------------------------------------
+  | PHONE FORMAT
+  |--------------------------------------------------------------------------
+  */
 
-    if (!phone || phone.length < 10) {
-      setErrorMessage('Please enter a valid phone number');
+  const formatPhone = (value: string) => {
+    let digits = value.replace(/\D/g, '');
+
+    if (digits.startsWith('254')) {
+      digits = digits.slice(3);
+    }
+
+    if (digits.startsWith('0')) {
+      digits = digits.slice(1);
+    }
+
+    digits = digits.slice(0, 9);
+
+    if (digits.length <= 3) {
+      return digits;
+    }
+
+    if (digits.length <= 6) {
+      return `${digits.slice(
+        0,
+        3
+      )} ${digits.slice(3)}`;
+    }
+
+    return `${digits.slice(
+      0,
+      3
+    )} ${digits.slice(
+      3,
+      6
+    )} ${digits.slice(6)}`;
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | NORMALIZE PHONE
+  |--------------------------------------------------------------------------
+  */
+
+  const normalizePhone = (
+    value: string
+  ) => {
+    let phone = value.replace(/\D/g, '');
+
+    if (phone.startsWith('0')) {
+      phone =
+        '254' + phone.slice(1);
+    }
+
+    if (
+      !phone.startsWith('254') &&
+      phone.length === 9
+    ) {
+      phone = '254' + phone;
+    }
+
+    if (
+      !phone.startsWith('254') &&
+      phone.length === 10
+    ) {
+      phone = '254' + phone;
+    }
+
+    return phone;
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | PAYMENT
+  |--------------------------------------------------------------------------
+  */
+
+  const handlePay = async () => {
+    if (!product) return;
+
+    const phone =
+      normalizePhone(phoneNumber);
+
+    if (
+      !phone ||
+      phone.length !== 12
+    ) {
+      setPaymentStatus('error');
+
+      setErrorMessage(
+        'Please enter a valid M-PESA number.'
+      );
+
       return;
     }
 
-    setIsProcessing(true);
     setPaymentStatus('processing');
     setErrorMessage('');
 
-    try {
-      const response = await fetch('/api/product-links/pay', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: product?.productId,
-          phone,
-          email,
-          customerName: customerName || 'Customer',
-        }),
-      });
-      const data = await response.json();
+    const customerName =
+      `${firstName} ${lastName}`.trim() ||
+      'Customer';
 
-      if (response.ok && data.success) {
+    try {
+      const response = await fetch(
+        '/api/product-links/pay',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+          body: JSON.stringify({
+            productId:
+              product.productId,
+            phone,
+            email,
+            customerName,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (
+        response.ok &&
+        data.success
+      ) {
         setPaymentStatus('success');
-        setProduct(data.data);
-        
+
+        if (data.data) {
+          setProduct(data.data);
+        }
+
         setTimeout(() => {
           if (data.data?.fileUrl) {
-            triggerDownload(data.data.fileUrl);
+            triggerDownload(
+              data.data.fileUrl
+            );
           }
         }, 1500);
       } else {
         setPaymentStatus('error');
-        setErrorMessage(data.error || 'Payment failed');
+
+        setErrorMessage(
+          data.error ||
+            'Payment could not be completed.'
+        );
       }
-    } catch (error: any) {
+    } catch (err: any) {
+      console.error(err);
+
       setPaymentStatus('error');
-      setErrorMessage(error.message || 'An error occurred');
-    } finally {
-      setIsProcessing(false);
+
+      setErrorMessage(
+        err?.message ||
+          'An error occurred while processing your payment.'
+      );
     }
   };
 
-  // ─── Trigger File Download ────────────────────────────────────────
-  const triggerDownload = (url: string) => {
+  /*
+  |--------------------------------------------------------------------------
+  | DOWNLOAD
+  |--------------------------------------------------------------------------
+  */
+
+  const triggerDownload = (
+    url: string
+  ) => {
     if (!url) return;
+
     setIsDownloading(true);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = product?.fileName || 'download';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setIsDownloading(false);
+
+    try {
+      const link =
+        document.createElement('a');
+
+      link.href = url;
+      link.download =
+        product?.fileName ||
+        'download';
+
+      link.target = '_blank';
+      link.rel =
+        'noopener noreferrer';
+
+      document.body.appendChild(link);
+
+      link.click();
+
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTimeout(() => {
+        setIsDownloading(false);
+      }, 700);
+    }
   };
 
-  // ─── Copy Link to Clipboard ────────────────────────────────────────
-  const copyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 3000);
+  /*
+  |--------------------------------------------------------------------------
+  | COPY LINK
+  |--------------------------------------------------------------------------
+  */
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        window.location.href
+      );
+
+      setCopied(true);
+
+      setTimeout(() => {
+        setCopied(false);
+      }, 2500);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  // ─── Share to WhatsApp ─────────────────────────────────────────────
-  const shareToWhatsApp = () => {
-    window.open(`https://wa.me/?text=${encodeURIComponent(`🛍️ ${product?.name}\n${window.location.href}`)}`, '_blank');
-  };
+  /*
+  |--------------------------------------------------------------------------
+  | LOADING
+  |--------------------------------------------------------------------------
+  */
 
-  // ─── Format Date ──────────────────────────────────────────────────
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  // ─── Loading State ────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+      <main className="min-h-screen bg-[#edf7fc] flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-purple-500 mx-auto" />
-          <p className="mt-4 text-gray-600">Loading product...</p>
+          <div className="mx-auto flex h-10 w-10 items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-[#159bc5]" />
+          </div>
+
+          <p className="mt-3 text-sm text-gray-500">
+            Loading checkout...
+          </p>
         </div>
-      </div>
+      </main>
     );
   }
 
-  // ─── Error State ──────────────────────────────────────────────────
-  if (error || !product) {
+  /*
+  |--------------------------------------------------------------------------
+  | ERROR
+  |--------------------------------------------------------------------------
+  */
+
+  if (!product || error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-10 max-w-md w-full text-center">
-          <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <AlertCircle className="w-10 h-10 text-red-500" />
+      <main className="min-h-screen bg-[#edf7fc] flex items-center justify-center p-6">
+        <div className="w-full max-w-sm text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white border border-gray-200">
+            <AlertCircle className="h-6 w-6 text-red-500" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">Product Unavailable</h2>
-          <p className="text-gray-500 mt-2">{error || 'This product link is invalid or expired.'}</p>
+
+          <h1 className="mt-5 text-xl font-semibold text-gray-900">
+            Payment page unavailable
+          </h1>
+
+          <p className="mt-2 text-sm leading-6 text-gray-500">
+            {error ||
+              'This product link is invalid or no longer available.'}
+          </p>
+
           <button
-            onClick={() => router.push('/')}
-            className="mt-6 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium transition-all"
+            type="button"
+            onClick={() =>
+              router.push('/')
+            }
+            className="mt-6 rounded-md bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
           >
-            Go Home
+            Go back
           </button>
         </div>
-      </div>
+      </main>
     );
   }
 
-  const isExpired = new Date(product.expiryDate) < new Date();
-  const isPaid = product.status === 'PAID' || product.status === 'COMPLETED';
+  /*
+  |--------------------------------------------------------------------------
+  | STATUS
+  |--------------------------------------------------------------------------
+  */
+
+  const isExpired =
+    !!product.expiryDate &&
+    new Date(product.expiryDate) <
+      new Date();
+
+  const isPaid =
+    product.status === 'PAID' ||
+    product.status === 'COMPLETED';
+
+  const amount =
+    Number(product.price).toFixed(2);
+
+  const currency =
+    product.currency || 'KES';
+
+  const merchantName =
+    product.businessName ||
+    'XecoFlow';
+
+  /*
+  |--------------------------------------------------------------------------
+  | MAIN PAGE
+  |--------------------------------------------------------------------------
+  */
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* ─── Mobile Sticky Checkout Bar ────────────────────────────── */}
-      {!isPaid && !isExpired && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-50">
-          <div className="flex items-center gap-3">
-            <div className="flex-1">
-              <p className="text-xs text-gray-500">Amount Due</p>
-              <p className="text-lg font-bold text-purple-600">
-                {product.currency} {Number(product.price).toFixed(2)}
+    <main className="min-h-screen bg-white">
+      <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
+
+        {/* =========================================================
+            LEFT SIDE
+        ========================================================== */}
+
+        <section className="relative min-h-[430px] bg-[#eaf7fc] flex flex-col items-center justify-center px-8 py-16 lg:min-h-screen">
+
+          {/* Very subtle background */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/30 blur-3xl" />
+          </div>
+
+          {/* Product identity */}
+          <div className="relative z-10 flex flex-col items-center text-center">
+
+            {/* Logo */}
+            <div className="flex h-10 w-10 items-center justify-center bg-white shadow-sm border border-white">
+              <div className="flex flex-col gap-[2px]">
+                <span className="h-[3px] w-[22px] rounded-sm bg-[#12a7d1]" />
+                <span className="h-[3px] w-[22px] rounded-sm bg-[#12a7d1]" />
+                <span className="h-[3px] w-[16px] rounded-sm bg-[#12a7d1]" />
+                <span className="h-[3px] w-[12px] rounded-sm bg-[#12a7d1]" />
+              </div>
+            </div>
+
+            {/* Product name */}
+            <h1 className="mt-7 max-w-[460px] text-center text-[28px] font-extrabold uppercase tracking-[-0.03em] text-black sm:text-[34px]">
+              {product.name}
+            </h1>
+
+            {/* Merchant */}
+            <p className="mt-2 text-[13px] font-medium uppercase tracking-[0.08em] text-gray-600">
+              BY {merchantName}
+            </p>
+
+            {/* Product description */}
+            <div className="mt-7 max-w-[390px] text-center">
+              <p className="text-sm leading-6 text-gray-500">
+                Secure payment for your
+                digital product.
               </p>
             </div>
-            <button
-              onClick={handlePay}
-              disabled={isProcessing}
-              className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-purple-600/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isProcessing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <Lock className="w-4 h-4" />
-                  Pay Now
-                </>
-              )}
-            </button>
           </div>
-        </div>
-      )}
 
-      <div className="max-w-6xl mx-auto p-4 md:p-8 pb-32 md:pb-8">
-        <div className="grid md:grid-cols-2 gap-6 md:gap-8">
-          
-          {/* ─── LEFT: Document Preview ────────────────────────────── */}
-          <div className="order-2 md:order-1">
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-              
-              {/* Product Header */}
-              <div className="p-4 md:p-6 border-b border-gray-100">
-                <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-                  <Building2 className="w-4 h-4" />
-                  {product.businessName || 'XecoFlow'}
+          {/* Payment methods */}
+          <div className="absolute bottom-7 left-1/2 z-10 w-[calc(100%-48px)] max-w-[370px] -translate-x-1/2">
+            <div className="flex items-center justify-center gap-4 rounded-md border border-[#c8dbe4] bg-white/35 px-5 py-3">
+
+              <div className="text-[10px] font-bold text-gray-500">
+                <span className="text-[#42b96a]">
+                  M-PESA
+                </span>
+              </div>
+
+              <div className="text-sm font-black italic text-[#2445c4]">
+                VISA
+              </div>
+
+              <div className="flex items-center">
+                <span className="h-5 w-5 rounded-full bg-[#eb001b]" />
+                <span className="-ml-2 h-5 w-5 rounded-full bg-[#f79e1b] opacity-90" />
+              </div>
+
+              <div className="text-[9px] font-bold text-gray-500">
+                AMEX
+              </div>
+
+              <div className="text-[10px] font-bold text-gray-500">
+                Airtel
+              </div>
+            </div>
+
+            <div className="mt-2 text-center text-[9px] text-gray-500">
+              <Lock className="mr-1 inline h-2.5 w-2.5" />
+              Secured payment
+            </div>
+          </div>
+        </section>
+
+        {/* =========================================================
+            RIGHT SIDE
+        ========================================================== */}
+
+        <section className="min-h-screen bg-white flex items-center justify-center px-6 py-12 sm:px-10 lg:px-16 xl:px-24">
+
+          <div className="w-full max-w-[430px]">
+
+            {/* =====================================================
+                SUCCESS
+            ====================================================== */}
+
+            {isPaid ||
+            paymentStatus === 'success' ? (
+              <SuccessView
+                product={product}
+                isDownloading={
+                  isDownloading
+                }
+                onDownload={() =>
+                  triggerDownload(
+                    product.fileUrl
+                  )
+                }
+                onBack={() => {
+                  if (
+                    product.returnUrl
+                  ) {
+                    router.push(
+                      product.returnUrl
+                    );
+                  }
+                }}
+              />
+            ) : isExpired ? (
+              /* ===================================================
+                  EXPIRED
+              ==================================================== */
+
+              <div className="text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50">
+                  <AlertCircle className="h-6 w-6 text-red-500" />
                 </div>
-                <h1 className="text-xl md:text-2xl font-bold text-gray-900">{product.name}</h1>
-                <p className="text-sm text-gray-500 mt-1">
-                  {product.fileName || 'Digital Document'}
+
+                <h2 className="mt-5 text-xl font-bold text-gray-900">
+                  Link expired
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-gray-500">
+                  This payment link is
+                  no longer active.
+                  Please contact the
+                  merchant for a new
+                  payment link.
                 </p>
               </div>
+            ) : (
+              /* ===================================================
+                  CHECKOUT
+              ==================================================== */
 
-              {/* ─── ACTUAL PDF PREVIEW ───────────────────────────────────── */}
-              <div className="relative aspect-[3/4] bg-gray-100 overflow-hidden">
-                {product.fileUrl ? (
-                  <iframe
-                    src={`${product.fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-                    className="w-full h-full"
-                    style={{ pointerEvents: 'none' }}
-                    onLoad={() => setPdfLoaded(true)}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gray-50">
-                    <FileText className="w-16 h-16 text-gray-300" />
-                  </div>
-                )}
+              <>
+                {/* Form */}
 
-                {/* ─── Blur Overlay - Bottom 60% ─────────────────────────── */}
-                <div className="absolute bottom-0 left-0 right-0 h-[60%]">
-                  {/* Gradient overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/70 to-white backdrop-blur-lg"></div>
-                  
-                  {/* Lock Badge */}
-                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center">
-                    <div className="bg-purple-600 text-white px-6 py-3 rounded-full text-sm font-semibold shadow-lg flex items-center gap-2">
-                      <Lock className="w-4 h-4" />
-                      Pay {product.currency} {Number(product.price).toFixed(2)} to Unlock
+                <div className="space-y-5">
+
+                  {/* First + Last name */}
+
+                  <div className="grid grid-cols-2 gap-4">
+
+                    <div>
+                      <label
+                        htmlFor="firstName"
+                        className="mb-1.5 block text-sm font-medium text-gray-900"
+                      >
+                        First name
+                      </label>
+
+                      <input
+                        id="firstName"
+                        type="text"
+                        value={firstName}
+                        onChange={(e) =>
+                          setFirstName(
+                            e.target.value
+                          )
+                        }
+                        placeholder="First name"
+                        disabled={
+                          paymentStatus ===
+                          'processing'
+                        }
+                        className="h-10 w-full rounded-[4px] border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#159bc5] focus:ring-1 focus:ring-[#159bc5] disabled:bg-gray-50"
+                      />
                     </div>
-                    <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                      <Eye className="w-3 h-3" />
-                      Full document locked · Pay to view
+
+                    <div>
+                      <label
+                        htmlFor="lastName"
+                        className="mb-1.5 block text-sm font-medium text-gray-900"
+                      >
+                        Last name
+                      </label>
+
+                      <input
+                        id="lastName"
+                        type="text"
+                        value={lastName}
+                        onChange={(e) =>
+                          setLastName(
+                            e.target.value
+                          )
+                        }
+                        placeholder="Last name"
+                        disabled={
+                          paymentStatus ===
+                          'processing'
+                        }
+                        className="h-10 w-full rounded-[4px] border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#159bc5] focus:ring-1 focus:ring-[#159bc5] disabled:bg-gray-50"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Email */}
+
+                  <div>
+                    <label
+                      htmlFor="email"
+                      className="mb-1.5 block text-sm font-medium text-gray-900"
+                    >
+                      Email address
+                    </label>
+
+                    <input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) =>
+                        setEmail(
+                          e.target.value
+                        )
+                      }
+                      placeholder="Email address"
+                      disabled={
+                        paymentStatus ===
+                        'processing'
+                      }
+                      className="h-10 w-full rounded-[4px] border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#159bc5] focus:ring-1 focus:ring-[#159bc5] disabled:bg-gray-50"
+                    />
+                  </div>
+
+                  {/* Phone */}
+
+                  <div>
+                    <label
+                      htmlFor="phone"
+                      className="mb-1.5 block text-sm font-medium text-gray-900"
+                    >
+                      Phone number
+                    </label>
+
+                    <div className="flex">
+
+                      <div className="flex h-10 w-[78px] shrink-0 items-center justify-center gap-1 rounded-l-[4px] border border-r-0 border-gray-300 bg-white text-sm text-gray-700">
+                        <span>
+                          +254
+                        </span>
+
+                        <svg
+                          width="9"
+                          height="6"
+                          viewBox="0 0 9 6"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M1 1L4.5 4.5L8 1"
+                            stroke="currentColor"
+                            strokeWidth="1"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </div>
+
+                      <div className="relative flex-1">
+                        <Smartphone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-300" />
+
+                        <input
+                          id="phone"
+                          type="tel"
+                          inputMode="numeric"
+                          autoComplete="tel"
+                          value={
+                            phoneNumber
+                          }
+                          onChange={(e) =>
+                            setPhoneNumber(
+                              formatPhone(
+                                e.target
+                                  .value
+                              )
+                            )
+                          }
+                          placeholder="Phone number"
+                          disabled={
+                            paymentStatus ===
+                            'processing'
+                          }
+                          className="h-10 w-full rounded-r-[4px] border border-gray-300 bg-white pl-10 pr-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#159bc5] focus:ring-1 focus:ring-[#159bc5] disabled:bg-gray-50"
+                        />
+                      </div>
+                    </div>
+
+                    <p className="mt-1.5 text-[11px] text-gray-400">
+                      An M-PESA prompt
+                      will appear on
+                      this phone.
                     </p>
                   </div>
-                </div>
 
-                {/* Loading state for PDF */}
-                {!pdfLoaded && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-                    <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+                  {/* Amount */}
+
+                  <div>
+                    <label
+                      htmlFor="amount"
+                      className="mb-1.5 block text-sm font-medium text-gray-900"
+                    >
+                      Amount
+                    </label>
+
+                    <div className="flex h-10 overflow-hidden rounded-[4px] border border-gray-300 bg-gray-50">
+
+                      <div className="flex w-[55px] items-center justify-center border-r border-gray-300 text-sm text-gray-600">
+                        {currency}
+                      </div>
+
+                      <input
+                        id="amount"
+                        type="text"
+                        value={amount}
+                        readOnly
+                        className="min-w-0 flex-1 bg-gray-50 px-3 text-sm text-gray-500 outline-none"
+                      />
+                    </div>
                   </div>
-                )}
-              </div>
 
-              {/* File Info Footer */}
-              <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  Expires: {formatDate(product.expiryDate)}
-                </span>
-                <span className="flex items-center gap-1">
-                  <FileText className="w-3 h-3" />
-                  {product.fileName?.length > 30 ? product.fileName.substring(0, 30) + '...' : product.fileName}
-                </span>
-              </div>
-            </div>
+                  {/* Error */}
 
-            {/* Share Buttons */}
-            <div className="mt-4 flex items-center justify-between bg-white rounded-xl border border-gray-200 p-3">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={copyLink}
-                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100"
-                  title="Copy link"
-                >
-                  {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                </button>
-                <button
-                  onClick={shareToWhatsApp}
-                  className="p-2 text-gray-400 hover:text-[#25D366] transition-colors rounded-lg hover:bg-gray-100"
-                  title="Share to WhatsApp"
-                >
-                  <Share2 className="w-4 h-4" />
-                </button>
-              </div>
-              {copied && <span className="text-xs text-emerald-600">Copied!</span>}
-            </div>
-          </div>
+                  {paymentStatus ===
+                    'error' && (
+                    <div className="flex items-start gap-2 rounded-[4px] border border-red-200 bg-red-50 px-3 py-3">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
 
-          {/* ─── RIGHT: Checkout ────────────────────────────────────── */}
-          <div className="order-1 md:order-2">
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 md:p-8 sticky top-4">
-              
-              {isPaid ? (
-                // ─── PAID STATE ──────────────────────────────────────────
-                <div className="text-center py-8">
-                  <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <CheckCircle className="w-10 h-10 text-emerald-500" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-gray-900">🎉 Payment Successful!</h3>
-                  <p className="text-gray-600 mt-2">Your file has been unlocked.</p>
+                      <p className="text-xs leading-5 text-red-600">
+                        {errorMessage}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Processing */}
+
+                  {paymentStatus ===
+                    'processing' && (
+                    <div className="flex items-center gap-3 rounded-[4px] border border-blue-200 bg-blue-50 px-3 py-3">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+
+                      <div>
+                        <p className="text-xs font-medium text-blue-800">
+                          Sending M-PESA
+                          request...
+                        </p>
+
+                        <p className="mt-0.5 text-[10px] text-blue-600">
+                          Check your
+                          phone and
+                          approve the
+                          payment.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pay button */}
+
                   <button
-                    onClick={() => triggerDownload(product.fileUrl)}
-                    disabled={isDownloading}
-                    className="mt-6 w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold flex items-center justify-center gap-2 transition-all"
+                    type="button"
+                    onClick={
+                      handlePay
+                    }
+                    disabled={
+                      paymentStatus ===
+                        'processing' ||
+                      !phoneNumber.trim()
+                    }
+                    className="flex h-10 w-full items-center justify-center gap-2 rounded-[4px] bg-[#35b95c] text-sm font-semibold text-white transition hover:bg-[#2fab54] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {isDownloading ? (
+                    {paymentStatus ===
+                    'processing' ? (
                       <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Downloading...
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Processing...
                       </>
                     ) : (
                       <>
-                        <Download className="w-5 h-5" />
-                        Download {product.fileName || 'File'}
+                        Pay now
                       </>
                     )}
                   </button>
-                  <p className="text-xs text-gray-400 mt-4">
-                    📧 A download link has been sent to your email.
-                  </p>
-                  {product.returnUrl && (
+
+                  {/* Security */}
+
+                  <div className="pt-1 text-center">
+                    <p className="text-[10px] text-gray-400">
+                      <Lock className="mr-1 inline h-3 w-3" />
+                      Secure payment
+                    </p>
+                  </div>
+
+                  {/* Product reference */}
+
+                  <div className="border-t border-gray-100 pt-5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-gray-400">
+                        Product
+                      </span>
+
+                      <span className="max-w-[240px] truncate font-medium text-gray-600">
+                        {product.name}
+                      </span>
+                    </div>
+
+                    {product.fileName && (
+                      <div className="mt-2 flex items-center justify-between text-[11px]">
+                        <span className="text-gray-400">
+                          File
+                        </span>
+
+                        <span className="max-w-[240px] truncate text-gray-500">
+                          {
+                            product.fileName
+                          }
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Share */}
+
+                  <div className="flex items-center justify-center gap-3 pt-1">
                     <button
-                      onClick={() => router.push(product.returnUrl)}
-                      className="mt-4 text-sm text-purple-600 hover:text-purple-700 font-medium"
+                      type="button"
+                      onClick={
+                        copyLink
+                      }
+                      className="flex items-center gap-1.5 text-[10px] text-gray-400 transition hover:text-gray-700"
                     >
-                      ← Back to Merchant
+                      {copied ? (
+                        <Check className="h-3 w-3 text-green-500" />
+                      ) : (
+                        <Copy className="h-3 w-3" />
+                      )}
+
+                      {copied
+                        ? 'Copied'
+                        : 'Copy payment link'}
                     </button>
-                  )}
-                </div>
-              ) : isExpired ? (
-                // ─── EXPIRED STATE ────────────────────────────────────────
-                <div className="text-center py-8">
-                  <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <AlertCircle className="w-10 h-10 text-red-500" />
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900">Link Expired</h3>
-                  <p className="text-gray-600 mt-2">This product link is no longer active.</p>
                 </div>
-              ) : (
-                // ─── CHECKOUT FORM ────────────────────────────────────────
-                <div className="space-y-5">
-                  {/* Price Header */}
-                  <div className="flex items-center justify-between pb-4 border-b border-gray-200">
-                    <div>
-                      <p className="text-xs text-gray-400 uppercase tracking-wider">Amount Due</p>
-                      <p className="text-3xl font-bold text-gray-900">
-                        {product.currency} {Number(product.price).toFixed(2)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs bg-emerald-50 px-3 py-1.5 rounded-full text-emerald-700">
-                      <Lock className="w-3 h-3" /> Secured
-                    </div>
-                  </div>
+              </>
+            )}
 
-                  {/* Payment Status */}
-                  {paymentStatus === 'processing' && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3">
-                      <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-                      <span className="text-sm text-blue-700">Initiating payment...</span>
-                    </div>
-                  )}
-                  {paymentStatus === 'error' && (
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
-                      <AlertCircle className="w-5 h-5 text-red-500" />
-                      <span className="text-sm text-red-700">{errorMessage}</span>
-                    </div>
-                  )}
+            {/* =====================================================
+                FOOTER
+            ====================================================== */}
 
-                  {paymentStatus !== 'success' && (
-                    <>
-                      {/* ─── Name (Optional) ──────────────────────────────── */}
-                      <div>
-                        <button
-                          onClick={() => setShowNameField(!showNameField)}
-                          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                        >
-                          <User className="w-4 h-4" />
-                          {showNameField ? 'Hide name' : 'Add your name (optional)'}
-                          <ChevronDown className={`w-4 h-4 transition-transform ${showNameField ? 'rotate-180' : ''}`} />
-                        </button>
-                        {showNameField && (
-                          <div className="mt-2 relative">
-                            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input
-                              type="text"
-                              value={customerName}
-                              onChange={(e) => setCustomerName(e.target.value)}
-                              placeholder="Your name"
-                              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
-                              disabled={isProcessing}
-                            />
-                          </div>
-                        )}
-                      </div>
+            <div className="mt-10 text-center">
+              <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400">
+                <Lock className="h-3 w-3" />
 
-                      {/* ─── Email (Optional) ──────────────────────────────── */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">
-                          Email <span className="text-gray-400 text-xs">(for receipt)</span>
-                        </label>
-                        <div className="relative mt-1">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="you@example.com"
-                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
-                            disabled={isProcessing}
-                          />
-                        </div>
-                      </div>
+                <span>
+                  Secured by
+                </span>
 
-                      {/* ─── M-PESA Phone ──────────────────────────────────── */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">
-                          M-PESA Mobile Number <span className="text-red-500">*</span>
-                        </label>
-                        <div className="flex border border-gray-300 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-purple-500/20 focus-within:border-purple-500 transition-all mt-1">
-                          <div className="bg-gray-50 px-4 py-3 border-r border-gray-200 flex items-center text-sm text-gray-700">
-                            <Smartphone className="w-4 h-4 mr-2" />
-                            +254
-                          </div>
-                          <input
-                            type="tel"
-                            value={phoneNumber}
-                            onChange={(e) => setPhoneNumber(e.target.value)}
-                            placeholder="712 071 385"
-                            className="flex-1 px-4 py-3 text-sm outline-none"
-                            disabled={isProcessing}
-                          />
-                        </div>
-                        <p className="text-xs text-gray-400 flex items-center gap-1 mt-1.5">
-                          <Send className="w-3 h-3" /> We'll send an STK push to your phone
-                        </p>
-                      </div>
-
-                      {/* ─── Pay Button (Desktop) ───────────────────────────── */}
-                      <button
-                        onClick={handlePay}
-                        disabled={isProcessing}
-                        className="hidden md:flex w-full py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold text-base transition-all shadow-lg shadow-purple-600/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isProcessing ? (
-                          <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            <CreditCard className="w-5 h-5" />
-                            Pay {product.currency} {Number(product.price).toFixed(2)}
-                            <ArrowRight className="w-4 h-4" />
-                          </>
-                        )}
-                      </button>
-
-                      {/* ─── Security Badges ─────────────────────────────────── */}
-                      <div className="flex items-center justify-center gap-4 text-xs text-gray-400 pt-2">
-                        <span className="flex items-center gap-1">
-                          <Shield className="w-3 h-3" /> Secure
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Lock className="w-3 h-3" /> PCI-DSS
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> Instant
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+                <span className="font-semibold text-gray-500">
+                  XecoFlow
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        </section>
       </div>
+
+      {/* =========================================================
+          MOBILE BOTTOM PAYMENT
+      ========================================================== */}
+
+      {!isPaid &&
+        !isExpired &&
+        paymentStatus !==
+          'success' &&
+        paymentStatus !==
+          'processing' && (
+          <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white px-4 py-3 shadow-[0_-5px_20px_rgba(0,0,0,0.06)] lg:hidden">
+            <div className="flex items-center gap-3">
+
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-gray-400">
+                  Amount
+                </p>
+
+                <p className="text-base font-bold text-gray-900">
+                  {currency}{' '}
+                  {amount}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  handlePay
+                }
+                disabled={
+                  !phoneNumber.trim()
+                }
+                className="h-11 rounded-[4px] bg-[#35b95c] px-6 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                Pay now
+              </button>
+            </div>
+          </div>
+        )}
+    </main>
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| SUCCESS VIEW
+|--------------------------------------------------------------------------
+*/
+
+function SuccessView({
+  product,
+  isDownloading,
+  onDownload,
+  onBack,
+}: {
+  product: ProductData;
+  isDownloading: boolean;
+  onDownload: () => void;
+  onBack: () => void;
+}) {
+  return (
+    <div className="text-center">
+
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
+        <CheckCircle className="h-8 w-8 text-green-500" />
+      </div>
+
+      <h2 className="mt-5 text-2xl font-bold text-gray-900">
+        Payment successful
+      </h2>
+
+      <p className="mt-2 text-sm leading-6 text-gray-500">
+        Your payment has been
+        confirmed and your
+        digital product is ready.
+      </p>
+
+      <button
+        type="button"
+        onClick={onDownload}
+        disabled={isDownloading}
+        className="mt-7 flex h-11 w-full items-center justify-center gap-2 rounded-[4px] bg-[#35b95c] text-sm font-semibold text-white transition hover:bg-[#2fab54] disabled:opacity-60"
+      >
+        {isDownloading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Downloading...
+          </>
+        ) : (
+          <>
+            <Download className="h-4 w-4" />
+            Download{' '}
+            {product.fileName ||
+              'file'}
+          </>
+        )}
+      </button>
+
+      <p className="mt-4 text-[11px] leading-5 text-gray-400">
+        Your digital product
+        has been unlocked.
+      </p>
+
+      {product.returnUrl && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="mt-6 text-xs font-medium text-[#159bc5] hover:underline"
+        >
+          ← Back to merchant
+        </button>
+      )}
     </div>
   );
 }
