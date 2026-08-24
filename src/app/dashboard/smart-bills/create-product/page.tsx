@@ -20,6 +20,8 @@ import {
   ChevronUp,
   Rocket,
   Share2,
+  Image,
+  File,
 } from 'lucide-react';
 import { getStoredMerchant, getToken } from '@/lib/auth';
 import OnboardingGuard, { useOnboarding } from '@/components/OnboardingGuard';
@@ -34,12 +36,17 @@ function InnerCreateProductLink() {
   // ─── Form State ──────────────────────────────────────────────────────
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
-  const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>('physical');
+  const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>('digital');
   const [stockQuantity, setStockQuantity] = useState<string>('');
   const [customSlug, setCustomSlug] = useState('');
-  const [deliveryAddressRequired, setDeliveryAddressRequired] = useState(true);
+  const [deliveryAddressRequired, setDeliveryAddressRequired] = useState(false);
   const [productImage, setProductImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  
+  // ✅ NEW: Digital File Upload
+  const [digitalFile, setDigitalFile] = useState<File | null>(null);
+  const [digitalFileName, setDigitalFileName] = useState<string>('');
+  
   const [showOptional, setShowOptional] = useState(false);
 
   // ─── Generation State ──────────────────────────────────────────────
@@ -78,6 +85,26 @@ function InnerCreateProductLink() {
     setImagePreview(null);
   };
 
+  // ✅ NEW: Handle Digital File Upload
+  const handleDigitalFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file size (25MB max)
+      if (file.size > 25 * 1024 * 1024) {
+        setError('File too large. Maximum size is 25MB.');
+        return;
+      }
+      setDigitalFile(file);
+      setDigitalFileName(file.name);
+      setError(null);
+    }
+  };
+
+  const removeDigitalFile = () => {
+    setDigitalFile(null);
+    setDigitalFileName('');
+  };
+
   // ─── Generate Product Link ──────────────────────────────────────────
   const handleGenerate = async () => {
     if (!name.trim()) {
@@ -91,13 +118,40 @@ function InnerCreateProductLink() {
       return;
     }
 
+    // ✅ Validate: Digital products require a file
+    if (fulfillmentType === 'digital' && !digitalFile) {
+      setError('Please upload a digital file (PDF, DOCX, etc.)');
+      return;
+    }
+
     setIsGenerating(true);
     setError(null);
 
     try {
       const token = getToken();
       
-      // ─── Upload image if present ──────────────────────────────────
+      // ─── Upload digital file if present ──────────────────────────
+      let fileUrl = '';
+      if (digitalFile) {
+        const formData = new FormData();
+        formData.append('file', digitalFile);
+        formData.append('merchantId', String(merchantData?.merchant_id || merchantData?.merchantId));
+
+        const uploadRes = await fetch('/api/products/upload', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData,
+        });
+
+        if (uploadRes.ok) {
+          const data = await uploadRes.json();
+          fileUrl = data.data?.fileUrl || data.fileUrl || '';
+        } else {
+          throw new Error('Failed to upload digital file');
+        }
+      }
+
+      // ─── Upload product image if present ──────────────────────────
       let imageUrl = '';
       if (productImage) {
         const formData = new FormData();
@@ -132,6 +186,8 @@ function InnerCreateProductLink() {
           slug: customSlug.trim() || undefined,
           deliveryAddressRequired,
           imageUrl,
+          fileUrl, // ✅ Digital file URL
+          fileName: digitalFileName, // ✅ Original file name
         }),
       });
 
@@ -226,7 +282,7 @@ function InnerCreateProductLink() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Air Force 1 Sneakers"
+            placeholder="e.g. Professional CV Writing"
             className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
             onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
           />
@@ -265,7 +321,13 @@ function InnerCreateProductLink() {
             ].map((type) => (
               <button
                 key={type.id}
-                onClick={() => setFulfillmentType(type.id as FulfillmentType)}
+                onClick={() => {
+                  setFulfillmentType(type.id as FulfillmentType);
+                  // Reset file errors when switching types
+                  if (type.id === 'digital') {
+                    // Digital requires file upload
+                  }
+                }}
                 className={`px-4 py-3 rounded-xl border text-center transition-all ${
                   fulfillmentType === type.id
                     ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500/20'
@@ -278,6 +340,53 @@ function InnerCreateProductLink() {
             ))}
           </div>
         </div>
+
+        {/* ─── ✅ NEW: Digital File Upload ───────────────────────────── */}
+        {fulfillmentType === 'digital' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Digital File <span className="text-red-500">*</span>
+            </label>
+            {!digitalFile ? (
+              <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-indigo-400 transition-colors cursor-pointer relative">
+                <input
+                  type="file"
+                  onChange={handleDigitalFileChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.txt,.zip"
+                />
+                <div className="flex flex-col items-center gap-2 pointer-events-none">
+                  <File className="w-10 h-10 text-gray-400" />
+                  <p className="text-sm text-gray-600">Upload your digital file</p>
+                  <p className="text-xs text-gray-400">
+                    PDF, DOCX, XLSX, Images, ZIP (Max 25MB)
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <FileText className="w-8 h-8 text-indigo-600" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{digitalFileName}</p>
+                    <p className="text-xs text-gray-500">
+                      {(digitalFile.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={removeDigitalFile}
+                  className="p-2 hover:bg-indigo-100 rounded-lg transition-colors text-gray-500 hover:text-red-500"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            <p className="text-xs text-gray-400 mt-1">
+              Customers will download this file after payment
+            </p>
+          </div>
+        )}
 
         {/* ─── ⚙️ Optional Settings ──────────────────────────────────── */}
         <div>
@@ -344,8 +453,8 @@ function InnerCreateProductLink() {
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                       accept=".jpg,.jpeg,.png,.webp"
                     />
-                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">Upload image</p>
+                    <Image className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">Upload product image</p>
                     <p className="text-xs text-gray-400">JPG, PNG, WebP (Max 5MB)</p>
                   </div>
                 ) : (
@@ -366,18 +475,20 @@ function InnerCreateProductLink() {
               </div>
 
               {/* Delivery Address Required */}
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="deliveryAddress"
-                  checked={deliveryAddressRequired}
-                  onChange={(e) => setDeliveryAddressRequired(e.target.checked)}
-                  className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                />
-                <label htmlFor="deliveryAddress" className="text-sm text-gray-700">
-                  Request delivery address at checkout
-                </label>
-              </div>
+              {fulfillmentType === 'physical' && (
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="deliveryAddress"
+                    checked={deliveryAddressRequired}
+                    onChange={(e) => setDeliveryAddressRequired(e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                  />
+                  <label htmlFor="deliveryAddress" className="text-sm text-gray-700">
+                    Request delivery address at checkout
+                  </label>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -386,7 +497,7 @@ function InnerCreateProductLink() {
       {/* ─── Generate Button ─────────────────────────────────────────── */}
       <button
         onClick={handleGenerate}
-        disabled={!isFormValid || isGenerating}
+        disabled={!isFormValid || isGenerating || (fulfillmentType === 'digital' && !digitalFile)}
         className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed text-white rounded-xl font-semibold text-base transition-all shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2"
       >
         {isGenerating ? (
@@ -452,6 +563,8 @@ function InnerCreateProductLink() {
                 setStockQuantity('');
                 setProductImage(null);
                 setImagePreview(null);
+                setDigitalFile(null);
+                setDigitalFileName('');
                 setCopied(false);
                 setShowOptional(false);
                 setTimeout(() => nameInputRef.current?.focus(), 100);
