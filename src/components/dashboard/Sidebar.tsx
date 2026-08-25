@@ -59,6 +59,10 @@ import {
   Brackets,
   Phone,
   Building2,
+  Package,
+  Store,
+  Receipt,
+  Layers,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -151,11 +155,48 @@ const sidebarSections: SidebarSection[] = [
       },
       {
         icon: Link2,
-        label: 'Create Payment Link',
+        label: 'Payment Links',
         children: [
-          { icon: PlusCircle, label: 'Create Bill', href: '/dashboard/smart-bills/pages' },
-          { icon: BarChart3, label: 'Active Bills & Analytics', href: '/dashboard/smart-bills/analytics' },
+          { 
+            icon: Package, 
+            label: 'Create Product Link', 
+            href: '/dashboard/smart-bills/create-product',
+            badge: 'Digital',
+          },
+          { 
+            icon: CreditCard, 
+            label: 'Create Payment Page', 
+            href: '/dashboard/smart-bills/create-payment-page',
+            badge: 'Open Amount',
+          },
+          { 
+            icon: Layers, 
+            label: 'All Payment Links', 
+            href: '/dashboard/smart-bills/pages',
+            badge: 'Analytics',
+          },
         ],
+      },
+      {
+        icon: Receipt,
+        label: 'Smart Invoices',
+        children: [
+          { 
+            icon: PlusCircle, 
+            label: 'Create Invoice', 
+            href: '/dashboard/smart-bills/create',
+          },
+          { 
+            icon: BarChart3, 
+            label: 'Active Invoices', 
+            href: '/dashboard/smart-bills/analytics',
+          },
+        ],
+      },
+      {
+        icon: Store,
+        label: 'My Storefront',
+        href: '/dashboard/storefront',
       },
       {
         icon: Building2,
@@ -213,7 +254,6 @@ const sidebarSections: SidebarSection[] = [
   },
 ];
 
-
 // ─── Component ──────────────────────────────────────────────────────
 export default function Sidebar() {
   const pathname = usePathname();
@@ -253,7 +293,6 @@ export default function Sidebar() {
   const getSections = (): SidebarSection[] => {
     const pinnedItems = getPinnedItems();
     
-    // If there are pinned apps, show the section with them
     if (pinnedItems.length > 0) {
       return sidebarSections.map(section => {
         if (section.title === 'MY APPS & SHORTCUTS') {
@@ -266,7 +305,6 @@ export default function Sidebar() {
       });
     }
     
-    // If no pinned apps, filter out the empty section
     return sidebarSections.filter(section => section.title !== 'MY APPS & SHORTCUTS');
   };
 
@@ -568,6 +606,11 @@ export default function Sidebar() {
                                         />
                                       )}
                                       <span className="truncate text-[13px]">{child.label}</span>
+                                      {child.badge && (
+                                        <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full">
+                                          {child.badge}
+                                        </span>
+                                      )}
                                       {childActive && (
                                         <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400" />
                                       )}
