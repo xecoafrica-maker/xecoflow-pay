@@ -14,18 +14,8 @@ import {
   Mail,
   User,
   Zap,
+  BadgeCheck,
   Shield,
-  Clock,
-  Building2,
-  ArrowRight,
-  CreditCard,
-  Sparkles,
-  Check,
-  Copy,
-  Share2,
-  Eye,
-  ChevronDown,
-  ChevronUp,
 } from 'lucide-react';
 
 interface ProductData {
@@ -42,6 +32,9 @@ interface ProductData {
   createdAt: string;
   expiryDate: string;
   returnUrl: string;
+  verified?: boolean;
+  pageCount?: number;
+  fileSizeMb?: number;
 }
 
 export default function ProductPage() {
@@ -55,15 +48,10 @@ export default function ProductPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [email, setEmail] = useState('');
-  const [showNameField, setShowNameField] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [pdfLoaded, setPdfLoaded] = useState(false);
-  const [phoneTouched, setPhoneTouched] = useState(false);
-  const [phoneValid, setPhoneValid] = useState(true);
 
   useEffect(() => {
     if (!slug) return;
@@ -87,26 +75,6 @@ export default function ProductPage() {
       maximumFractionDigits: 2,
     })}`;
 
-  const validatePhone = (phone: string) => {
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.startsWith('0')) return cleaned.length === 10;
-    if (cleaned.startsWith('254')) return cleaned.length === 12;
-    return cleaned.length === 9 || cleaned.length === 10;
-  };
-
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, '');
-    setPhoneNumber(value);
-    if (phoneTouched) {
-      setPhoneValid(validatePhone(value));
-    }
-  };
-
-  const handlePhoneBlur = () => {
-    setPhoneTouched(true);
-    setPhoneValid(validatePhone(phoneNumber));
-  };
-
   const handlePay = async () => {
     let phone = phoneNumber.replace(/\D/g, '');
     if (phone.startsWith('0')) phone = '254' + phone.slice(1);
@@ -115,7 +83,7 @@ export default function ProductPage() {
     }
 
     if (!phone || phone.length < 12) {
-      setErrorMessage('Enter a valid M-PESA number');
+      setErrorMessage('Enter a valid 9-digit M-PESA number');
       setPaymentStatus('error');
       return;
     }
@@ -145,7 +113,7 @@ export default function ProductPage() {
         }, 1200);
       } else {
         setPaymentStatus('error');
-        setErrorMessage(data.error || 'Payment failed. Try again.');
+        setErrorMessage(data.error || 'Payment failed. Please try again.');
       }
     } catch (err: any) {
       setPaymentStatus('error');
@@ -167,41 +135,28 @@ export default function ProductPage() {
     setIsDownloading(false);
   };
 
-  const copyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 3000);
-  };
-
-  const shareToWhatsApp = () => {
-    window.open(`https://wa.me/?text=${encodeURIComponent(`🛍️ ${product?.name}\n${window.location.href}`)}`, '_blank');
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-white">
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-full border-4 border-gray-200 border-t-purple-600 animate-spin mx-auto" />
-          <p className="mt-4 text-sm text-gray-500">Loading your document...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-[#fafafa]">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
   }
 
   if (error || !product) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-white p-6">
-        <div className="max-w-sm w-full text-center">
-          <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-6">
-            <AlertCircle className="w-10 h-10 text-red-500" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Product Unavailable</h1>
-          <p className="text-gray-500 mt-2 text-sm">{error || 'This link is invalid or has expired.'}</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#fafafa] p-6">
+        <div className="max-w-sm w-full text-center bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+          <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
+          <h1 className="text-lg font-semibold text-gray-900">Unavailable</h1>
+          <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+            {error || 'This link is invalid or has expired.'}
+          </p>
           <button
             onClick={() => router.push('/')}
-            className="mt-6 px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium transition-colors shadow-lg shadow-purple-600/25"
+            className="mt-6 text-sm font-medium text-[#635bff] hover:underline"
           >
-            Go Home
+            Go home
           </button>
         </div>
       </div>
@@ -211,413 +166,329 @@ export default function ProductPage() {
   const isExpired = new Date(product.expiryDate) < new Date();
   const isPaid = product.status === 'PAID' || product.status === 'COMPLETED';
   const merchantName = product.businessName || 'Merchant';
+  const isVerified = product.verified === true;
+  const pageCount = product.pageCount;
+  const fileSizeMb = product.fileSizeMb;
+
+  const fileMeta = [
+    'PDF Document',
+    pageCount ? `${pageCount} ${pageCount === 1 ? 'Page' : 'Pages'}` : null,
+    fileSizeMb ? `${fileSizeMb} MB` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/50">
-      
-      {/* ─── Header ────────────────────────────────────────────────────── */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200/50 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 md:px-8 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/25">
-              <Zap className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-base font-bold text-gray-800">Xeco<span className="text-purple-600">Flow</span></span>
-            <span className="hidden md:inline text-xs text-gray-400 ml-2 font-medium">Secure Checkout</span>
-          </div>
-          <div className="flex items-center gap-4 text-xs text-gray-400">
-            <span className="flex items-center gap-1.5 text-emerald-600">
-              <Shield className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Secured</span>
-            </span>
-            <span className="hidden sm:inline text-gray-200">|</span>
-            <span className="hidden sm:inline flex items-center gap-1.5 text-emerald-600">
-              <Lock className="w-3.5 h-3.5" />
-              PCI-DSS
-            </span>
-          </div>
+    <div className="min-h-screen bg-[#fafafa] flex flex-col">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200/80">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center">
+          <span className="text-[22px] font-bold tracking-tight">
+            <span className="text-[#0a2540]">Xeco</span>
+            <span className="text-[#10B981]">Flow</span>
+          </span>
         </div>
       </header>
 
-      {/* ─── Mobile Sticky Checkout Bar ────────────────────────────── */}
+      {/* Mobile sticky CTA */}
       {!isPaid && !isExpired && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-200/80 p-4 shadow-2xl z-50">
-          <div className="flex items-center gap-3">
-            <div className="flex-1">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">Total</p>
-              <p className="text-xl font-bold text-gray-900">
-                {formatPrice(product.price, product.currency)}
-              </p>
-            </div>
-            <button
-              onClick={handlePay}
-              disabled={isProcessing}
-              className="flex-1 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-2xl font-semibold text-sm transition-all shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
-            >
-              {isProcessing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <Lock className="w-4 h-4" />
-                  Pay Now
-                </>
-              )}
-            </button>
-          </div>
+        <div className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-200 px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.06)]">
+          <button
+            onClick={handlePay}
+            disabled={isProcessing}
+            className="w-full h-12 bg-[#0a2540] hover:bg-[#152a45] active:scale-[0.98] text-white rounded-xl font-semibold text-[15px] flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+          >
+            {isProcessing ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>Pay {formatPrice(product.price, product.currency)}</>
+            )}
+          </button>
         </div>
       )}
 
-      <main className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10 pb-28 md:pb-10">
-        <div className="grid md:grid-cols-5 gap-8 md:gap-12">
-          
-          {/* ─── LEFT: Document Preview (3/5) ────────────────────────── */}
-          <div className="md:col-span-3">
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-200/80 overflow-hidden transition-shadow hover:shadow-2xl">
-              
-              {/* Product Header */}
-              <div className="p-5 md:p-7 border-b border-gray-100/80 bg-gradient-to-r from-gray-50/50 to-white">
-                <div className="flex items-center gap-2 text-sm text-gray-500 mb-1.5">
-                  <Building2 className="w-4 h-4 text-gray-400" />
-                  <span className="font-medium">{merchantName}</span>
-                  <span className="text-gray-300">•</span>
-                  <span className="text-gray-400 text-xs">Digital Product</span>
-                </div>
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
-                  {product.name}
-                </h1>
-                <p className="text-sm text-gray-500 mt-1.5 truncate">
-                  {product.fileName || 'Digital Document'}
-                </p>
-              </div>
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 md:py-12 pb-28 md:pb-16">
+        <div className="grid md:grid-cols-2 gap-8 lg:gap-14 items-start">
+          {/* ── LEFT ─────────────────────────────────────────────── */}
+          <div className="space-y-5">
+            <h1 className="text-[26px] md:text-[28px] font-semibold text-[#0a2540] tracking-tight leading-tight">
+              {product.name}
+            </h1>
 
-              {/* ─── Document Preview ───────────────────────────────────── */}
-              <div className="relative bg-gray-50/80">
-                <div className="aspect-[4/3] relative overflow-hidden">
-                  {product.fileUrl ? (
-                    <iframe
-                      src={`${product.fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-                      className="w-full h-full"
-                      style={{ 
-                        pointerEvents: 'none',
-                        scrollbarWidth: 'none',
-                        msOverflowStyle: 'none',
-                      }}
-                      onLoad={() => setPdfLoaded(true)}
-                      sandbox="allow-same-origin"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                      <FileText className="w-16 h-16 text-gray-300" />
+            {/* Preview card */}
+            <div className="relative rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-sm h-[240px] md:h-[300px]">
+              {product.fileUrl ? (
+                <iframe
+                  src={`${product.fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                  className="w-full h-full"
+                  style={{ pointerEvents: 'none' }}
+                  title="Preview"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-50">
+                  <FileText className="w-14 h-14 text-gray-200" />
+                </div>
+              )}
+
+              {!isPaid && (
+                <>
+                  <div className="absolute inset-0 top-[10%] bg-white/55 backdrop-blur-[8px]" />
+                  <div className="absolute inset-x-0 bottom-0 h-[82%] bg-gradient-to-t from-white via-white/90 to-transparent flex items-end justify-center pb-8">
+                    <div className="flex items-center gap-2 text-[13px] font-medium text-gray-700 bg-white border border-gray-200 px-4 py-2.5 rounded-full shadow-md">
+                      <Lock className="w-3.5 h-3.5 text-gray-500" />
+                      Unlock after payment
                     </div>
-                  )}
+                  </div>
+                </>
+              )}
+            </div>
 
-                  {/* ─── Blur Overlay ───────────────────────────────────── */}
-                  {!isPaid && !isExpired && (
-                    <div className="absolute bottom-0 left-0 right-0 h-[65%]">
-                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/50 to-white backdrop-blur-md" />
-                      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none">
-                        <div className="bg-gray-900/90 text-white px-5 py-2.5 rounded-full text-sm font-medium flex items-center gap-2 backdrop-blur-sm shadow-xl">
-                          <Lock className="w-4 h-4 text-purple-300" />
-                          <span>Locked · Pay to unlock</span>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-2.5 flex items-center gap-1.5 bg-white/80 px-3 py-1 rounded-full shadow-sm">
-                          <Eye className="w-3 h-3" />
-                          Complete payment on the right
-                        </p>
-                      </div>
-                    </div>
-                  )}
+            {/* Merchant card */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">
+                Merchant & item details
+              </p>
 
-                  {/* Loading state */}
-                  {!pdfLoaded && product.fileUrl && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-50/80 backdrop-blur-sm">
-                      <div className="w-8 h-8 rounded-full border-4 border-gray-200 border-t-purple-600 animate-spin" />
-                    </div>
-                  )}
+              <dl className="space-y-3 text-[14px]">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-gray-500 shrink-0">Merchant</dt>
+                  <dd className="font-medium text-gray-900 text-right">{merchantName}</dd>
                 </div>
 
-                {/* File Info Footer */}
-                <div className="p-4 bg-gray-50/80 border-t border-gray-100/80 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" />
-                    Expires: {new Date(product.expiryDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </span>
-                  <span className="flex items-center gap-1.5 truncate max-w-[55%]">
-                    <FileText className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="truncate">{product.fileName || 'Document'}</span>
-                  </span>
-                </div>
-              </div>
+                {isVerified && (
+                  <div className="flex justify-between gap-4 items-center">
+                    <dt className="text-gray-500 shrink-0">Status</dt>
+                    <dd>
+                      <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">
+                        <BadgeCheck className="w-3.5 h-3.5" />
+                        Verified Merchant
+                      </span>
+                    </dd>
+                  </div>
+                )}
 
-              {/* Share Actions */}
-              <div className="p-4 border-t border-gray-100/80 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={copyLink}
-                    className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-xl hover:bg-gray-100/80"
-                    title="Copy link"
-                  >
-                    {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                  <button
-                    onClick={shareToWhatsApp}
-                    className="p-2 text-gray-400 hover:text-[#25D366] transition-colors rounded-xl hover:bg-gray-100/80"
-                    title="Share to WhatsApp"
-                  >
-                    <Share2 className="w-4 h-4" />
-                  </button>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-gray-500 shrink-0">File format</dt>
+                  <dd className="text-gray-800 text-right">{fileMeta || 'PDF Document'}</dd>
                 </div>
-                {copied && <span className="text-xs text-emerald-600 font-medium">✓ Copied!</span>}
-              </div>
+
+                <div className="flex justify-between gap-4 items-center">
+                  <dt className="text-gray-500 shrink-0">Fulfillment</dt>
+                  <dd className="inline-flex items-center gap-1.5 text-gray-800">
+                    <Zap className="w-3.5 h-3.5 text-amber-500" />
+                    Instant auto-download
+                  </dd>
+                </div>
+              </dl>
+
+              <p className="text-[12px] text-gray-400 mt-4 pt-4 border-t border-gray-100">
+                Receipt and download link sent to your email after payment.
+              </p>
             </div>
           </div>
 
-          {/* ─── RIGHT: Checkout (2/5) ───────────────────────────────── */}
-          <div className="md:col-span-2">
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-200/80 p-6 md:p-8 sticky top-24">
-              
-              {isPaid ? (
-                // ─── PAID STATE ──────────────────────────────────────────
-                <div className="text-center py-8">
-                  <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-5 ring-8 ring-emerald-50/50">
-                    <CheckCircle className="w-10 h-10 text-emerald-500" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-900">Payment Successful! 🎉</h2>
-                  <p className="text-gray-500 text-sm mt-2">Your file has been unlocked.</p>
+          {/* ── RIGHT ────────────────────────────────────────────── */}
+          <div>
+            {isPaid ? (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 text-center">
+                <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-7 h-7 text-emerald-500" />
+                </div>
+                <h2 className="text-xl font-semibold text-gray-900">Payment successful</h2>
+                <p className="text-sm text-gray-500 mt-2">Your file is ready to download.</p>
+                <button
+                  onClick={() => triggerDownload(product.fileUrl)}
+                  disabled={isDownloading}
+                  className="mt-6 w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-[15px] flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+                >
+                  {isDownloading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Download file
+                    </>
+                  )}
+                </button>
+                {product.returnUrl && (
                   <button
-                    onClick={() => triggerDownload(product.fileUrl)}
-                    disabled={isDownloading}
-                    className="mt-6 w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-semibold text-sm transition-all shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2.5 disabled:opacity-60"
+                    onClick={() => router.push(product.returnUrl)}
+                    className="mt-4 text-sm text-gray-500 hover:text-gray-800 transition-colors"
                   >
-                    {isDownloading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4" />
-                        Download File
-                      </>
-                    )}
+                    ← Back to merchant
                   </button>
-                  <p className="text-xs text-gray-400 mt-4 flex items-center justify-center gap-1.5">
-                    <Mail className="w-3 h-3" />
-                    Link sent to your email
+                )}
+              </div>
+            ) : isExpired ? (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 text-center">
+                <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                <h2 className="text-xl font-semibold text-gray-900">Link expired</h2>
+                <p className="text-sm text-gray-500 mt-2">This product is no longer available.</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-8">
+                {/* Price — aligned with title */}
+                <div className="pb-6 border-b border-gray-100">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                    Amount due
                   </p>
-                  {product.returnUrl && (
-                    <button
-                      onClick={() => router.push(product.returnUrl)}
-                      className="mt-4 text-sm text-purple-600 hover:text-purple-700 font-medium transition-colors"
-                    >
-                      ← Back to Merchant
-                    </button>
-                  )}
+                  <p className="text-[32px] font-semibold text-[#0a2540] mt-1 tracking-tight leading-none">
+                    {formatPrice(product.price, product.currency)}
+                  </p>
                 </div>
-              ) : isExpired ? (
-                // ─── EXPIRED STATE ────────────────────────────────────────
-                <div className="text-center py-8">
-                  <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-5 ring-8 ring-red-50/50">
-                    <AlertCircle className="w-10 h-10 text-red-400" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-gray-900">Link Expired</h2>
-                  <p className="text-gray-500 text-sm mt-2">This product is no longer available.</p>
-                </div>
-              ) : (
-                // ─── CHECKOUT FORM ────────────────────────────────────────
-                <div className="space-y-6">
-                  
-                  {/* Price */}
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider font-medium">Total</p>
-                    <p className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight mt-1">
-                      {formatPrice(product.price, product.currency)}
-                    </p>
-                  </div>
 
-                  {/* Payment Status */}
-                  {paymentStatus === 'processing' && (
-                    <div className="flex items-center gap-3 text-sm text-blue-700 bg-blue-50/80 rounded-2xl px-4 py-3.5 border border-blue-100/80">
-                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                      <span>Waiting for M-PESA confirmation…</span>
+                {/* Status banners */}
+                {paymentStatus === 'processing' && (
+                  <div className="mt-5 flex items-start gap-3 text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3.5">
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium">Waiting for M-PESA</p>
+                      <p className="text-blue-600 text-[13px] mt-0.5">
+                        Check your phone and enter your PIN
+                      </p>
                     </div>
-                  )}
-                  {paymentStatus === 'error' && (
-                    <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50/80 rounded-2xl px-4 py-3.5 border border-red-100/80">
-                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                      <span>{errorMessage}</span>
-                    </div>
-                  )}
-
-                  {/* ─── Name (Optional) ──────────────────────────────── */}
-                  <div>
-                    <button
-                      onClick={() => setShowNameField(!showNameField)}
-                      className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 transition-colors group"
-                    >
-                      <User className="w-4 h-4 group-hover:text-purple-500 transition-colors" />
-                      <span>{showNameField ? 'Hide name' : 'Add your name (optional)'}</span>
-                      {showNameField ? (
-                        <ChevronUp className="w-3.5 h-3.5" />
-                      ) : (
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                    {showNameField && (
-                      <div className="mt-2.5 relative">
-                        <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                          type="text"
-                          value={customerName}
-                          onChange={(e) => setCustomerName(e.target.value)}
-                          placeholder="Your name"
-                          disabled={isProcessing}
-                          className="w-full pl-10 pr-4 py-3 bg-gray-50/80 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all placeholder:text-gray-400"
-                        />
-                      </div>
-                    )}
                   </div>
+                )}
 
-                  {/* ─── Email ──────────────────────────────────────────── */}
+                {paymentStatus === 'error' && (
+                  <div className="mt-5 flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-4 py-3.5">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <p>{errorMessage}</p>
+                  </div>
+                )}
+
+                {/* Form */}
+                <div className="mt-6 space-y-5">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Email <span className="text-gray-400 font-normal text-xs">(for receipt)</span>
+                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                      Name <span className="text-gray-400 font-normal">optional</span>
                     </label>
                     <div className="relative">
-                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        placeholder="Your full name"
+                        disabled={isProcessing}
+                        className="w-full h-11 pl-10 pr-3.5 rounded-xl border border-gray-200 bg-white text-[14px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff] transition-shadow disabled:opacity-60"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                      Email <span className="text-gray-400 font-normal">for receipt</span>
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                       <input
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@example.com"
                         disabled={isProcessing}
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50/80 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all placeholder:text-gray-400"
+                        className="w-full h-11 pl-10 pr-3.5 rounded-xl border border-gray-200 bg-white text-[14px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff] transition-shadow disabled:opacity-60"
                       />
                     </div>
                   </div>
 
-                  {/* ─── M-PESA Phone ──────────────────────────────────── */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      M-PESA Number <span className="text-red-500">*</span>
+                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                      M-PESA number
                     </label>
-                    <div className={`flex border rounded-2xl overflow-hidden transition-all ${
-                      phoneTouched && !phoneValid 
-                        ? 'border-red-400 ring-2 ring-red-500/20' 
-                        : 'border-gray-200 focus-within:ring-2 focus-within:ring-purple-500/20 focus-within:border-purple-500'
-                    }`}>
-                      <span className="bg-gray-50/80 px-3.5 py-3 text-sm text-gray-500 border-r border-gray-200 flex items-center gap-1.5">
+                    <div className="flex h-11 rounded-xl border border-gray-200 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/25 focus-within:border-[#635bff] transition-shadow">
+                      <span className="flex items-center gap-1.5 px-3.5 bg-gray-50 border-r border-gray-200 text-[13px] text-gray-500 shrink-0">
                         <Smartphone className="w-4 h-4" />
                         +254
                       </span>
                       <input
                         type="tel"
+                        inputMode="numeric"
                         value={phoneNumber}
-                        onChange={handlePhoneChange}
-                        onBlur={handlePhoneBlur}
-                        placeholder="712 071 385"
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        placeholder="712071385"
                         disabled={isProcessing}
-                        className="flex-1 px-3.5 py-3 text-sm outline-none bg-transparent placeholder:text-gray-400"
+                        className="flex-1 px-3.5 text-[14px] text-gray-900 outline-none placeholder:text-gray-400 disabled:opacity-60"
                       />
                     </div>
-                    {phoneTouched && !phoneValid && (
-                      <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        Enter a valid M-PESA number (e.g., 0712071385)
-                      </p>
-                    )}
-                    <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1.5">
-                      <Zap className="w-3 h-3 text-purple-400" />
-                      STK push will be sent to this number
+                    <p className="text-[12px] text-gray-400 mt-1.5">
+                      We’ll send an STK push to this number
                     </p>
                   </div>
 
-                  {/* ─── Pay Button ──────────────────────────────────────── */}
+                  {/* Primary CTA */}
                   <button
                     onClick={handlePay}
                     disabled={isProcessing}
-                    className="w-full py-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-2xl font-semibold text-base transition-all shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] group"
+                    className="hidden md:flex w-full h-12 bg-[#0a2540] hover:bg-[#152a45] active:scale-[0.99] text-white rounded-xl font-semibold text-[15px] items-center justify-center gap-2 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isProcessing ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin" />
-                        Processing...
+                        Processing…
                       </>
                     ) : (
-                      <>
-                        <CreditCard className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                        Pay {formatPrice(product.price, product.currency)}
-                        <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                      </>
+                      <>Pay {formatPrice(product.price, product.currency)}</>
                     )}
                   </button>
 
-                  {/* ─── Trust Badges ─────────────────────────────────────── */}
-                  <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-gray-400 pt-1">
-                    <span className="flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5 text-emerald-500" />
-                      Encrypted
-                    </span>
-                    <span className="text-gray-300">•</span>
-                    <span className="flex items-center gap-1.5">
-                      <Shield className="w-3.5 h-3.5 text-emerald-500" />
-                      PCI-DSS
-                    </span>
-                    <span className="text-gray-300">•</span>
-                    <span className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-emerald-500" />
-                      Instant
-                    </span>
+                  {/* Trust */}
+                  <div className="flex items-center justify-center gap-1.5 text-[12px] text-gray-400 pt-1">
+                    <Shield className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Payments are encrypted and secure</span>
                   </div>
 
-                  {/* ─── Support Link ─────────────────────────────────────── */}
-                  <p className="text-center text-xs text-gray-400">
+                  <p className="text-center text-[12px] text-gray-400">
                     Need help?{' '}
-                    <Link href="/help-centre" className="text-purple-600 hover:text-purple-700 font-medium transition-colors">
+                    <Link href="/help-centre" className="text-[#635bff] font-medium hover:underline">
                       Contact support
                     </Link>
                   </p>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
 
-      {/* ─── Acquisition Banner ────────────────────────────────────────── */}
-      <section className="border-t border-gray-200/80 bg-gradient-to-r from-gray-900 to-gray-800 text-white">
-        <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 md:py-10 flex flex-col md:flex-row items-center justify-between gap-5">
-          <div className="text-center md:text-left">
-            <p className="text-base font-semibold flex items-center justify-center md:justify-start gap-2.5">
-              <Sparkles className="w-5 h-5 text-amber-400" />
+      {/* Acquisition */}
+      <section className="bg-[#0a2540] text-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-9 md:py-11 flex flex-col items-center text-center md:flex-row md:text-left md:justify-between gap-6">
+          <div className="max-w-md">
+            <p className="text-[15px] font-semibold flex items-center justify-center md:justify-start gap-2">
+              <Zap className="w-4 h-4 text-amber-400 shrink-0" />
               Sell digital products with XecoFlow
             </p>
-            <p className="text-sm text-white/60 mt-1 max-w-md">
+            <p className="text-sm text-white/55 mt-1.5 leading-relaxed">
               Accept instant M-PESA payments and automate file delivery. Create your first payment link in minutes.
             </p>
           </div>
           <a
-            href="/dashboard/products/create"
-            className="inline-flex items-center justify-center w-full md:w-auto px-6 py-3 rounded-full bg-white text-gray-900 text-sm font-semibold hover:bg-gray-100 transition-colors shadow-xl shadow-black/20"
+            href="https://xecoflow-pay.onrender.com/products/payment-links"
+            className="inline-flex items-center justify-center w-full md:w-auto h-11 px-6 rounded-full bg-white text-[#0a2540] text-sm font-semibold hover:bg-gray-100 transition-colors shrink-0"
           >
             Start selling free →
           </a>
         </div>
       </section>
 
-      {/* ─── Footer ────────────────────────────────────────────────────── */}
-      <footer className="border-t border-gray-200/80 bg-white/80 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-4 md:px-8 py-5">
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-gray-400">
+      {/* Footer */}
+      <footer className="bg-white border-t border-gray-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-gray-400">
             <span>© 2026 XecoFlow. All rights reserved.</span>
-            <span className="hidden sm:inline text-gray-300">·</span>
+            <span className="hidden sm:inline text-gray-200">·</span>
             <Link href="/terms" className="hover:text-gray-600 transition-colors">
               Terms
             </Link>
-            <span className="hidden sm:inline text-gray-300">·</span>
+            <span className="hidden sm:inline text-gray-200">·</span>
             <Link href="/privacy" className="hover:text-gray-600 transition-colors">
               Privacy
             </Link>
-            <span className="hidden sm:inline text-gray-300">·</span>
+            <span className="hidden sm:inline text-gray-200">·</span>
             <Link href="/help-centre" className="hover:text-gray-600 transition-colors">
-              Support
+              Report link
             </Link>
           </div>
         </div>
