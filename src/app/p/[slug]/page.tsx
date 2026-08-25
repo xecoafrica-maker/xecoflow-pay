@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Smartphone,
   CheckCircle,
@@ -12,6 +13,9 @@ import {
   Lock,
   Mail,
   User,
+  Shield,
+  Zap,
+  BadgeCheck,
 } from 'lucide-react';
 
 interface ProductData {
@@ -29,6 +33,8 @@ interface ProductData {
   expiryDate: string;
   returnUrl: string;
   verified?: boolean;
+  pageCount?: number;
+  fileSizeMb?: number;
 }
 
 export default function ProductPage() {
@@ -160,9 +166,20 @@ export default function ProductPage() {
   const isExpired = new Date(product.expiryDate) < new Date();
   const isPaid = product.status === 'PAID' || product.status === 'COMPLETED';
   const merchantName = product.businessName || 'Merchant';
+  const isVerified = product.verified === true;
+  const pageCount = product.pageCount;
+  const fileSizeMb = product.fileSizeMb;
+
+  const fileMeta = [
+    'PDF Document',
+    pageCount ? `${pageCount} ${pageCount === 1 ? 'Page' : 'Pages'}` : null,
+    fileSizeMb ? `${fileSizeMb} MB` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
       <header className="border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center">
@@ -190,28 +207,55 @@ export default function ProductPage() {
         </div>
       )}
 
-      <main className="max-w-5xl mx-auto px-4 py-8 md:py-12 pb-28 md:pb-12">
+      <main className="flex-1 max-w-5xl mx-auto px-4 py-8 md:py-12 pb-28 md:pb-12 w-full">
         <div className="grid md:grid-cols-2 gap-10 md:gap-16">
-          {/* Document */}
+          {/* Left — Product + merchant details */}
           <div>
-            {/* Merchant name from database */}
-            <div className="flex items-center gap-2 mb-1">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                {merchantName}
-              </p>
-              {product.verified && (
-                <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                  VERIFIED
-                </span>
-              )}
-            </div>
-
             <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
               {product.name}
             </h1>
 
-            {/* Preview — limited height, strong lock */}
-            <div className="mt-6 relative rounded-lg border border-gray-200 overflow-hidden bg-gray-50 h-[260px] md:h-[300px]">
+            {/* Merchant & item details */}
+            <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                Merchant & item details
+              </p>
+
+              <div className="grid grid-cols-[110px_1fr] gap-y-2.5 text-sm">
+                <span className="text-gray-500">Merchant</span>
+                <span className="font-medium text-gray-900">{merchantName}</span>
+
+                <span className="text-gray-500">Status</span>
+                <span>
+                  {isVerified ? (
+                    <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                      <BadgeCheck className="w-3.5 h-3.5" />
+                      VERIFIED
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center text-[12px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                      Not verified
+                    </span>
+                  )}
+                </span>
+
+                <span className="text-gray-500">File format</span>
+                <span className="text-gray-800">{fileMeta || 'PDF Document'}</span>
+
+                <span className="text-gray-500">Fulfillment</span>
+                <span className="inline-flex items-center gap-1.5 text-gray-800">
+                  <Zap className="w-3.5 h-3.5 text-amber-500" />
+                  Instant auto-download
+                </span>
+              </div>
+
+              <p className="text-[12px] text-gray-400 pt-1 border-t border-gray-100">
+                Receipt and file link sent to your email after payment.
+              </p>
+            </div>
+
+            {/* Preview */}
+            <div className="mt-5 relative rounded-lg border border-gray-200 overflow-hidden bg-gray-50 h-[240px] md:h-[280px]">
               {product.fileUrl ? (
                 <iframe
                   src={`${product.fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
@@ -227,8 +271,8 @@ export default function ProductPage() {
 
               {!isPaid && (
                 <>
-                  <div className="absolute inset-0 top-[15%] bg-white/50 backdrop-blur-md" />
-                  <div className="absolute inset-x-0 bottom-0 h-[75%] bg-gradient-to-t from-white via-white/95 to-transparent flex flex-col items-center justify-end pb-8">
+                  <div className="absolute inset-0 top-[12%] bg-white/50 backdrop-blur-md" />
+                  <div className="absolute inset-x-0 bottom-0 h-[80%] bg-gradient-to-t from-white via-white/95 to-transparent flex flex-col items-center justify-end pb-7">
                     <div className="flex items-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 px-4 py-2 rounded-full shadow-sm">
                       <Lock className="w-3.5 h-3.5" />
                       Unlock after payment
@@ -239,7 +283,7 @@ export default function ProductPage() {
             </div>
           </div>
 
-          {/* Checkout */}
+          {/* Right — Checkout */}
           <div>
             {isPaid ? (
               <div className="text-center py-8">
@@ -374,11 +418,75 @@ export default function ProductPage() {
                   <Lock className="w-3 h-3" />
                   Payments are encrypted and secure
                 </p>
+
+                <p className="text-center text-[12px] text-gray-400">
+                  Need help?{' '}
+                  <Link href="/help-centre" className="text-[#635bff] hover:underline">
+                    Contact support
+                  </Link>
+                </p>
               </div>
             )}
           </div>
         </div>
       </main>
+
+      {/* Acquisition banner */}
+      <section className="border-t border-gray-100 bg-[#0a2540] text-white">
+        <div className="max-w-5xl mx-auto px-4 py-8 md:py-10 flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+          <div>
+            <p className="text-[15px] font-semibold flex items-center gap-2">
+              <Zap className="w-4 h-4 text-amber-400" />
+              Sell digital products with XecoFlow
+            </p>
+            <p className="text-sm text-white/60 mt-1 max-w-md">
+              Accept instant M-PESA payments and automate file delivery. Create your first payment link in minutes.
+            </p>
+          </div>
+          <Link
+            href="/signup"
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-white text-[#0a2540] text-sm font-semibold hover:bg-gray-100 transition-colors shrink-0"
+          >
+            Start selling free →
+          </Link>
+        </div>
+      </section>
+
+      {/* Trust footer */}
+      <footer className="border-t border-gray-100 bg-white">
+        <div className="max-w-5xl mx-auto px-4 py-6">
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[11px] text-gray-400 mb-4">
+            <span className="flex items-center gap-1">
+              <Shield className="w-3 h-3" />
+              256-bit SSL encrypted
+            </span>
+            <span className="flex items-center gap-1">
+              <Zap className="w-3 h-3" />
+              Instant automated delivery
+            </span>
+            <span className="flex items-center gap-1">
+              <BadgeCheck className="w-3 h-3" />
+              Verified merchant system
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-gray-400">
+            <span>© 2026 XecoFlow. All rights reserved.</span>
+            <Link href="/terms" className="hover:text-gray-600">
+              Terms
+            </Link>
+            <Link href="/privacy" className="hover:text-gray-600">
+              Privacy
+            </Link>
+            <Link href="/help-centre" className="hover:text-gray-600">
+              Report link
+            </Link>
+            <Link href="/help-centre" className="hover:text-gray-600">
+              Support
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
