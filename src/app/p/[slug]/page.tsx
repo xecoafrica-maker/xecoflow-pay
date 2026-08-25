@@ -180,13 +180,23 @@ export default function ProductPage() {
 
   return (
     <div className="min-h-screen bg-[#fafafa] flex flex-col">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200/80">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center">
-          <span className="text-[22px] font-bold tracking-tight">
-            <span className="text-[#0a2540]">Xeco</span>
-            <span className="text-[#10B981]">Flow</span>
-          </span>
+      {/* Payment-link nav — minimal, trust-focused */}
+      <header className="bg-white border-b border-gray-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-[20px] font-bold tracking-tight">
+              <span className="text-[#0a2540]">Xeco</span>
+              <span className="text-[#10B981]">Flow</span>
+            </span>
+            <span className="hidden sm:inline text-gray-300 text-sm">·</span>
+            <span className="hidden sm:inline text-[13px] text-gray-400 font-medium">
+              Secure payment
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[12px] text-gray-400">
+            <Lock className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Secured</span>
+          </div>
         </div>
       </header>
 
@@ -327,7 +337,6 @@ export default function ProductPage() {
               </div>
             ) : (
               <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-8">
-                {/* Price — aligned with title */}
                 <div className="pb-6 border-b border-gray-100">
                   <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
                     Amount due
@@ -337,7 +346,6 @@ export default function ProductPage() {
                   </p>
                 </div>
 
-                {/* Status banners */}
                 {paymentStatus === 'processing' && (
                   <div className="mt-5 flex items-start gap-3 text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3.5">
                     <Loader2 className="w-4 h-4 animate-spin shrink-0 mt-0.5" />
@@ -357,7 +365,6 @@ export default function ProductPage() {
                   </div>
                 )}
 
-                {/* Form */}
                 <div className="mt-6 space-y-5">
                   <div>
                     <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
@@ -417,7 +424,6 @@ export default function ProductPage() {
                     </p>
                   </div>
 
-                  {/* Primary CTA */}
                   <button
                     onClick={handlePay}
                     disabled={isProcessing}
@@ -433,7 +439,6 @@ export default function ProductPage() {
                     )}
                   </button>
 
-                  {/* Trust */}
                   <div className="flex items-center justify-center gap-1.5 text-[12px] text-gray-400 pt-1">
                     <Shield className="w-3.5 h-3.5 text-emerald-500" />
                     <span>Payments are encrypted and secure</span>
@@ -452,7 +457,7 @@ export default function ProductPage() {
         </div>
       </main>
 
-      {/* Acquisition */}
+      {/* Acquisition banner */}
       <section className="bg-[#0a2540] text-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-9 md:py-11 flex flex-col items-center text-center md:flex-row md:text-left md:justify-between gap-6">
           <div className="max-w-md">
