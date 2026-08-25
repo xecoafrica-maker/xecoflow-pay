@@ -202,50 +202,42 @@ export default function ProductPage() {
               {product.name}
             </h1>
 
-            {/* Preview — desktop: iframe · mobile: document card */}
-            <div className="relative rounded-xl sm:rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-sm">
-              {/* Mobile placeholder (PDFs often fail in mobile browsers) */}
-              <div className="md:hidden flex flex-col items-center justify-center py-10 px-6 bg-gradient-to-b from-gray-50 to-white min-h-[200px]">
-                <div className="w-14 h-14 rounded-2xl bg-[#0a2540]/5 flex items-center justify-center mb-3">
-                  <FileText className="w-7 h-7 text-[#0a2540]/60" />
-                </div>
-                <p className="text-sm font-medium text-gray-800">Digital document</p>
-                <p className="text-xs text-gray-400 mt-1">{fileMeta || 'PDF Document'}</p>
-                {!isPaid && (
-                  <div className="mt-5 flex items-center gap-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 px-3.5 py-2 rounded-full shadow-sm">
-                    <Lock className="w-3 h-3 text-gray-500" />
-                    Unlock after payment
-                  </div>
-                )}
-              </div>
-
-              {/* Desktop iframe preview */}
-              <div className="hidden md:block relative h-[300px]">
-                {product.fileUrl ? (
+            {/* Preview */}
+            <div className="relative rounded-xl sm:rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-sm h-[220px] sm:h-[260px] md:h-[300px]">
+              {product.fileUrl ? (
+                <>
+                  {/* Mobile: Google Docs viewer (direct PDF iframes often fail on phones) */}
+                  <iframe
+                    src={`https://docs.google.com/gview?url=${encodeURIComponent(product.fileUrl)}&embedded=true`}
+                    className="md:hidden w-full h-full border-0"
+                    title="Preview"
+                  />
+                  {/* Desktop: direct PDF */}
                   <iframe
                     src={`${product.fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-                    className="w-full h-full"
+                    className="hidden md:block w-full h-full border-0"
                     style={{ pointerEvents: 'none' }}
                     title="Preview"
                   />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gray-50">
-                    <FileText className="w-14 h-14 text-gray-200" />
-                  </div>
-                )}
+                </>
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50">
+                  <FileText className="w-12 h-12 text-gray-200" />
+                  <p className="text-sm text-gray-400 mt-2">No preview available</p>
+                </div>
+              )}
 
-                {!isPaid && (
-                  <>
-                    <div className="absolute inset-0 top-[10%] bg-white/55 backdrop-blur-[6px]" />
-                    <div className="absolute inset-x-0 bottom-0 h-[82%] bg-gradient-to-t from-white via-white/90 to-transparent flex items-end justify-center pb-8">
-                      <div className="flex items-center gap-2 text-[13px] font-medium text-gray-700 bg-white border border-gray-200 px-4 py-2.5 rounded-full shadow-md">
-                        <Lock className="w-3.5 h-3.5 text-gray-500" />
-                        Unlock after payment
-                      </div>
+              {!isPaid && (
+                <>
+                  <div className="absolute inset-0 top-[12%] bg-white/50 backdrop-blur-[5px]" />
+                  <div className="absolute inset-x-0 bottom-0 h-[80%] bg-gradient-to-t from-white via-white/90 to-transparent flex items-end justify-center pb-6 sm:pb-8">
+                    <div className="flex items-center gap-1.5 text-xs sm:text-[13px] font-medium text-gray-700 bg-white border border-gray-200 px-3.5 sm:px-4 py-2 rounded-full shadow-sm">
+                      <Lock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-500" />
+                      Unlock after payment
                     </div>
-                  </>
-                )}
-              </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Merchant details */}
@@ -419,7 +411,7 @@ export default function ProductPage() {
                     </p>
                   </div>
 
-                  {/* Pay button — inside card on all screens */}
+                  {/* Pay button inside card on all screens */}
                   <button
                     onClick={handlePay}
                     disabled={isProcessing}
