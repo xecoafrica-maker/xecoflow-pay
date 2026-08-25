@@ -9,10 +9,7 @@ import {
   AlertCircle,
   FileText,
   Download,
-  Shield,
   Lock,
-  Copy,
-  Check,
   Mail,
   User,
 } from 'lucide-react';
@@ -31,6 +28,7 @@ interface ProductData {
   createdAt: string;
   expiryDate: string;
   returnUrl: string;
+  verified?: boolean;
 }
 
 export default function ProductPage() {
@@ -48,7 +46,6 @@ export default function ProductPage() {
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -132,12 +129,6 @@ export default function ProductPage() {
     setIsDownloading(false);
   };
 
-  const copyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -168,19 +159,16 @@ export default function ProductPage() {
 
   const isExpired = new Date(product.expiryDate) < new Date();
   const isPaid = product.status === 'PAID' || product.status === 'COMPLETED';
+  const merchantName = product.businessName || 'Merchant';
 
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <span className="text-[15px] font-bold tracking-tight">
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center">
+          <span className="text-[18px] font-bold tracking-tight">
             <span className="text-[#0a2540]">Xeco</span>
             <span className="text-[#10B981]">Flow</span>
-          </span>
-          <span className="flex items-center gap-1.5 text-xs text-gray-400">
-            <Shield className="w-3.5 h-3.5" />
-            Secure checkout
           </span>
         </div>
       </header>
@@ -206,18 +194,24 @@ export default function ProductPage() {
         <div className="grid md:grid-cols-2 gap-10 md:gap-16">
           {/* Document */}
           <div>
-            <p className="text-xs text-gray-400 mb-1">{product.businessName}</p>
+            {/* Merchant name from database */}
+            <div className="flex items-center gap-2 mb-1">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                {merchantName}
+              </p>
+              {product.verified && (
+                <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                  VERIFIED
+                </span>
+              )}
+            </div>
+
             <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
               {product.name}
             </h1>
-            {product.fileName && (
-              <p className="text-sm text-gray-400 mt-1 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5" />
-                {product.fileName}
-              </p>
-            )}
 
-            <div className="mt-6 relative rounded-lg border border-gray-200 overflow-hidden bg-gray-50 aspect-[3/4]">
+            {/* Preview — limited height, strong lock */}
+            <div className="mt-6 relative rounded-lg border border-gray-200 overflow-hidden bg-gray-50 h-[260px] md:h-[300px]">
               {product.fileUrl ? (
                 <iframe
                   src={`${product.fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
@@ -232,32 +226,16 @@ export default function ProductPage() {
               )}
 
               {!isPaid && (
-                <div className="absolute inset-x-0 bottom-0 h-[50%] bg-gradient-to-t from-white via-white/90 to-transparent flex flex-col items-center justify-end pb-8">
-                  <div className="flex items-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 px-4 py-2 rounded-full shadow-sm">
-                    <Lock className="w-3.5 h-3.5" />
-                    Unlock after payment
+                <>
+                  <div className="absolute inset-0 top-[15%] bg-white/50 backdrop-blur-md" />
+                  <div className="absolute inset-x-0 bottom-0 h-[75%] bg-gradient-to-t from-white via-white/95 to-transparent flex flex-col items-center justify-end pb-8">
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 px-4 py-2 rounded-full shadow-sm">
+                      <Lock className="w-3.5 h-3.5" />
+                      Unlock after payment
+                    </div>
                   </div>
-                </div>
+                </>
               )}
-            </div>
-
-            <div className="mt-4 flex items-center gap-3">
-              <button
-                onClick={copyLink}
-                className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1.5 transition-colors"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-500" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    Copy link
-                  </>
-                )}
-              </button>
             </div>
           </div>
 
