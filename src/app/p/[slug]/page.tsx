@@ -138,23 +138,23 @@ export default function ProductPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#fafafa]">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+        <Loader2 className="w-7 h-7 animate-spin text-gray-400" />
       </div>
     );
   }
 
   if (error || !product) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fafafa] p-6">
-        <div className="max-w-sm w-full text-center bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-          <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
-          <h1 className="text-lg font-semibold text-gray-900">Unavailable</h1>
+      <div className="min-h-screen flex items-center justify-center bg-[#fafafa] p-4">
+        <div className="max-w-sm w-full text-center bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+          <AlertCircle className="w-9 h-9 text-red-500 mx-auto mb-3" />
+          <h1 className="text-base font-semibold text-gray-900">Unavailable</h1>
           <p className="text-sm text-gray-500 mt-2 leading-relaxed">
             {error || 'This link is invalid or has expired.'}
           </p>
           <button
             onClick={() => router.push('/')}
-            className="mt-6 text-sm font-medium text-[#635bff] hover:underline"
+            className="mt-5 text-sm font-medium text-[#635bff] hover:underline"
           >
             Go home
           </button>
@@ -180,36 +180,30 @@ export default function ProductPage() {
 
   return (
     <div className="min-h-screen bg-[#fafafa] flex flex-col">
-      {/* Payment-link nav — minimal, trust-focused */}
-      <header className="bg-white border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-[20px] font-bold tracking-tight">
-              <span className="text-[#0a2540]">Xeco</span>
-              <span className="text-[#10B981]">Flow</span>
-            </span>
-            <span className="hidden sm:inline text-gray-300 text-sm">·</span>
-            <span className="hidden sm:inline text-[13px] text-gray-400 font-medium">
-              Secure payment
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[12px] text-gray-400">
-            <Lock className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Secured</span>
-          </div>
+      {/* Minimal nav — no Secured label */}
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-40">
+        <div className="max-w-5xl mx-auto px-4 h-12 sm:h-14 flex items-center">
+          <span className="text-[18px] sm:text-[20px] font-bold tracking-tight">
+            <span className="text-[#0a2540]">Xeco</span>
+            <span className="text-[#10B981]">Flow</span>
+          </span>
+          <span className="hidden sm:inline text-gray-300 text-sm ml-2">·</span>
+          <span className="hidden sm:inline text-[13px] text-gray-400 font-medium ml-2">
+            Secure payment
+          </span>
         </div>
       </header>
 
-      {/* Mobile sticky CTA */}
+      {/* Mobile sticky pay */}
       {!isPaid && !isExpired && (
-        <div className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-200 px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.06)]">
+        <div className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-gray-200 px-4 py-3 safe-area-pb">
           <button
             onClick={handlePay}
             disabled={isProcessing}
-            className="w-full h-12 bg-[#0a2540] hover:bg-[#152a45] active:scale-[0.98] text-white rounded-xl font-semibold text-[15px] flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+            className="w-full h-11 bg-[#0a2540] active:bg-[#152a45] text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {isProcessing ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <>Pay {formatPrice(product.price, product.currency)}</>
             )}
@@ -217,16 +211,16 @@ export default function ProductPage() {
         </div>
       )}
 
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 md:py-12 pb-28 md:pb-16">
-        <div className="grid md:grid-cols-2 gap-8 lg:gap-14 items-start">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-5 sm:py-8 md:py-12 pb-24 md:pb-16">
+        <div className="grid md:grid-cols-2 gap-5 md:gap-10 lg:gap-14 items-start">
           {/* ── LEFT ─────────────────────────────────────────────── */}
-          <div className="space-y-5">
-            <h1 className="text-[26px] md:text-[28px] font-semibold text-[#0a2540] tracking-tight leading-tight">
+          <div className="space-y-4">
+            <h1 className="text-xl sm:text-2xl md:text-[28px] font-semibold text-[#0a2540] tracking-tight leading-snug">
               {product.name}
             </h1>
 
-            {/* Preview card */}
-            <div className="relative rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-sm h-[240px] md:h-[300px]">
+            {/* Preview */}
+            <div className="relative rounded-xl sm:rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-sm h-[180px] sm:h-[240px] md:h-[300px]">
               {product.fileUrl ? (
                 <iframe
                   src={`${product.fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
@@ -236,16 +230,16 @@ export default function ProductPage() {
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-50">
-                  <FileText className="w-14 h-14 text-gray-200" />
+                  <FileText className="w-10 h-10 sm:w-14 sm:h-14 text-gray-200" />
                 </div>
               )}
 
               {!isPaid && (
                 <>
-                  <div className="absolute inset-0 top-[10%] bg-white/55 backdrop-blur-[8px]" />
-                  <div className="absolute inset-x-0 bottom-0 h-[82%] bg-gradient-to-t from-white via-white/90 to-transparent flex items-end justify-center pb-8">
-                    <div className="flex items-center gap-2 text-[13px] font-medium text-gray-700 bg-white border border-gray-200 px-4 py-2.5 rounded-full shadow-md">
-                      <Lock className="w-3.5 h-3.5 text-gray-500" />
+                  <div className="absolute inset-0 top-[8%] bg-white/55 backdrop-blur-[6px]" />
+                  <div className="absolute inset-x-0 bottom-0 h-[85%] bg-gradient-to-t from-white via-white/90 to-transparent flex items-end justify-center pb-5 sm:pb-8">
+                    <div className="flex items-center gap-1.5 text-xs sm:text-[13px] font-medium text-gray-700 bg-white border border-gray-200 px-3 sm:px-4 py-2 rounded-full shadow-sm">
+                      <Lock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-500" />
                       Unlock after payment
                     </div>
                   </div>
@@ -253,46 +247,46 @@ export default function ProductPage() {
               )}
             </div>
 
-            {/* Merchant card */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">
+            {/* Merchant details */}
+            <div className="rounded-xl sm:rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-sm">
+              <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
                 Merchant & item details
               </p>
 
-              <dl className="space-y-3 text-[14px]">
-                <div className="flex justify-between gap-4">
+              <dl className="space-y-2.5 text-[13px] sm:text-[14px]">
+                <div className="flex justify-between gap-3">
                   <dt className="text-gray-500 shrink-0">Merchant</dt>
-                  <dd className="font-medium text-gray-900 text-right">{merchantName}</dd>
+                  <dd className="font-medium text-gray-900 text-right truncate">{merchantName}</dd>
                 </div>
 
                 {isVerified && (
-                  <div className="flex justify-between gap-4 items-center">
+                  <div className="flex justify-between gap-3 items-center">
                     <dt className="text-gray-500 shrink-0">Status</dt>
                     <dd>
-                      <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">
-                        <BadgeCheck className="w-3.5 h-3.5" />
-                        Verified Merchant
+                      <span className="inline-flex items-center gap-1 text-[11px] sm:text-[12px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                        <BadgeCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        Verified
                       </span>
                     </dd>
                   </div>
                 )}
 
-                <div className="flex justify-between gap-4">
+                <div className="flex justify-between gap-3">
                   <dt className="text-gray-500 shrink-0">File format</dt>
-                  <dd className="text-gray-800 text-right">{fileMeta || 'PDF Document'}</dd>
+                  <dd className="text-gray-800 text-right text-[12px] sm:text-[14px]">{fileMeta || 'PDF Document'}</dd>
                 </div>
 
-                <div className="flex justify-between gap-4 items-center">
+                <div className="flex justify-between gap-3 items-center">
                   <dt className="text-gray-500 shrink-0">Fulfillment</dt>
-                  <dd className="inline-flex items-center gap-1.5 text-gray-800">
-                    <Zap className="w-3.5 h-3.5 text-amber-500" />
-                    Instant auto-download
+                  <dd className="inline-flex items-center gap-1 text-gray-800 text-[12px] sm:text-[14px]">
+                    <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500" />
+                    Instant download
                   </dd>
                 </div>
               </dl>
 
-              <p className="text-[12px] text-gray-400 mt-4 pt-4 border-t border-gray-100">
-                Receipt and download link sent to your email after payment.
+              <p className="text-[11px] sm:text-[12px] text-gray-400 mt-3 pt-3 border-t border-gray-100">
+                Receipt and file link sent to your email after payment.
               </p>
             </div>
           </div>
@@ -300,19 +294,19 @@ export default function ProductPage() {
           {/* ── RIGHT ────────────────────────────────────────────── */}
           <div>
             {isPaid ? (
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 text-center">
-                <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle className="w-7 h-7 text-emerald-500" />
+              <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 text-center">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-500" />
                 </div>
-                <h2 className="text-xl font-semibold text-gray-900">Payment successful</h2>
-                <p className="text-sm text-gray-500 mt-2">Your file is ready to download.</p>
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Payment successful</h2>
+                <p className="text-sm text-gray-500 mt-1.5">Your file is ready to download.</p>
                 <button
                   onClick={() => triggerDownload(product.fileUrl)}
                   disabled={isDownloading}
-                  className="mt-6 w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-[15px] flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+                  className="mt-5 w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
                 >
                   {isDownloading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <>
                       <Download className="w-4 h-4" />
@@ -323,90 +317,88 @@ export default function ProductPage() {
                 {product.returnUrl && (
                   <button
                     onClick={() => router.push(product.returnUrl)}
-                    className="mt-4 text-sm text-gray-500 hover:text-gray-800 transition-colors"
+                    className="mt-3 text-sm text-gray-500 hover:text-gray-800"
                   >
                     ← Back to merchant
                   </button>
                 )}
               </div>
             ) : isExpired ? (
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 text-center">
-                <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-                <h2 className="text-xl font-semibold text-gray-900">Link expired</h2>
-                <p className="text-sm text-gray-500 mt-2">This product is no longer available.</p>
+              <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 text-center">
+                <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+                <h2 className="text-lg font-semibold text-gray-900">Link expired</h2>
+                <p className="text-sm text-gray-500 mt-1.5">This product is no longer available.</p>
               </div>
             ) : (
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-8">
-                <div className="pb-6 border-b border-gray-100">
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+              <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-6 md:p-8">
+                <div className="pb-4 sm:pb-6 border-b border-gray-100">
+                  <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
                     Amount due
                   </p>
-                  <p className="text-[32px] font-semibold text-[#0a2540] mt-1 tracking-tight leading-none">
+                  <p className="text-[28px] sm:text-[32px] font-semibold text-[#0a2540] mt-1 tracking-tight leading-none">
                     {formatPrice(product.price, product.currency)}
                   </p>
                 </div>
 
                 {paymentStatus === 'processing' && (
-                  <div className="mt-5 flex items-start gap-3 text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3.5">
+                  <div className="mt-4 flex items-start gap-2.5 text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-3">
                     <Loader2 className="w-4 h-4 animate-spin shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-medium">Waiting for M-PESA</p>
-                      <p className="text-blue-600 text-[13px] mt-0.5">
-                        Check your phone and enter your PIN
-                      </p>
+                      <p className="font-medium text-[13px]">Waiting for M-PESA</p>
+                      <p className="text-blue-600 text-[12px] mt-0.5">Enter your PIN on your phone</p>
                     </div>
                   </div>
                 )}
 
                 {paymentStatus === 'error' && (
-                  <div className="mt-5 flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-4 py-3.5">
+                  <div className="mt-4 flex items-start gap-2.5 text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-3.5 py-3">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <p>{errorMessage}</p>
+                    <p className="text-[13px]">{errorMessage}</p>
                   </div>
                 )}
 
-                <div className="mt-6 space-y-5">
+                <div className="mt-5 space-y-4">
                   <div>
-                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                    <label className="block text-[12px] sm:text-[13px] font-medium text-gray-700 mb-1.5">
                       Name <span className="text-gray-400 font-normal">optional</span>
                     </label>
                     <div className="relative">
-                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                       <input
                         type="text"
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
                         placeholder="Your full name"
                         disabled={isProcessing}
-                        className="w-full h-11 pl-10 pr-3.5 rounded-xl border border-gray-200 bg-white text-[14px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff] transition-shadow disabled:opacity-60"
+                        className="w-full h-10 sm:h-11 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-[14px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff] disabled:opacity-60"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                    <label className="block text-[12px] sm:text-[13px] font-medium text-gray-700 mb-1.5">
                       Email <span className="text-gray-400 font-normal">for receipt</span>
                     </label>
                     <div className="relative">
-                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                       <input
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@example.com"
                         disabled={isProcessing}
-                        className="w-full h-11 pl-10 pr-3.5 rounded-xl border border-gray-200 bg-white text-[14px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff] transition-shadow disabled:opacity-60"
+                        className="w-full h-10 sm:h-11 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-[14px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff] disabled:opacity-60"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                    <label className="block text-[12px] sm:text-[13px] font-medium text-gray-700 mb-1.5">
                       M-PESA number
                     </label>
-                    <div className="flex h-11 rounded-xl border border-gray-200 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/25 focus-within:border-[#635bff] transition-shadow">
-                      <span className="flex items-center gap-1.5 px-3.5 bg-gray-50 border-r border-gray-200 text-[13px] text-gray-500 shrink-0">
-                        <Smartphone className="w-4 h-4" />
+                    <div className="flex h-10 sm:h-11 rounded-xl border border-gray-200 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/25 focus-within:border-[#635bff]">
+                      <span className="flex items-center gap-1 px-2.5 sm:px-3.5 bg-gray-50 border-r border-gray-200 text-[12px] sm:text-[13px] text-gray-500 shrink-0">
+                        <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         +254
                       </span>
                       <input
@@ -416,18 +408,18 @@ export default function ProductPage() {
                         onChange={(e) => setPhoneNumber(e.target.value)}
                         placeholder="712071385"
                         disabled={isProcessing}
-                        className="flex-1 px-3.5 text-[14px] text-gray-900 outline-none placeholder:text-gray-400 disabled:opacity-60"
+                        className="flex-1 min-w-0 px-2.5 sm:px-3.5 text-[14px] text-gray-900 outline-none placeholder:text-gray-400 disabled:opacity-60"
                       />
                     </div>
-                    <p className="text-[12px] text-gray-400 mt-1.5">
-                      We’ll send an STK push to this number
+                    <p className="text-[11px] sm:text-[12px] text-gray-400 mt-1.5">
+                      STK push will be sent to this number
                     </p>
                   </div>
 
                   <button
                     onClick={handlePay}
                     disabled={isProcessing}
-                    className="hidden md:flex w-full h-12 bg-[#0a2540] hover:bg-[#152a45] active:scale-[0.99] text-white rounded-xl font-semibold text-[15px] items-center justify-center gap-2 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="hidden md:flex w-full h-12 bg-[#0a2540] hover:bg-[#152a45] text-white rounded-xl font-semibold text-[15px] items-center justify-center gap-2 transition-all disabled:opacity-50"
                   >
                     {isProcessing ? (
                       <>
@@ -439,12 +431,12 @@ export default function ProductPage() {
                     )}
                   </button>
 
-                  <div className="flex items-center justify-center gap-1.5 text-[12px] text-gray-400 pt-1">
-                    <Shield className="w-3.5 h-3.5 text-emerald-500" />
+                  <div className="flex items-center justify-center gap-1.5 text-[11px] sm:text-[12px] text-gray-400 pt-0.5">
+                    <Shield className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-500" />
                     <span>Payments are encrypted and secure</span>
                   </div>
 
-                  <p className="text-center text-[12px] text-gray-400">
+                  <p className="text-center text-[11px] sm:text-[12px] text-gray-400">
                     Need help?{' '}
                     <Link href="/help-centre" className="text-[#635bff] font-medium hover:underline">
                       Contact support
@@ -457,21 +449,21 @@ export default function ProductPage() {
         </div>
       </main>
 
-      {/* Acquisition banner */}
+      {/* Acquisition — compact on mobile */}
       <section className="bg-[#0a2540] text-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-9 md:py-11 flex flex-col items-center text-center md:flex-row md:text-left md:justify-between gap-6">
+        <div className="max-w-5xl mx-auto px-4 py-6 sm:py-9 md:py-11 flex flex-col items-center text-center md:flex-row md:text-left md:justify-between gap-4 sm:gap-6">
           <div className="max-w-md">
-            <p className="text-[15px] font-semibold flex items-center justify-center md:justify-start gap-2">
-              <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+            <p className="text-[13px] sm:text-[15px] font-semibold flex items-center justify-center md:justify-start gap-1.5">
+              <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
               Sell digital products with XecoFlow
             </p>
-            <p className="text-sm text-white/55 mt-1.5 leading-relaxed">
-              Accept instant M-PESA payments and automate file delivery. Create your first payment link in minutes.
+            <p className="text-[12px] sm:text-sm text-white/55 mt-1 leading-relaxed">
+              Accept M-PESA and automate file delivery in minutes.
             </p>
           </div>
           <a
             href="https://xecoflow-pay.onrender.com/products/payment-links"
-            className="inline-flex items-center justify-center w-full md:w-auto h-11 px-6 rounded-full bg-white text-[#0a2540] text-sm font-semibold hover:bg-gray-100 transition-colors shrink-0"
+            className="inline-flex items-center justify-center w-full md:w-auto h-10 sm:h-11 px-5 rounded-full bg-white text-[#0a2540] text-[13px] sm:text-sm font-semibold hover:bg-gray-100 transition-colors shrink-0"
           >
             Start selling free →
           </a>
@@ -480,20 +472,20 @@ export default function ProductPage() {
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-gray-400">
-            <span>© 2026 XecoFlow. All rights reserved.</span>
-            <span className="hidden sm:inline text-gray-200">·</span>
-            <Link href="/terms" className="hover:text-gray-600 transition-colors">
+        <div className="max-w-5xl mx-auto px-4 py-4 sm:py-5">
+          <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[10px] sm:text-[11px] text-gray-400">
+            <span>© 2026 XecoFlow</span>
+            <span className="text-gray-200">·</span>
+            <Link href="/terms" className="hover:text-gray-600">
               Terms
             </Link>
-            <span className="hidden sm:inline text-gray-200">·</span>
-            <Link href="/privacy" className="hover:text-gray-600 transition-colors">
+            <span className="text-gray-200">·</span>
+            <Link href="/privacy" className="hover:text-gray-600">
               Privacy
             </Link>
-            <span className="hidden sm:inline text-gray-200">·</span>
-            <Link href="/help-centre" className="hover:text-gray-600 transition-colors">
-              Report link
+            <span className="text-gray-200">·</span>
+            <Link href="/help-centre" className="hover:text-gray-600">
+              Report
             </Link>
           </div>
         </div>
