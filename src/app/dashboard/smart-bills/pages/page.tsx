@@ -14,14 +14,16 @@ import {
   CreditCard,
   Loader2,
   Globe,
+  File,
+  Package,
 } from 'lucide-react';
 import { getStoredMerchant } from '@/lib/auth';
-import CreateBillModal from '../components/CreateBillModal'; // ✅ Import the modal
+import CreateBillModal from '../components/CreateBillModal';
 
 // ─── Types ──────────────────────────────────────────────────────────
-interface Bill {
+interface PageItem {
   id: string;
-  bill_id: string;
+  page_id: string;        // bill_id or product_id
   merchant_id: string;
   business_name: string;
   customer_name: string;
@@ -32,19 +34,20 @@ interface Bill {
   description: string;
   status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'PROCESSING';
   created_at: string;
+  page_type: 'bill' | 'product';  // ✅ NEW: Distinguish between bill and product
+  file_url?: string;              // ✅ For products
+  file_name?: string;             // ✅ For products
 }
 
 export default function SmartBillPages() {
   const router = useRouter();
-  const [bills, setBills] = useState<Bill[]>([]);
+  const [pages, setPages] = useState<PageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // ✅ NEW: State to control the modal popup
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // ─── Fetch Bills ──────────────────────────────────────────────────
-  const fetchBills = async () => {
+  // ─── Fetch Bills & Products ──────────────────────────────────────
+  const fetchPages = async () => {
     const merchantData = getStoredMerchant();
     const merchantId = merchantData?.merchantId || merchantData?.merchant_id || '';
 
@@ -54,27 +57,55 @@ export default function SmartBillPages() {
     }
 
     try {
-      const response = await fetch(`/api/bills/merchant?merchantId=${merchantId}`);
-      const data = await response.json();
-      if (data.success) {
-        setBills(data.data || []);
-      }
+      // ─── Fetch Bills ──────────────────────────────────────────────
+      const billsRes = await fetch(`/api/bills/merchant?merchantId=${merchantId}`);
+      const billsData = await billsRes.json();
+      const bills = (billsData.data || [])
+        .filter((b: any) => !b.bill_id?.startsWith('PROD-')) // Exclude products from bills
+        .map((b: any) => ({
+          ...b,
+          page_type: 'bill' as const,
+          page_id: b.bill_id,
+        }));
+
+      // ─── Fetch Products ────────────────────────────────────────────
+      // Option 1: If you have a separate API endpoint
+      // const productsRes = await fetch(`/api/products/merchant?merchantId=${merchantId}`);
+      // const productsData = await productsRes.json();
+
+      // Option 2: Filter from bills where bill_id starts with 'PROD-'
+      const allBillsRes = await fetch(`/api/bills/merchant?merchantId=${merchantId}`);
+      const allBillsData = await allBillsRes.json();
+      const products = (allBillsData.data || [])
+        .filter((b: any) => b.bill_id?.startsWith('PROD-'))
+        .map((b: any) => ({
+          ...b,
+          page_type: 'product' as const,
+          page_id: b.bill_id,
+        }));
+
+      // ─── Combine and sort ─────────────────────────────────────────
+      const allPages = [...bills, ...products].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setPages(allPages);
     } catch (error) {
-      console.error('Error fetching bills:', error);
+      console.error('Error fetching pages:', error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchBills();
+    fetchPages();
   }, []);
 
-  const filteredBills = bills.filter(
-    (bill) =>
-      bill.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      bill.bill_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      bill.customer_email?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredPages = pages.filter(
+    (page) =>
+      page.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      page.page_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      page.customer_email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const formatCurrency = (amount: number) => {
@@ -100,6 +131,36 @@ export default function SmartBillPages() {
     }
   };
 
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'product':
+        return <Package className="w-3 h-3" />;
+      case 'bill':
+      default:
+        return <FileText className="w-3 h-3" />;
+    }
+  };
+
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case 'product':
+        return 'Product';
+      case 'bill':
+      default:
+        return 'Bill';
+    }
+  };
+
+  // ─── Get the correct preview URL ──────────────────────────────────
+  const getPreviewUrl = (page: PageItem) => {
+    if (page.page_type === 'product') {
+      // Products use /p/ with the slug (description field)
+      return `/p/${page.description || page.page_id}`;
+    }
+    // Bills use /bill/ with bill_id
+    return `/bill/${page.page_id}`;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -118,7 +179,6 @@ export default function SmartBillPages() {
           <p className="text-sm text-gray-500">Manage your payment links and product pages.</p>
         </div>
         
-        {/* ✅ UPDATED: Opens the Modal instead of redirecting directly */}
         <button
           onClick={() => setIsModalOpen(true)}
           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2 shadow-sm"
@@ -163,7 +223,7 @@ export default function SmartBillPages() {
               </tr>
             </thead>
             <tbody>
-              {filteredBills.length === 0 ? (
+              {filteredPages.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
@@ -174,43 +234,50 @@ export default function SmartBillPages() {
                   </td>
                 </tr>
               ) : (
-                filteredBills.map((bill) => (
-                  <tr key={bill.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors group">
+                filteredPages.map((page) => (
+                  <tr key={page.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors group">
                     
                     {/* Status Dot */}
                     <td className="px-6 py-4">
-                      {getStatusDot(bill.status)}
+                      {getStatusDot(page.status)}
                     </td>
 
                     {/* Name */}
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
-                        <span className="font-medium text-gray-900">{bill.customer_name}</span>
-                        <span className="text-xs text-gray-400">{bill.bill_id}</span>
+                        <span className="font-medium text-gray-900">
+                          {page.page_type === 'product' ? page.description || page.customer_name : page.customer_name}
+                        </span>
+                        <span className="text-xs text-gray-400">{page.page_id}</span>
                       </div>
                     </td>
 
                     {/* Type */}
                     <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border border-gray-200 text-gray-600 bg-white">
-                        Payment
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                        page.page_type === 'product' 
+                          ? 'border-purple-200 text-purple-700 bg-purple-50' 
+                          : 'border-gray-200 text-gray-600 bg-white'
+                      }`}>
+                        {getTypeIcon(page.page_type)}
+                        {getTypeLabel(page.page_type)}
                       </span>
                     </td>
 
                     {/* Amount */}
                     <td className="px-6 py-4 text-gray-900">
-                      {formatCurrency(Number(bill.amount))}
+                      {formatCurrency(Number(page.amount))}
                     </td>
 
                     {/* Created */}
                     <td className="px-6 py-4 text-gray-500">
-                      {formatDate(bill.created_at)}
+                      {formatDate(page.created_at)}
                     </td>
 
                     {/* Link */}
                     <td className="px-6 py-4">
                       <Link 
-                        href={`/bill/${bill.bill_id}`} 
+                        href={getPreviewUrl(page)} 
                         target="_blank"
                         className="text-indigo-600 hover:text-indigo-700 hover:underline text-sm font-medium flex items-center gap-1 w-fit"
                       >
@@ -226,7 +293,7 @@ export default function SmartBillPages() {
         </div>
       </div>
 
-      {/* ✅ ADD THIS AT THE BOTTOM: The Creation Modal */}
+      {/* ─── Creation Modal ─────────────────────────────────────────── */}
       <CreateBillModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
