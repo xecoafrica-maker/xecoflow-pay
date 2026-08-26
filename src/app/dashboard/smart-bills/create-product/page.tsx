@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import {
   Package,
   FileText,
-  Wifi,
   Upload,
   X,
   Loader2,
@@ -20,13 +19,12 @@ import {
   ChevronUp,
   Rocket,
   Share2,
-  Image,
   File,
+  Clock,
+  Settings,
 } from 'lucide-react';
 import { getStoredMerchant, getToken } from '@/lib/auth';
 import OnboardingGuard, { useOnboarding } from '@/components/OnboardingGuard';
-
-type FulfillmentType = 'physical' | 'digital' | 'airtime';
 
 function InnerCreateProductLink() {
   const router = useRouter();
@@ -36,18 +34,12 @@ function InnerCreateProductLink() {
   // ─── Form State ──────────────────────────────────────────────────────
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
-  const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>('digital');
-  const [stockQuantity, setStockQuantity] = useState<string>('');
-  const [customSlug, setCustomSlug] = useState('');
-  const [deliveryAddressRequired, setDeliveryAddressRequired] = useState(false);
-  const [productImage, setProductImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  
-  // ✅ Digital File Upload
   const [digitalFile, setDigitalFile] = useState<File | null>(null);
   const [digitalFileName, setDigitalFileName] = useState<string>('');
+  const [linkExpiry, setLinkExpiry] = useState('24 Hours');
   
-  const [showOptional, setShowOptional] = useState(false);
+  // ─── Advanced Options ──────────────────────────────────────────────
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // ─── Generation State ──────────────────────────────────────────────
   const [isGenerating, setIsGenerating] = useState(false);
@@ -67,34 +59,10 @@ function InnerCreateProductLink() {
     }
   }, [isLoading, isOnboarded]);
 
-  // ─── Handle Image Upload ──────────────────────────────────────────
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate image size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Image too large. Maximum size is 5MB.');
-        return;
-      }
-      setProductImage(file);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setImagePreview(event.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeImage = () => {
-    setProductImage(null);
-    setImagePreview(null);
-  };
-
   // ─── Handle Digital File Upload ──────────────────────────────────
   const handleDigitalFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file size (25MB max)
       if (file.size > 25 * 1024 * 1024) {
         setError('File too large. Maximum size is 25MB.');
         return;
@@ -110,6 +78,20 @@ function InnerCreateProductLink() {
     setDigitalFileName('');
   };
 
+  // ─── Get expiry days from selection ──────────────────────────────
+  const getExpiryDays = (selection: string): number => {
+    const map: Record<string, number> = {
+      '1 Hour': 1/24,
+      '6 Hours': 6/24,
+      '24 Hours': 1,
+      '3 Days': 3,
+      '7 Days': 7,
+      '30 Days': 30,
+      'Never': 3650, // 10 years
+    };
+    return map[selection] || 7;
+  };
+
   // ─── Generate Product Link ──────────────────────────────────────────
   const handleGenerate = async () => {
     if (!name.trim()) {
@@ -123,8 +105,7 @@ function InnerCreateProductLink() {
       return;
     }
 
-    // Validate: Digital products require a file
-    if (fulfillmentType === 'digital' && !digitalFile) {
+    if (!digitalFile) {
       setError('Please upload a digital file (PDF, DOCX, etc.)');
       return;
     }
@@ -135,7 +116,7 @@ function InnerCreateProductLink() {
     try {
       const token = getToken();
       
-      // ─── Upload digital file if present ──────────────────────────
+      // ─── Upload digital file ──────────────────────────────────────
       let fileUrl = '';
       if (digitalFile) {
         const formData = new FormData();
@@ -156,25 +137,6 @@ function InnerCreateProductLink() {
         }
       }
 
-      // ─── Upload product image if present ──────────────────────────
-      let imageUrl = '';
-      if (productImage) {
-        const formData = new FormData();
-        formData.append('file', productImage);
-        formData.append('merchantId', String(merchantData?.merchant_id || merchantData?.merchantId));
-
-        const uploadRes = await fetch('/api/products/upload', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: formData,
-        });
-
-        if (uploadRes.ok) {
-          const data = await uploadRes.json();
-          imageUrl = data.data?.fileUrl || data.fileUrl || '';
-        }
-      }
-
       // ─── Create Product Link ──────────────────────────────────────
       const createRes = await fetch('/api/product-links', {
         method: 'POST',
@@ -186,13 +148,10 @@ function InnerCreateProductLink() {
           merchantId: merchantData?.merchant_id || merchantData?.merchantId,
           name: name.trim(),
           price: parseFloat(price),
-          fulfillmentType,
-          stockQuantity: stockQuantity ? parseInt(stockQuantity) : null,
-          slug: customSlug.trim() || undefined,
-          deliveryAddressRequired,
-          imageUrl,
-          fileUrl, // Digital file URL
-          fileName: digitalFileName, // Original file name
+          fulfillmentType: 'digital',
+          fileUrl: fileUrl,
+          fileName: digitalFileName,
+          expiryDays: getExpiryDays(linkExpiry),
         }),
       });
 
@@ -207,7 +166,6 @@ function InnerCreateProductLink() {
       setProductId(data.data.id);
       setGenerated(true);
 
-      // ─── Auto-copy to clipboard ──────────────────────────────────
       await navigator.clipboard.writeText(link);
       setCopied(true);
 
@@ -229,7 +187,7 @@ function InnerCreateProductLink() {
     window.open(`https://wa.me/?text=${encodeURIComponent(`🛍️ Check this out!\n${productLink}`)}`, '_blank');
   };
 
-  const isFormValid = name.trim() && price && parseFloat(price) > 0;
+  const isFormValid = name.trim() && price && parseFloat(price) > 0 && digitalFile;
 
   // ─── ONBOARDING GUARD ──────────────────────────────────────────────
   if (!isLoading && !isOnboarded) {
@@ -258,7 +216,7 @@ function InnerCreateProductLink() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Create Product Link</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Sell products with a single reusable link
+          Sell digital files with a single reusable link
         </p>
       </div>
 
@@ -313,183 +271,87 @@ function InnerCreateProductLink() {
           </div>
         </div>
 
-        {/* ─── 3. Fulfillment Type ───────────────────────────────────── */}
+        {/* ─── 3. Digital File Upload ─────────────────────────────────── */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Fulfillment Type
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Digital File <span className="text-red-500">*</span>
           </label>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { id: 'physical', label: '📦 Physical Good', desc: 'Ships to customer' },
-              { id: 'digital', label: '📄 Digital File', desc: 'Instant download' },
-              { id: 'airtime', label: '📡 Airtime', desc: 'Auto-delivery' },
-            ].map((type) => (
-              <button
-                key={type.id}
-                onClick={() => {
-                  setFulfillmentType(type.id as FulfillmentType);
-                }}
-                className={`px-4 py-3 rounded-xl border text-center transition-all ${
-                  fulfillmentType === type.id
-                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500/20'
-                    : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <div className="text-sm font-medium">{type.label}</div>
-                <div className="text-[10px] text-gray-400">{type.desc}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ─── Digital File Upload ───────────────────────────────────── */}
-        {fulfillmentType === 'digital' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Digital File <span className="text-red-500">*</span>
-            </label>
-            {!digitalFile ? (
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-indigo-400 transition-colors cursor-pointer relative">
-                <input
-                  type="file"
-                  onChange={handleDigitalFileChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.txt,.zip"
-                />
-                <div className="flex flex-col items-center gap-2 pointer-events-none">
-                  <File className="w-10 h-10 text-gray-400" />
-                  <p className="text-sm text-gray-600">Upload your digital file</p>
-                  <p className="text-xs text-gray-400">
-                    PDF, DOCX, XLSX, Images, ZIP (Max 25MB)
+          {!digitalFile ? (
+            <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-indigo-400 transition-colors cursor-pointer relative">
+              <input
+                type="file"
+                onChange={handleDigitalFileChange}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.txt,.zip"
+              />
+              <div className="flex flex-col items-center gap-2 pointer-events-none">
+                <File className="w-10 h-10 text-gray-400" />
+                <p className="text-sm text-gray-600">Upload your digital file</p>
+                <p className="text-xs text-gray-400">
+                  PDF, DOCX, XLSX, Images, ZIP (Max 25MB)
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
+              <div className="flex items-center gap-3">
+                <FileText className="w-8 h-8 text-indigo-600" />
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{digitalFileName}</p>
+                  <p className="text-xs text-gray-500">
+                    {(digitalFile.size / 1024 / 1024).toFixed(2)} MB
                   </p>
                 </div>
               </div>
-            ) : (
-              <div className="flex items-center justify-between p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <FileText className="w-8 h-8 text-indigo-600" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{digitalFileName}</p>
-                    <p className="text-xs text-gray-500">
-                      {(digitalFile.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={removeDigitalFile}
-                  className="p-2 hover:bg-indigo-100 rounded-lg transition-colors text-gray-500 hover:text-red-500"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            <p className="text-xs text-gray-400 mt-1">
-              Customers will download this file after payment
-            </p>
-          </div>
-        )}
+              <button
+                onClick={removeDigitalFile}
+                className="p-2 hover:bg-indigo-100 rounded-lg transition-colors text-gray-500 hover:text-red-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          <p className="text-xs text-gray-400 mt-1">
+            Customers will download this file after payment
+          </p>
+        </div>
 
-        {/* ─── ⚙️ Optional Settings ──────────────────────────────────── */}
+        {/* ─── ⚙️ Advanced Options ───────────────────────────────────── */}
         <div>
           <button
-            onClick={() => setShowOptional(!showOptional)}
+            onClick={() => setShowAdvanced(!showAdvanced)}
             className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
           >
-            ⚙️ Optional Settings
-            {showOptional ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            <Settings className="w-4 h-4" />
+            Advanced Options
+            {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
 
-          {showOptional && (
+          {showAdvanced && (
             <div className="mt-3 p-4 bg-gray-50 rounded-xl space-y-4 border border-gray-200">
-              {/* Stock Quantity */}
+              {/* Link Expiry */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Stock Quantity
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-gray-400" />
+                  Link Expiry
                 </label>
                 <select
-                  value={stockQuantity}
-                  onChange={(e) => setStockQuantity(e.target.value)}
+                  value={linkExpiry}
+                  onChange={(e) => setLinkExpiry(e.target.value)}
                   className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
                 >
-                  <option value="">Unlimited</option>
-                  <option value="1">1</option>
-                  <option value="5">5</option>
-                  <option value="10">10</option>
-                  <option value="25">25</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
+                  <option value="1 Hour">1 Hour</option>
+                  <option value="6 Hours">6 Hours</option>
+                  <option value="24 Hours">24 Hours</option>
+                  <option value="3 Days">3 Days</option>
+                  <option value="7 Days">7 Days</option>
+                  <option value="30 Days">30 Days</option>
+                  <option value="Never">Never</option>
                 </select>
-              </div>
-
-              {/* Custom Slug */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Custom Slug
-                </label>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 whitespace-nowrap">xecoflow.com/p/</span>
-                  <input
-                    type="text"
-                    value={customSlug}
-                    onChange={(e) => setCustomSlug(e.target.value)}
-                    placeholder="auto-generated"
-                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-                  />
-                </div>
                 <p className="text-[10px] text-gray-400 mt-1">
-                  Leave blank for auto-generated slug
+                  How long the link will remain active for customers
                 </p>
               </div>
-
-              {/* Product Image */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Product Image
-                </label>
-                {!imagePreview ? (
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-400 transition-colors cursor-pointer relative">
-                    <input
-                      type="file"
-                      onChange={handleImageChange}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      accept=".jpg,.jpeg,.png,.webp"
-                    />
-                    <Image className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">Upload product image</p>
-                    <p className="text-xs text-gray-400">JPG, PNG, WebP (Max 5MB)</p>
-                  </div>
-                ) : (
-                  <div className="relative inline-block">
-                    <img
-                      src={imagePreview}
-                      alt="Product"
-                      className="w-32 h-32 object-cover rounded-lg border border-gray-200"
-                    />
-                    <button
-                      onClick={removeImage}
-                      className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Delivery Address Required */}
-              {fulfillmentType === 'physical' && (
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    id="deliveryAddress"
-                    checked={deliveryAddressRequired}
-                    onChange={(e) => setDeliveryAddressRequired(e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                  />
-                  <label htmlFor="deliveryAddress" className="text-sm text-gray-700">
-                    Request delivery address at checkout
-                  </label>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -498,7 +360,7 @@ function InnerCreateProductLink() {
       {/* ─── Generate Button ─────────────────────────────────────────── */}
       <button
         onClick={handleGenerate}
-        disabled={!isFormValid || isGenerating || (fulfillmentType === 'digital' && !digitalFile)}
+        disabled={!isFormValid || isGenerating}
         className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed text-white rounded-xl font-semibold text-base transition-all shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2"
       >
         {isGenerating ? (
@@ -560,14 +422,10 @@ function InnerCreateProductLink() {
                 setProductLink('');
                 setName('');
                 setPrice('');
-                setCustomSlug('');
-                setStockQuantity('');
-                setProductImage(null);
-                setImagePreview(null);
                 setDigitalFile(null);
                 setDigitalFileName('');
                 setCopied(false);
-                setShowOptional(false);
+                setShowAdvanced(false);
                 setTimeout(() => nameInputRef.current?.focus(), 100);
               }}
               className="py-2.5 px-4 text-sm text-gray-500 hover:text-gray-700 transition-colors"
