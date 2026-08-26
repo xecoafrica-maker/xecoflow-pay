@@ -57,32 +57,36 @@ export default function CreatePaymentLinkPage() {
 
     try {
       const token = getToken();
-      const res = await fetch('/api/payment-links', {
+      const merchantId = merchant?.merchant_id || merchant?.merchantId;
+      
+      // ─── Updated: Use /v1/product-links ──────────────────────────
+      const res = await fetch('/v1/product-links', {  // ← CHANGED HERE
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          title: title.trim(),
-          amountType,
-          amount: amountType === 'fixed' ? Number(amount) : undefined,
-          customerName: customerName || undefined,
-          customerEmail: customerEmail || undefined,
-          customerPhone: customerPhone || undefined,
-          reference: reference || undefined,
-          channel: channel || undefined,
-          expiry: expiry === 'never' ? null : expiry,
-          merchantId: merchant?.merchant_id || merchant?.merchantId,
+          merchantId: merchantId,
+          businessName: merchant?.business_name || merchant?.businessName || 'XecoFlow Store',
+          name: title.trim(),
+          price: amountType === 'fixed' ? Number(amount) : 0,
+          currency: 'KES',
+          description: title.trim(),
+          fileUrl: '', // For digital products - will be set separately
+          fileName: '',
+          redirectUrl: '',
         }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to generate link');
 
-      const url =
-        data.data?.url || `${window.location.origin}/pay/${data.data?.slug}`;
+      // ─── Build the URL from the response ──────────────────────────
+      const slug = data.data?.slug || data.data?.description;
+      const url = `${window.location.origin}/p/${slug}`;  // Product page URL
       setLink(url);
+      
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
@@ -118,17 +122,17 @@ export default function CreatePaymentLinkPage() {
       {/* Header */}
       <div className="mb-8">
         <button
-          onClick={() => router.push('/dashboard/payment-links')}
+          onClick={() => router.push('/dashboard/smart-bills/pages')}  // ← Updated path
           className="text-[13px] text-gray-500 hover:text-gray-800 flex items-center gap-1.5 mb-2 transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Payment links
         </button>
         <h1 className="text-2xl font-semibold text-[#0a2540] tracking-tight">
-          Create Payment Link
+          Create Product Link
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Create a payment link for your customers
+          Create a payment link to sell your digital products
         </p>
       </div>
 
@@ -140,7 +144,7 @@ export default function CreatePaymentLinkPage() {
 
       {link ? (
         <div className="rounded-2xl border border-gray-200 bg-white p-6 sm:p-8 shadow-sm">
-          <p className="text-sm font-medium text-[#0a2540] mb-3">Your payment link</p>
+          <p className="text-sm font-medium text-[#0a2540] mb-3">Your product link</p>
           <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5">
             <input
               readOnly
@@ -184,14 +188,14 @@ export default function CreatePaymentLinkPage() {
               <h2 className="text-[15px] font-semibold text-[#0a2540]">
                 Basic Information
               </h2>
-              <p className="text-[12px] text-gray-400 mt-0.5">Core setup for this payment link</p>
+              <p className="text-[12px] text-gray-400 mt-0.5">Core setup for this product link</p>
             </div>
 
             <div className="p-5 sm:p-6 space-y-5">
               {/* Page title */}
               <div>
                 <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                  Page title / purpose <span className="text-red-500">*</span>
+                  Product name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -201,7 +205,7 @@ export default function CreatePaymentLinkPage() {
                   className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff]"
                 />
                 <p className="text-[11px] text-gray-400 mt-1.5">
-                  Shown as the main heading on the buyer’s checkout screen
+                  Shown as the main heading on the buyer's checkout screen
                 </p>
               </div>
 
@@ -222,7 +226,7 @@ export default function CreatePaymentLinkPage() {
                   >
                     <p className="text-sm font-semibold text-[#0a2540]">Fixed amount</p>
                     <p className="text-[11px] text-gray-400 mt-0.5">
-                      You set a specific fee
+                      You set a specific price
                     </p>
                   </button>
                   <button
@@ -406,7 +410,7 @@ export default function CreatePaymentLinkPage() {
             ) : (
               <>
                 <Link2 className="w-4 h-4" />
-                Generate Pay Link
+                Generate Product Link
               </>
             )}
           </button>
