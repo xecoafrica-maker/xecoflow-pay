@@ -165,7 +165,7 @@ const sidebarSections: SidebarSection[] = [
           { 
             icon: CreditCard, 
             label: 'Create Payment Page', 
-            href: '/dashboard/smart-bills/create-payment-page',
+            href: '/dashboard/payment-pages/create',
           },
           { 
             icon: Layers, 
