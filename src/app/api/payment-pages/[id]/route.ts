@@ -7,10 +7,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// GET /api/payment-pages/[id]
+// ─── GET /api/payment-pages/[id] ────────────────────────────────────
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }  // ← Note: params is a Promise
 ) {
   try {
     const token = getTokenFromRequest(req);
@@ -23,7 +23,7 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await context.params;  // ← Await the params
 
     const { data, error } = await supabase
       .from('payment_pages')
@@ -36,16 +36,20 @@ export async function GET(
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
+    if (!data) {
+      return NextResponse.json({ success: false, error: 'Payment page not found' }, { status: 404 });
+    }
+
     return NextResponse.json({ success: true, data });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
 
-// PUT /api/payment-pages/[id]
+// ─── PUT /api/payment-pages/[id] ────────────────────────────────────
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }  // ← Note: params is a Promise
 ) {
   try {
     const token = getTokenFromRequest(req);
@@ -58,7 +62,7 @@ export async function PUT(
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await context.params;  // ← Await the params
     const body = await req.json();
 
     const { data, error } = await supabase
@@ -76,16 +80,20 @@ export async function PUT(
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
+    if (!data) {
+      return NextResponse.json({ success: false, error: 'Payment page not found' }, { status: 404 });
+    }
+
     return NextResponse.json({ success: true, data });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
 
-// DELETE /api/payment-pages/[id]
+// ─── DELETE /api/payment-pages/[id] ─────────────────────────────────
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }  // ← Note: params is a Promise
 ) {
   try {
     const token = getTokenFromRequest(req);
@@ -98,7 +106,7 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await context.params;  // ← Await the params
 
     const { error } = await supabase
       .from('payment_pages')
