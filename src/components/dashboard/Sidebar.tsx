@@ -161,30 +161,21 @@ const sidebarSections: SidebarSection[] = [
             icon: Package, 
             label: 'Create Product Link', 
             href: '/dashboard/smart-bills/create-product',
-            badge: 'Digital',
           },
           { 
             icon: CreditCard, 
             label: 'Create Payment Page', 
             href: '/dashboard/smart-bills/create-payment-page',
-            badge: 'Open Amount',
+          },
+          { 
+            icon: FileText, 
+            label: 'Create Invoice', 
+            href: '/dashboard/smart-bills/create',
           },
           { 
             icon: Layers, 
             label: 'All Payment Links', 
             href: '/dashboard/smart-bills/pages',
-            badge: 'Analytics',
-          },
-        ],
-      },
-      {
-        icon: Receipt,
-        label: 'Smart Invoices',
-        children: [
-          { 
-            icon: PlusCircle, 
-            label: 'Create Invoice', 
-            href: '/dashboard/smart-bills/create',
           },
           { 
             icon: BarChart3, 
@@ -606,11 +597,6 @@ export default function Sidebar() {
                                         />
                                       )}
                                       <span className="truncate text-[13px]">{child.label}</span>
-                                      {child.badge && (
-                                        <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full">
-                                          {child.badge}
-                                        </span>
-                                      )}
                                       {childActive && (
                                         <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400" />
                                       )}
