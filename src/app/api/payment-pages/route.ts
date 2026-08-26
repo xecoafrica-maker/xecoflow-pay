@@ -2,14 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
 
-// ─── Supabase Client Setup ───────────────────────────────────────────
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// ─── Helper function to get Supabase client ──────────────────────────
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Use service role key for admin operations
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+  // Only check for missing variables when the function is called
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error('❌ Missing Supabase environment variables');
+    throw new Error('Supabase configuration is missing');
+  }
 
-// ─── GET /api/payment-pages ────────────────────────────────────────
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
+
+// ─── GET /api/payment-pages ──────────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
     const token = getTokenFromRequest(req);
@@ -22,9 +29,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Initialize Supabase INSIDE the handler
+    const supabase = getSupabaseAdmin();
     const merchantId = user.merchantId;
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('payment_pages')
       .select('*')
       .eq('merchant_id', merchantId)
@@ -40,7 +49,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─── POST /api/payment-pages ───────────────────────────────────────
+// ─── POST /api/payment-pages ─────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const token = getTokenFromRequest(req);
@@ -82,7 +91,10 @@ export async function POST(req: NextRequest) {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '') + '-' + Math.random().toString(36).substring(2, 6);
 
-    const { data, error } = await supabaseAdmin
+    // Initialize Supabase INSIDE the handler
+    const supabase = getSupabaseAdmin();
+
+    const { data, error } = await supabase
       .from('payment_pages')
       .insert({
         merchant_id: merchantId,

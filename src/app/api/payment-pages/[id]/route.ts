@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
 
-// ─── Supabase Client Setup ───────────────────────────────────────────
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// ─── Helper function to get Supabase client ──────────────────────────
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Use service role key for admin operations (bypass RLS)
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error('❌ Missing Supabase environment variables');
+    throw new Error('Supabase configuration is missing');
+  }
+
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
 
 // ─── GET /api/payment-pages/[id] ────────────────────────────────────
 export async function GET(
@@ -27,9 +32,11 @@ export async function GET(
     }
 
     const { id } = await context.params;
+    
+    // Initialize Supabase INSIDE the handler
+    const supabase = getSupabaseAdmin();
 
-    // Use supabaseAdmin to bypass RLS if needed, or use regular supabase
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('payment_pages')
       .select('*')
       .eq('id', id)
@@ -69,7 +76,10 @@ export async function PUT(
     const { id } = await context.params;
     const body = await req.json();
 
-    const { data, error } = await supabaseAdmin
+    // Initialize Supabase INSIDE the handler
+    const supabase = getSupabaseAdmin();
+
+    const { data, error } = await supabase
       .from('payment_pages')
       .update({
         ...body,
@@ -112,7 +122,10 @@ export async function DELETE(
 
     const { id } = await context.params;
 
-    const { error } = await supabaseAdmin
+    // Initialize Supabase INSIDE the handler
+    const supabase = getSupabaseAdmin();
+
+    const { error } = await supabase
       .from('payment_pages')
       .delete()
       .eq('id', id)
