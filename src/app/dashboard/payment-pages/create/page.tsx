@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Link2,
@@ -10,9 +10,6 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowLeft,
-  Upload,
-  X,
-  File,
 } from 'lucide-react';
 import { getStoredMerchant, getToken } from '@/lib/auth';
 
@@ -24,13 +21,6 @@ export default function CreatePaymentLinkPage() {
   const [title, setTitle] = useState('');
   const [amountType, setAmountType] = useState<'fixed' | 'custom'>('fixed');
   const [amount, setAmount] = useState('');
-
-  // ─── File Upload State ──────────────────────────────────────────────
-  const [file, setFile] = useState<File | null>(null);
-  const [fileName, setFileName] = useState('');
-  const [fileUrl, setFileUrl] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Optional pre-fill (specific buyer) — leave blank for public link
   const [customerName, setCustomerName] = useState('');
@@ -50,87 +40,15 @@ export default function CreatePaymentLinkPage() {
 
   const isValid =
     title.trim().length > 0 &&
-    (amountType === 'custom' || (amount && Number(amount) > 0)) &&
-    file !== null;
-
-  // ─── Handle File Upload ──────────────────────────────────────────
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
-
-    // Validate file size (max 10MB)
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      setError('File size must be less than 10MB');
-      return;
-    }
-
-    setFile(selectedFile);
-    setFileName(selectedFile.name);
-    setError(null);
-
-    // Auto-upload file
-    await uploadFile(selectedFile);
-  };
-
-  const uploadFile = async (selectedFile: File) => {
-    setUploading(true);
-    try {
-      const token = getToken();
-      const merchantId = merchant?.merchant_id || merchant?.merchantId;
-
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('merchantId', String(merchantId));
-
-      const res = await fetch('/api/products/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to upload file');
-      }
-
-      const uploadedUrl = data.data?.fileUrl || data.fileUrl;
-      setFileUrl(uploadedUrl);
-      console.log('✅ File uploaded:', uploadedUrl);
-    } catch (err: any) {
-      setError(err.message || 'Failed to upload file');
-      setFile(null);
-      setFileName('');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const removeFile = () => {
-    setFile(null);
-    setFileName('');
-    setFileUrl('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
+    (amountType === 'custom' || (amount && Number(amount) > 0));
 
   const handleGenerate = async () => {
     if (!title.trim()) {
-      setError('Product name is required');
+      setError('Page title is required');
       return;
     }
     if (amountType === 'fixed' && (!amount || Number(amount) <= 0)) {
       setError('Enter a valid fixed amount');
-      return;
-    }
-    if (!file) {
-      setError('Please upload a digital product file');
-      return;
-    }
-    if (!fileUrl) {
-      setError('File upload in progress. Please wait...');
       return;
     }
 
@@ -154,9 +72,10 @@ export default function CreatePaymentLinkPage() {
           price: amountType === 'fixed' ? Number(amount) : 0,
           currency: 'KES',
           description: title.trim(),
-          fileUrl: fileUrl,
-          fileName: fileName,
+          fileUrl: '',
+          fileName: '',
           redirectUrl: '',
+          linkType: 'payment',
         }),
       });
 
@@ -164,7 +83,7 @@ export default function CreatePaymentLinkPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to generate link');
 
       const slug = data.data?.slug || data.data?.description;
-      const url = `${window.location.origin}/p/${slug}`;
+      const url = `${window.location.origin}/pay/${slug}`;
       setLink(url);
       
       await navigator.clipboard.writeText(url);
@@ -188,9 +107,6 @@ export default function CreatePaymentLinkPage() {
     setTitle('');
     setAmountType('fixed');
     setAmount('');
-    setFile(null);
-    setFileName('');
-    setFileUrl('');
     setCustomerName('');
     setCustomerEmail('');
     setCustomerPhone('');
@@ -198,9 +114,6 @@ export default function CreatePaymentLinkPage() {
     setChannel('');
     setExpiry('never');
     setShowAdvanced(false);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
   return (
@@ -218,7 +131,7 @@ export default function CreatePaymentLinkPage() {
           Create Payment Link
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Create a payment link to sell your digital products
+          Create a payment link for invoices, donations, and services
         </p>
       </div>
 
@@ -278,75 +191,20 @@ export default function CreatePaymentLinkPage() {
             </div>
 
             <div className="p-5 sm:p-6 space-y-5">
-              {/* Product name */}
+              {/* Page title */}
               <div>
                 <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                  Product name <span className="text-red-500">*</span>
+                  Link name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. KRA PIN SERVICE, Invoice Payment, Consultation Fee"
+                  placeholder="e.g. Invoice #001, Donation, Consultation Fee"
                   className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff]"
                 />
                 <p className="text-[11px] text-gray-400 mt-1.5">
-                  Shown as the main heading on the buyer's checkout screen
-                </p>
-              </div>
-
-              {/* ─── Digital Product File Upload ────────────────────── */}
-              <div>
-                <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                  Digital Product File <span className="text-red-500">*</span>
-                </label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  onChange={handleFileChange}
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.zip,.rar,.xlsx,.pptx"
-                />
-                {!file ? (
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full h-24 border-2 border-dashed border-gray-300 rounded-xl hover:border-[#635bff] transition-colors flex flex-col items-center justify-center gap-1 bg-gray-50 hover:bg-gray-100 cursor-pointer"
-                  >
-                    <Upload className="w-6 h-6 text-gray-400" />
-                    <span className="text-sm text-gray-600">Click to upload digital product</span>
-                    <span className="text-xs text-gray-400">
-                      PDF, DOC, DOCX, JPG, PNG, ZIP, XLSX, PPTX (Max 10MB)
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
-                    <div className="w-10 h-10 bg-[#635bff]/10 rounded-lg flex items-center justify-center">
-                      <File className="w-5 h-5 text-[#635bff]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-700 truncate">{fileName}</p>
-                      <p className="text-xs text-gray-400">
-                        {(file.size / 1024).toFixed(1)} KB
-                        {uploading && ' (Uploading...)'}
-                      </p>
-                    </div>
-                    <button
-                      onClick={removeFile}
-                      className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
-                      disabled={uploading}
-                    >
-                      <X className="w-4 h-4 text-gray-400 hover:text-red-500" />
-                    </button>
-                  </div>
-                )}
-                {uploading && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-[#635bff]" />
-                    <span className="text-sm text-gray-500">Uploading file...</span>
-                  </div>
-                )}
-                <p className="text-[11px] text-gray-400 mt-1.5">
-                  Customers will download this file after successful payment
+                  Shown as the main heading on the buyer's payment screen
                 </p>
               </div>
 
@@ -540,13 +398,13 @@ export default function CreatePaymentLinkPage() {
 
           <button
             onClick={handleGenerate}
-            disabled={!isValid || loading || uploading}
+            disabled={!isValid || loading}
             className="w-full h-12 bg-[#0a2540] hover:bg-[#152a45] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white rounded-xl font-semibold text-[15px] flex items-center justify-center gap-2 transition-colors"
           >
-            {loading || uploading ? (
+            {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                {uploading ? 'Uploading file...' : 'Generating…'}
+                Generating…
               </>
             ) : (
               <>
