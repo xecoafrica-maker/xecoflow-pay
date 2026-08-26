@@ -3,13 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  CreditCard,
   Globe,
-  Palette,
-  Mail,
-  User,
-  Phone,
-  Link2,
   Check,
   Copy,
   Loader2,
@@ -19,12 +13,13 @@ import {
   Plus,
   Trash2,
   Image as ImageIcon,
-  Upload,
   Lock,
   CheckCircle,
+  Palette,
 } from 'lucide-react';
 import { getStoredMerchant, getToken } from '@/lib/auth';
 import OnboardingGuard, { useOnboarding } from '@/components/OnboardingGuard';
+
 interface CustomField {
   id: string;
   label: string;
@@ -54,7 +49,6 @@ function InnerCreatePaymentPage() {
   const { isOnboarded, isLoading } = useOnboarding();
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // ─── Form State ──────────────────────────────────────────────────────
   const [formData, setFormData] = useState<PaymentPageData>({
     name: '',
     description: '',
@@ -83,14 +77,12 @@ function InnerCreatePaymentPage() {
 
   const merchantData = getStoredMerchant();
 
-  // ─── Auto-focus ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!isLoading && isOnboarded) {
       setTimeout(() => nameInputRef.current?.focus(), 200);
     }
   }, [isLoading, isOnboarded]);
 
-  // ─── Handle Logo Upload ────────────────────────────────────────────
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -100,9 +92,7 @@ function InnerCreatePaymentPage() {
       }
       setLogoFile(file);
       const reader = new FileReader();
-      reader.onload = (event) => {
-        setLogoPreview(event.target?.result as string);
-      };
+      reader.onload = (event) => setLogoPreview(event.target?.result as string);
       reader.readAsDataURL(file);
     }
   };
@@ -112,7 +102,6 @@ function InnerCreatePaymentPage() {
     setLogoPreview(null);
   };
 
-  // ─── Custom Fields ──────────────────────────────────────────────────
   const addCustomField = () => {
     setFormData({
       ...formData,
@@ -145,14 +134,12 @@ function InnerCreatePaymentPage() {
     });
   };
 
-  // ─── Generate Payment Page ──────────────────────────────────────────
   const handleGenerate = async () => {
     if (!formData.name.trim()) {
       setError('Page name is required');
       nameInputRef.current?.focus();
       return;
     }
-
     if (formData.amountType === 'fixed' && (!formData.amount || formData.amount <= 0)) {
       setError('Please enter a valid amount');
       return;
@@ -163,17 +150,19 @@ function InnerCreatePaymentPage() {
 
     try {
       const token = getToken();
-
-      // ─── Upload logo if present ─────────────────────────────────────
       let logoUrl = '';
+
       if (logoFile) {
         const formDataUpload = new FormData();
         formDataUpload.append('file', logoFile);
-        formDataUpload.append('merchantId', String(merchantData?.merchant_id || merchantData?.merchantId));
+        formDataUpload.append(
+          'merchantId',
+          String(merchantData?.merchant_id || merchantData?.merchantId)
+        );
 
         const uploadRes = await fetch('/api/products/upload', {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}` },
           body: formDataUpload,
         });
 
@@ -183,11 +172,10 @@ function InnerCreatePaymentPage() {
         }
       }
 
-      // ─── Create Payment Page ──────────────────────────────────────
       const createRes = await fetch('/api/payment-pages', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -198,21 +186,16 @@ function InnerCreatePaymentPage() {
       });
 
       const data = await createRes.json();
-
-      if (!createRes.ok) {
-        throw new Error(data.error || 'Failed to create payment page');
-      }
+      if (!createRes.ok) throw new Error(data.error || 'Failed to create payment page');
 
       const link = `${window.location.origin}/pay/${data.data.slug}`;
       setPageLink(link);
       setPageId(data.data.id);
       setGenerated(true);
-
       await navigator.clipboard.writeText(link);
       setCopied(true);
-
-    } catch (error: any) {
-      setError(error.message || 'Failed to create payment page');
+    } catch (err: any) {
+      setError(err.message || 'Failed to create payment page');
     } finally {
       setIsGenerating(false);
     }
@@ -221,410 +204,425 @@ function InnerCreatePaymentPage() {
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(pageLink);
     setCopied(true);
-    setTimeout(() => setCopied(false), 3000);
+    setTimeout(() => setCopied(false), 2500);
   };
 
-  const isFormValid = formData.name.trim() &&
+  const resetForm = () => {
+    setGenerated(false);
+    setPageLink('');
+    setPageId('');
+    setCopied(false);
+    setFormData({
+      name: '',
+      description: '',
+      amountType: 'fixed',
+      amount: undefined,
+      currency: 'KES',
+      customFields: [],
+      brandColor: '#635bff',
+      logoUrl: '',
+      successUrl: '',
+      cancelUrl: '',
+      collectName: true,
+      collectEmail: true,
+      collectPhone: true,
+    });
+    setLogoFile(null);
+    setLogoPreview(null);
+    setTimeout(() => nameInputRef.current?.focus(), 100);
+  };
+
+  const isFormValid =
+    formData.name.trim() &&
     (formData.amountType === 'open' || (formData.amount && formData.amount > 0));
 
-  // ─── ONBOARDING GUARD ──────────────────────────────────────────────
   if (!isLoading && !isOnboarded) {
     return (
-      <div className="min-h-[400px] flex flex-col items-center justify-center text-center p-8">
-        <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mb-6">
-          <Lock className="w-10 h-10 text-amber-500" />
+      <div className="min-h-[420px] flex flex-col items-center justify-center text-center p-8">
+        <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mb-5">
+          <Lock className="w-8 h-8 text-amber-500" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Setup Required</h2>
-        <p className="text-gray-500 max-w-md mb-6">
+        <h2 className="text-xl font-semibold text-[#0a2540] mb-2">Account setup required</h2>
+        <p className="text-sm text-gray-500 max-w-sm mb-6">
           Complete your business details before creating payment pages.
         </p>
         <button
           onClick={() => router.push('/dashboard')}
-          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors"
+          className="px-5 py-2.5 bg-[#0a2540] hover:bg-[#152a45] text-white rounded-xl text-sm font-medium transition-colors"
         >
-          Go to Dashboard
+          Go to dashboard
         </button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* ─── Header ───────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
+    <div className="max-w-3xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
         <div>
           <button
             onClick={() => router.push('/dashboard/payment-pages')}
-            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-1"
+            className="text-[13px] text-gray-500 hover:text-gray-800 flex items-center gap-1.5 mb-2 transition-colors"
           >
-            <ArrowLeft className="w-4 h-4" /> Back
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Payment pages
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">Create Payment Page</h1>
+          <h1 className="text-2xl font-semibold text-[#0a2540] tracking-tight">
+            Create payment page
+          </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Build a custom payment page for your customers
+            A hosted page your customers can pay on — no code required.
           </p>
         </div>
-        <button
-          onClick={() => setPreviewMode(!previewMode)}
-          className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2"
-        >
-          <Eye className="w-4 h-4" />
-          {previewMode ? 'Edit' : 'Preview'}
-        </button>
+        {!generated && (
+          <button
+            onClick={() => setPreviewMode(!previewMode)}
+            className="self-start inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-[13px] font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <Eye className="w-4 h-4" />
+            {previewMode ? 'Edit form' : 'Preview'}
+          </button>
+        )}
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-          <div className="flex-1">
-            <p className="text-sm text-red-700">{error}</p>
-          </div>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+          <p className="flex-1 text-sm text-red-700">{error}</p>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
       {generated ? (
-        // ─── Success State ─────────────────────────────────────────────
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-8 text-center">
-          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="w-8 h-8 text-emerald-600" />
+        /* ── Success ── */
+        <div className="rounded-2xl border border-emerald-100 bg-white p-8 sm:p-10 text-center shadow-sm">
+          <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-7 h-7 text-emerald-600" />
           </div>
-          <h3 className="text-xl font-bold text-gray-900">🎉 Payment Page Created!</h3>
-          <p className="text-sm text-gray-500 mt-1">Share this link with your customers</p>
+          <h3 className="text-xl font-semibold text-[#0a2540]">Payment page created</h3>
+          <p className="text-sm text-gray-500 mt-1.5">Share this link with your customers</p>
 
-          <div className="mt-4 max-w-md mx-auto bg-white rounded-xl p-3 flex items-center gap-2 border border-emerald-200">
+          <div className="mt-6 max-w-md mx-auto flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5">
             <input
               type="text"
               value={pageLink}
               readOnly
-              className="flex-1 bg-transparent text-sm text-gray-700 focus:outline-none"
+              className="flex-1 min-w-0 bg-transparent text-[13px] text-gray-700 outline-none"
             />
             <button
               onClick={copyToClipboard}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="shrink-0 p-2 rounded-lg hover:bg-white border border-transparent hover:border-gray-200 transition-colors"
             >
-              {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-gray-500" />}
+              {copied ? (
+                <Check className="w-4 h-4 text-emerald-500" />
+              ) : (
+                <Copy className="w-4 h-4 text-gray-500" />
+              )}
             </button>
           </div>
-          {copied && <p className="text-xs text-emerald-600 mt-1">✅ Copied to clipboard!</p>}
+          {copied && (
+            <p className="text-xs text-emerald-600 font-medium mt-2">Link copied</p>
+          )}
 
-          <div className="mt-4 flex flex-wrap gap-2 justify-center">
+          <div className="mt-6 flex flex-wrap gap-3 justify-center">
             <button
               onClick={() => window.open(pageLink, '_blank')}
-              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium flex items-center gap-2"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0a2540] hover:bg-[#152a45] text-white rounded-xl text-sm font-medium transition-colors"
             >
               <Eye className="w-4 h-4" />
-              View Page
+              View page
             </button>
             <button
-              onClick={() => {
-                setGenerated(false);
-                setPageLink('');
-                setPageId('');
-                setCopied(false);
-                setFormData({
-                  name: '',
-                  description: '',
-                  amountType: 'fixed',
-                  amount: undefined,
-                  currency: 'KES',
-                  customFields: [],
-                  brandColor: '#635bff',
-                  logoUrl: '',
-                  successUrl: '',
-                  cancelUrl: '',
-                  collectName: true,
-                  collectEmail: true,
-                  collectPhone: true,
-                });
-                setLogoFile(null);
-                setLogoPreview(null);
-                setTimeout(() => nameInputRef.current?.focus(), 100);
-              }}
-              className="px-6 py-2.5 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-medium text-gray-700"
+              onClick={resetForm}
+              className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-medium text-gray-700 transition-colors"
             >
-              Create Another
+              Create another
             </button>
           </div>
         </div>
       ) : (
-        // ─── Form ──────────────────────────────────────────────────────
-        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-          <div className="space-y-6">
-            {/* ─── Basic Details ────────────────────────────────────── */}
-            <div>
-              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">
-                Basic Details
-              </h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Page Name <span className="text-red-500">*</span>
-                  </label>
+        /* ── Form ── */
+        <div className="space-y-5">
+          {/* Basic */}
+          <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm">
+            <h2 className="text-[13px] font-semibold text-[#0a2540] mb-4">Basic details</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                  Page name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g. Consulting fee, Course payment"
+                  className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff] transition-shadow"
+                />
+              </div>
+              <div>
+                <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                  Description <span className="text-gray-400 font-normal">optional</span>
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="What is this payment for?"
+                  rows={2}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff] resize-none transition-shadow"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Amount */}
+          <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm">
+            <h2 className="text-[13px] font-semibold text-[#0a2540] mb-4">Amount</h2>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {(
+                [
+                  { id: 'fixed' as const, title: 'Fixed amount', desc: 'Set a specific price' },
+                  { id: 'open' as const, title: 'Open amount', desc: 'Customer chooses' },
+                ] as const
+              ).map((opt) => {
+                const active = formData.amountType === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, amountType: opt.id })}
+                    className={`text-left px-4 py-3.5 rounded-xl border-2 transition-all ${
+                      active
+                        ? 'border-[#635bff] bg-[#635bff]/5'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <p className={`text-sm font-semibold ${active ? 'text-[#0a2540]' : 'text-gray-800'}`}>
+                      {opt.title}
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{opt.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {formData.amountType === 'fixed' && (
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[13px] font-medium text-gray-400">
+                  KES
+                </span>
+                <input
+                  type="number"
+                  value={formData.amount || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      amount: parseFloat(e.target.value) || undefined,
+                    })
+                  }
+                  placeholder="1,000"
+                  min={1}
+                  step={1}
+                  className="w-full h-11 pl-14 pr-3.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff] transition-shadow"
+                />
+              </div>
+            )}
+          </section>
+
+          {/* Branding */}
+          <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm">
+            <h2 className="text-[13px] font-semibold text-[#0a2540] mb-4 flex items-center gap-2">
+              <Palette className="w-4 h-4 text-gray-400" />
+              Branding
+            </h2>
+            <div className="grid sm:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                  Brand color
+                </label>
+                <div className="flex items-center gap-3">
                   <input
-                    ref={nameInputRef}
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="e.g. Product Payment"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                    type="color"
+                    value={formData.brandColor}
+                    onChange={(e) => setFormData({ ...formData, brandColor: e.target.value })}
+                    className="w-11 h-11 rounded-xl border border-gray-200 cursor-pointer p-1 bg-white"
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Describe what this payment is for..."
-                    rows={2}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none resize-none"
+                  <input
+                    type="text"
+                    value={formData.brandColor}
+                    onChange={(e) => setFormData({ ...formData, brandColor: e.target.value })}
+                    className="flex-1 h-11 px-3 rounded-xl border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff]"
                   />
                 </div>
               </div>
-            </div>
-
-            {/* ─── Amount ────────────────────────────────────────────── */}
-            <div className="border-t border-gray-200 pt-6">
-              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">
-                Amount
-              </h2>
-              <div className="space-y-4">
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => setFormData({ ...formData, amountType: 'fixed' })}
-                    className={`flex-1 px-4 py-3 rounded-xl border text-center transition-all ${
-                      formData.amountType === 'fixed'
-                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500/20'
-                        : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <div className="text-sm font-medium">Fixed Amount</div>
-                    <div className="text-[10px] text-gray-400">Set a specific price</div>
-                  </button>
-                  <button
-                    onClick={() => setFormData({ ...formData, amountType: 'open' })}
-                    className={`flex-1 px-4 py-3 rounded-xl border text-center transition-all ${
-                      formData.amountType === 'open'
-                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500/20'
-                        : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <div className="text-sm font-medium">Open Amount</div>
-                    <div className="text-[10px] text-gray-400">Customer chooses price</div>
-                  </button>
-                </div>
-
-                {formData.amountType === 'fixed' && (
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">KES</span>
+              <div>
+                <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Logo</label>
+                {!logoPreview ? (
+                  <label className="flex flex-col items-center justify-center h-[88px] rounded-xl border-2 border-dashed border-gray-200 hover:border-[#635bff]/40 bg-gray-50/50 cursor-pointer transition-colors relative">
                     <input
-                      type="number"
-                      value={formData.amount || ''}
-                      onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || undefined })}
-                      placeholder="1,000"
-                      className="w-full pl-14 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-                      min="1"
-                      step="1"
+                      type="file"
+                      onChange={handleLogoChange}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                      accept=".jpg,.jpeg,.png,.webp,.svg"
                     />
+                    <ImageIcon className="w-5 h-5 text-gray-400 mb-1" />
+                    <span className="text-[12px] text-gray-500">Upload logo</span>
+                    <span className="text-[10px] text-gray-400">Max 2MB</span>
+                  </label>
+                ) : (
+                  <div className="relative inline-flex">
+                    <img
+                      src={logoPreview}
+                      alt="Logo"
+                      className="h-[88px] w-auto max-w-[140px] object-contain rounded-xl border border-gray-200 bg-white p-2"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeLogo}
+                      className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 shadow"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 )}
               </div>
             </div>
+          </section>
 
-            {/* ─── Branding ───────────────────────────────────────────── */}
-            <div className="border-t border-gray-200 pt-6">
-              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">
-                Branding
-              </h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Brand Color
-                  </label>
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="color"
-                      value={formData.brandColor}
-                      onChange={(e) => setFormData({ ...formData, brandColor: e.target.value })}
-                      className="w-12 h-12 rounded-lg border border-gray-200 cursor-pointer p-1"
-                    />
+          {/* Customer fields */}
+          <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm">
+            <h2 className="text-[13px] font-semibold text-[#0a2540] mb-4">Customer fields</h2>
+            <div className="flex flex-wrap gap-2 mb-5">
+              {(
+                [
+                  { key: 'collectName' as const, label: 'Name' },
+                  { key: 'collectEmail' as const, label: 'Email' },
+                  { key: 'collectPhone' as const, label: 'Phone' },
+                ] as const
+              ).map((f) => {
+                const on = formData[f.key];
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, [f.key]: !on })}
+                    className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-[13px] font-medium border transition-all ${
+                      on
+                        ? 'bg-[#0a2540] text-white border-[#0a2540]'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    {on && <Check className="w-3.5 h-3.5" />}
+                    {f.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[13px] font-medium text-gray-700">Custom fields</p>
+              <button
+                type="button"
+                onClick={addCustomField}
+                className="inline-flex items-center gap-1 text-[13px] font-medium text-[#635bff] hover:text-[#534bd6]"
+              >
+                <Plus className="w-4 h-4" />
+                Add field
+              </button>
+            </div>
+
+            {formData.customFields.length === 0 ? (
+              <p className="text-[12px] text-gray-400 py-2">No custom fields yet</p>
+            ) : (
+              <div className="space-y-2">
+                {formData.customFields.map((field) => (
+                  <div
+                    key={field.id}
+                    className="flex flex-col sm:flex-row gap-2 p-3 rounded-xl bg-gray-50 border border-gray-100"
+                  >
                     <input
                       type="text"
-                      value={formData.brandColor}
-                      onChange={(e) => setFormData({ ...formData, brandColor: e.target.value })}
-                      className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                      value={field.label}
+                      onChange={(e) => updateCustomField(field.id, 'label', e.target.value)}
+                      placeholder="Field label"
+                      className="flex-1 h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff]"
                     />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Logo
-                  </label>
-                  {!logoPreview ? (
-                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-indigo-400 transition-colors cursor-pointer relative">
-                      <input
-                        type="file"
-                        onChange={handleLogoChange}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        accept=".jpg,.jpeg,.png,.webp,.svg"
-                      />
-                      <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm text-gray-500">Upload logo</p>
-                      <p className="text-xs text-gray-400">JPG, PNG, WebP, SVG (Max 2MB)</p>
-                    </div>
-                  ) : (
-                    <div className="relative inline-block">
-                      <img
-                        src={logoPreview}
-                        alt="Logo"
-                        className="w-24 h-24 object-contain rounded-lg border border-gray-200 bg-white p-2"
-                      />
-                      <button
-                        onClick={removeLogo}
-                        className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* ─── Customer Fields ───────────────────────────────────── */}
-            <div className="border-t border-gray-200 pt-6">
-              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">
-                Customer Fields
-              </h2>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    id="collectName"
-                    checked={formData.collectName}
-                    onChange={(e) => setFormData({ ...formData, collectName: e.target.checked })}
-                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                  />
-                  <label htmlFor="collectName" className="text-sm text-gray-700">Collect Name</label>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    id="collectEmail"
-                    checked={formData.collectEmail}
-                    onChange={(e) => setFormData({ ...formData, collectEmail: e.target.checked })}
-                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                  />
-                  <label htmlFor="collectEmail" className="text-sm text-gray-700">Collect Email</label>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    id="collectPhone"
-                    checked={formData.collectPhone}
-                    onChange={(e) => setFormData({ ...formData, collectPhone: e.target.checked })}
-                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                  />
-                  <label htmlFor="collectPhone" className="text-sm text-gray-700">Collect Phone</label>
-                </div>
-
-                {/* ─── Custom Fields ─────────────────────────────────── */}
-                <div className="pt-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-medium text-gray-700">Custom Fields</p>
-                    <button
-                      onClick={addCustomField}
-                      className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                    <select
+                      value={field.type}
+                      onChange={(e) => updateCustomField(field.id, 'type', e.target.value)}
+                      className="h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff]"
                     >
-                      <Plus className="w-4 h-4" /> Add Field
+                      <option value="text">Text</option>
+                      <option value="email">Email</option>
+                      <option value="phone">Phone</option>
+                      <option value="textarea">Textarea</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => removeCustomField(field.id)}
+                      className="h-10 w-10 shrink-0 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                  {formData.customFields.map((field) => (
-                    <div key={field.id} className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl mb-2">
-                      <input
-                        type="text"
-                        value={field.label}
-                        onChange={(e) => updateCustomField(field.id, 'label', e.target.value)}
-                        placeholder="Field label"
-                        className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-                      />
-                      <select
-                        value={field.type}
-                        onChange={(e) => updateCustomField(field.id, 'type', e.target.value)}
-                        className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-                      >
-                        <option value="text">Text</option>
-                        <option value="email">Email</option>
-                        <option value="phone">Phone</option>
-                        <option value="textarea">Textarea</option>
-                      </select>
-                      <button
-                        onClick={() => removeCustomField(field.id)}
-                        className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Redirects */}
+          <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 shadow-sm">
+            <h2 className="text-[13px] font-semibold text-[#0a2540] mb-4">
+              Redirect URLs <span className="text-gray-400 font-normal normal-case">(optional)</span>
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                  Success URL
+                </label>
+                <input
+                  type="url"
+                  value={formData.successUrl}
+                  onChange={(e) => setFormData({ ...formData, successUrl: e.target.value })}
+                  placeholder="https://yourdomain.com/thank-you"
+                  className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff]"
+                />
+              </div>
+              <div>
+                <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                  Cancel URL
+                </label>
+                <input
+                  type="url"
+                  value={formData.cancelUrl}
+                  onChange={(e) => setFormData({ ...formData, cancelUrl: e.target.value })}
+                  placeholder="https://yourdomain.com/cancel"
+                  className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff]"
+                />
               </div>
             </div>
+          </section>
 
-            {/* ─── Redirect URLs ──────────────────────────────────────── */}
-            <div className="border-t border-gray-200 pt-6">
-              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">
-                Redirect URLs
-              </h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Success URL <span className="text-gray-400 text-xs">(optional)</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.successUrl}
-                    onChange={(e) => setFormData({ ...formData, successUrl: e.target.value })}
-                    placeholder="https://yourdomain.com/thank-you"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Cancel URL <span className="text-gray-400 text-xs">(optional)</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.cancelUrl}
-                    onChange={(e) => setFormData({ ...formData, cancelUrl: e.target.value })}
-                    placeholder="https://yourdomain.com/cancel"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* ─── Submit ─────────────────────────────────────────────── */}
-            <button
-              onClick={handleGenerate}
-              disabled={!isFormValid || isGenerating}
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed text-white rounded-xl font-semibold text-base transition-all shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Globe className="w-5 h-5" />
-                  Create Payment Page
-                </>
-              )}
-            </button>
-          </div>
+          {/* CTA */}
+          <button
+            onClick={handleGenerate}
+            disabled={!isFormValid || isGenerating}
+            className="w-full h-12 bg-[#0a2540] hover:bg-[#152a45] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white rounded-xl font-semibold text-[15px] transition-all flex items-center justify-center gap-2 shadow-sm"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Creating…
+              </>
+            ) : (
+              <>
+                <Globe className="w-4 h-4" />
+                Create payment page
+              </>
+            )}
+          </button>
         </div>
       )}
     </div>
