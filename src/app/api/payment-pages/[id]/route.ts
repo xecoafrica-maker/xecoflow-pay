@@ -2,15 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// ─── Supabase Client Setup ───────────────────────────────────────────
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+// Use service role key for admin operations (bypass RLS)
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 // ─── GET /api/payment-pages/[id] ────────────────────────────────────
 export async function GET(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }  // ← Note: params is a Promise
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = getTokenFromRequest(req);
@@ -23,9 +26,10 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = await context.params;  // ← Await the params
+    const { id } = await context.params;
 
-    const { data, error } = await supabase
+    // Use supabaseAdmin to bypass RLS if needed, or use regular supabase
+    const { data, error } = await supabaseAdmin
       .from('payment_pages')
       .select('*')
       .eq('id', id)
@@ -49,7 +53,7 @@ export async function GET(
 // ─── PUT /api/payment-pages/[id] ────────────────────────────────────
 export async function PUT(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }  // ← Note: params is a Promise
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = getTokenFromRequest(req);
@@ -62,10 +66,10 @@ export async function PUT(
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = await context.params;  // ← Await the params
+    const { id } = await context.params;
     const body = await req.json();
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('payment_pages')
       .update({
         ...body,
@@ -93,7 +97,7 @@ export async function PUT(
 // ─── DELETE /api/payment-pages/[id] ─────────────────────────────────
 export async function DELETE(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }  // ← Note: params is a Promise
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = getTokenFromRequest(req);
@@ -106,9 +110,9 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = await context.params;  // ← Await the params
+    const { id } = await context.params;
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('payment_pages')
       .delete()
       .eq('id', id)

@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getTokenFromRequest, verifyToken } from '@/lib/auth';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// ─── Supabase Client Setup ───────────────────────────────────────────
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+// Use service role key for admin operations
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 // ─── GET /api/payment-pages ────────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -22,7 +24,7 @@ export async function GET(req: NextRequest) {
 
     const merchantId = user.merchantId;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('payment_pages')
       .select('*')
       .eq('merchant_id', merchantId)
@@ -80,7 +82,7 @@ export async function POST(req: NextRequest) {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '') + '-' + Math.random().toString(36).substring(2, 6);
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('payment_pages')
       .insert({
         merchant_id: merchantId,
