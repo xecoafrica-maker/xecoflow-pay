@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Smartphone,
   CheckCircle,
   Loader2,
   AlertCircle,
+  Lock,
   Mail,
   User,
   Shield,
@@ -14,10 +16,9 @@ import {
   Building2,
   Clock,
   ArrowLeft,
-  Lock,
-  FileText,
+  Check,
+  X,
 } from 'lucide-react';
-import Link from 'next/link';
 
 interface PaymentLinkData {
   id: string;
@@ -66,7 +67,6 @@ export default function PaymentLinkPage() {
       }
 
       setPaymentLink(data.data);
-      // If fixed amount, pre-fill the amount
       if (data.data.price > 0) {
         setAmount(data.data.price.toString());
       }
@@ -86,7 +86,6 @@ export default function PaymentLinkPage() {
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Format phone number
     let phone = phoneNumber.replace(/\D/g, '');
     if (phone.startsWith('0')) phone = '254' + phone.slice(1);
     if (!phone.startsWith('254') && (phone.length === 9 || phone.length === 10)) {
@@ -106,7 +105,6 @@ export default function PaymentLinkPage() {
       return;
     }
 
-    // For fixed amount, check if customer entered correct amount
     if (paymentLink?.price && paymentLink.price > 0 && amountToPay !== paymentLink.price) {
       setErrorMessage(`Amount must be exactly ${formatPrice(paymentLink.price, paymentLink.currency)}`);
       setPaymentStatus('error');
@@ -118,7 +116,7 @@ export default function PaymentLinkPage() {
     setErrorMessage('');
 
     try {
-      const res = await fetch('/v1/payments/initiate', {
+      const res = await fetch('/api/payments/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -136,7 +134,6 @@ export default function PaymentLinkPage() {
 
       if (res.ok && data.success) {
         setPaymentStatus('success');
-        // Redirect to return URL if provided
         if (paymentLink?.returnUrl) {
           setTimeout(() => {
             window.location.href = paymentLink.returnUrl!;
@@ -167,7 +164,7 @@ export default function PaymentLinkPage() {
       <div className="min-h-screen flex items-center justify-center bg-[#fafafa] p-4">
         <div className="max-w-sm w-full text-center bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
           <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Lock className="w-8 h-8 text-red-500" />
+            <X className="w-8 h-8 text-red-500" />
           </div>
           <h1 className="text-lg font-semibold text-gray-900">Session Not Found</h1>
           <p className="text-sm text-gray-500 mt-2">
@@ -203,13 +200,13 @@ export default function PaymentLinkPage() {
               Secure payment
             </span>
           </div>
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-gray-400 font-medium">
             {paymentLink.businessName || 'Merchant'}
           </span>
         </div>
       </header>
 
-      <main className="flex-1 w-full max-w-lg mx-auto px-4 py-6 sm:py-10">
+      <main className="flex-1 w-full max-w-md mx-auto px-4 py-6 sm:py-10">
         {/* Back button */}
         <button
           onClick={() => router.back()}
@@ -386,6 +383,7 @@ export default function PaymentLinkPage() {
                   </div>
                 )}
 
+                {/* Status Messages */}
                 {paymentStatus === 'processing' && (
                   <div className="flex items-start gap-2.5 text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-3">
                     <Loader2 className="w-4 h-4 animate-spin shrink-0 mt-0.5" />
@@ -422,6 +420,7 @@ export default function PaymentLinkPage() {
                   )}
                 </button>
 
+                {/* Security & Support */}
                 <div className="flex items-center justify-center gap-1.5 text-[11px] sm:text-[12px] text-gray-400">
                   <Shield className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-500" />
                   <span>Payments are encrypted and secure</span>
