@@ -34,6 +34,7 @@ function InnerCreateProductLink() {
   // ─── Form State ──────────────────────────────────────────────────────
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
+  const [fulfillmentType, setFulfillmentType] = useState<string>('digital');
   const [digitalFile, setDigitalFile] = useState<File | null>(null);
   const [digitalFileName, setDigitalFileName] = useState<string>('');
   const [linkExpiry, setLinkExpiry] = useState('24 Hours');
@@ -87,7 +88,7 @@ function InnerCreateProductLink() {
       '3 Days': 3,
       '7 Days': 7,
       '30 Days': 30,
-      'Never': 3650, // 10 years
+      'Never': 3650,
     };
     return map[selection] || 7;
   };
@@ -148,7 +149,7 @@ function InnerCreateProductLink() {
           merchantId: merchantData?.merchant_id || merchantData?.merchantId,
           name: name.trim(),
           price: parseFloat(price),
-          fulfillmentType: 'digital',
+          fulfillmentType: fulfillmentType,
           fileUrl: fileUrl,
           fileName: digitalFileName,
           expiryDays: getExpiryDays(linkExpiry),
@@ -271,7 +272,27 @@ function InnerCreateProductLink() {
           </div>
         </div>
 
-        {/* ─── 3. Digital File Upload ─────────────────────────────────── */}
+        {/* ─── 3. Fulfillment Type ───────────────────────────────────── */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Fulfillment Type
+          </label>
+          <div className="grid grid-cols-1 max-w-[200px]">
+            <button
+              onClick={() => setFulfillmentType('digital')}
+              className={`px-4 py-3 rounded-xl border text-center transition-all ${
+                fulfillmentType === 'digital'
+                  ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500/20'
+                  : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <div className="text-sm font-medium">📄 Digital File</div>
+              <div className="text-[10px] text-gray-400">Instant download</div>
+            </button>
+          </div>
+        </div>
+
+        {/* ─── Digital File Upload ───────────────────────────────────── */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Digital File <span className="text-red-500">*</span>
