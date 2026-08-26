@@ -168,26 +168,11 @@ const sidebarSections: SidebarSection[] = [
             href: '/dashboard/smart-bills/create-payment-page',
           },
           { 
-            icon: FileText, 
-            label: 'Create Invoice', 
-            href: '/dashboard/smart-bills/create',
-          },
-          { 
             icon: Layers, 
             label: 'All Payment Links', 
             href: '/dashboard/smart-bills/pages',
           },
-          { 
-            icon: BarChart3, 
-            label: 'Active Invoices', 
-            href: '/dashboard/smart-bills/analytics',
-          },
         ],
-      },
-      {
-        icon: Store,
-        label: 'My Storefront',
-        href: '/dashboard/storefront',
       },
       {
         icon: Building2,
