@@ -11,7 +11,7 @@ import {
   Mail,
   User,
   Shield,
-  CreditCard,
+  BadgeCheck,
 } from 'lucide-react';
 
 interface PaymentLinkData {
@@ -27,9 +27,38 @@ interface PaymentLinkData {
   expiryDate: string;
   returnUrl: string;
   linkType: string;
+  verified?: boolean;
 }
 
 type PayMethod = 'mpesa' | 'airtel' | 'tkash' | 'card' | 'paypal';
+
+const METHOD_LOGOS: Record<PayMethod, { src: string; label: string; activeBorder: string }> = {
+  mpesa: {
+    src: 'https://swalanyeti.co.ke/storage/uploads/2020/12/IMG-20201203204210.jpg',
+    label: 'M-PESA',
+    activeBorder: 'border-[#09A747]',
+  },
+  airtel: {
+    src: 'https://www.pngall.com/wp-content/uploads/17/Airtel-Money-Logo-Vector-PNG.png',
+    label: 'Airtel',
+    activeBorder: 'border-[#ED1C24]',
+  },
+  tkash: {
+    src: 'https://tech-ish.com/wp-content/uploads/2020/04/Telkom-Kenya-Tkash.jpg',
+    label: 'T-Kash',
+    activeBorder: 'border-[#FF6B00]',
+  },
+  card: {
+    src: 'https://static.vecteezy.com/system/resources/previews/066/705/796/non_2x/visa-and-mastercard-logo-featuring-overlapping-circles-on-a-white-background-free-vector.jpg',
+    label: 'Card',
+    activeBorder: 'border-[#1A1F36]',
+  },
+  paypal: {
+    src: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/1280px-PayPal.svg.png?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail',
+    label: 'PayPal',
+    activeBorder: 'border-[#003087]',
+  },
+};
 
 export default function PaymentLinkPage() {
   const params = useParams();
@@ -47,6 +76,7 @@ export default function PaymentLinkPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [brokenLogos, setBrokenLogos] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!slug) return;
@@ -176,72 +206,36 @@ export default function PaymentLinkPage() {
   const isPaid = paymentLink.status === 'PAID' || paymentLink.status === 'COMPLETED';
   const isFixedAmount = paymentLink.price > 0;
   const displayAmount = Number(amount || paymentLink.price || 0);
-  const merchant = paymentLink.businessName || 'Merchant';
-
-  const methods: {
-    id: PayMethod;
-    label: string;
-    color: string;
-    bg: string;
-    border: string;
-    icon: React.ReactNode;
-  }[] = [
-    {
-      id: 'mpesa',
-      label: 'M-PESA',
-      color: 'text-white',
-      bg: 'bg-[#09A747]',
-      border: 'border-[#09A747]',
-      icon: <span className="text-[10px] font-bold">M</span>,
-    },
-    {
-      id: 'airtel',
-      label: 'Airtel',
-      color: 'text-white',
-      bg: 'bg-[#ED1C24]',
-      border: 'border-[#ED1C24]',
-      icon: <span className="text-[9px] font-bold">A</span>,
-    },
-    {
-      id: 'tkash',
-      label: 'T-Kash',
-      color: 'text-white',
-      bg: 'bg-[#FF6B00]',
-      border: 'border-[#FF6B00]',
-      icon: <span className="text-[9px] font-bold">T</span>,
-    },
-    {
-      id: 'card',
-      label: 'Card',
-      color: 'text-white',
-      bg: 'bg-[#1A1F36]',
-      border: 'border-[#1A1F36]',
-      icon: <CreditCard className="w-3.5 h-3.5" />,
-    },
-    {
-      id: 'paypal',
-      label: 'PayPal',
-      color: 'text-white',
-      bg: 'bg-[#003087]',
-      border: 'border-[#003087]',
-      icon: <span className="text-[9px] font-bold">P</span>,
-    },
-  ];
-
+  const merchantName = paymentLink.businessName || 'Merchant';
+  const isVerified = paymentLink.verified === true;
   const isMobileMoney = method === 'mpesa' || method === 'airtel' || method === 'tkash';
 
   return (
     <div className="min-h-screen bg-white">
       <div className="min-h-screen grid lg:grid-cols-2">
-        {/* ── LEFT: Summary ── */}
+        {/* ── LEFT: Merchant + summary ── */}
         <div className="bg-[#f6f9fc] px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col">
+          {/* Merchant details */}
           <div className="mb-8">
-            <span className="text-[13px] font-semibold tracking-wide text-gray-500 uppercase">
-              {merchant}
-            </span>
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              Merchant details
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[15px] font-semibold text-gray-900">{merchantName}</span>
+              {isVerified ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                  <BadgeCheck className="w-3 h-3" />
+                  Verified
+                </span>
+              ) : (
+                <span className="inline-flex items-center text-[11px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                  Unverified
+                </span>
+              )}
+            </div>
           </div>
 
-          <p className="text-sm text-gray-500 mb-1">Pay {merchant}</p>
+          <p className="text-sm text-gray-500 mb-1">Pay {merchantName}</p>
           <p className="text-[36px] sm:text-[40px] font-semibold text-gray-900 tracking-tight leading-none">
             {formatPrice(displayAmount, paymentLink.currency)}
           </p>
@@ -297,7 +291,7 @@ export default function PaymentLinkPage() {
                 </div>
                 <h2 className="text-xl font-semibold text-gray-900">Payment successful</h2>
                 <p className="text-sm text-gray-500 mt-2">
-                  {formatPrice(displayAmount, paymentLink.currency)} paid to {merchant}
+                  {formatPrice(displayAmount, paymentLink.currency)} paid to {merchantName}
                 </p>
               </div>
             ) : isExpired ? (
@@ -308,31 +302,44 @@ export default function PaymentLinkPage() {
               </div>
             ) : (
               <form onSubmit={handlePay} className="space-y-5">
-                {/* Pay with logos */}
+                {/* Pay with — real logos */}
                 <div>
                   <p className="text-[13px] font-medium text-gray-700 mb-2.5">Pay with</p>
                   <div className="grid grid-cols-5 gap-2">
-                    {methods.map((m) => {
-                      const active = method === m.id;
+                    {(Object.keys(METHOD_LOGOS) as PayMethod[]).map((id) => {
+                      const m = METHOD_LOGOS[id];
+                      const active = method === id;
+                      const broken = brokenLogos[id];
                       return (
                         <button
-                          key={m.id}
+                          key={id}
                           type="button"
                           onClick={() => {
-                            setMethod(m.id);
+                            setMethod(id);
                             setPaymentStatus('idle');
                             setErrorMessage('');
                           }}
                           className={`flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl border-2 transition-all ${
                             active
-                              ? `${m.border} bg-white shadow-sm`
+                              ? `${m.activeBorder} bg-white shadow-sm`
                               : 'border-gray-200 hover:border-gray-300 bg-white'
                           }`}
                         >
-                          <div
-                            className={`w-8 h-8 rounded-lg ${m.bg} ${m.color} flex items-center justify-center`}
-                          >
-                            {m.icon}
+                          <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center overflow-hidden">
+                            {!broken ? (
+                              <img
+                                src={m.src}
+                                alt={m.label}
+                                className="w-7 h-7 object-contain"
+                                onError={() =>
+                                  setBrokenLogos((prev) => ({ ...prev, [id]: true }))
+                                }
+                              />
+                            ) : (
+                              <span className="text-[10px] font-bold text-gray-600">
+                                {m.label.slice(0, 2)}
+                              </span>
+                            )}
                           </div>
                           <span
                             className={`text-[10px] font-semibold ${
@@ -355,9 +362,7 @@ export default function PaymentLinkPage() {
                         {isMobileMoney ? 'Waiting for confirmation' : 'Processing payment'}
                       </p>
                       <p className="text-blue-600 text-[12px] mt-0.5">
-                        {isMobileMoney
-                          ? 'Enter your PIN on your phone'
-                          : 'Please wait…'}
+                        {isMobileMoney ? 'Enter your PIN on your phone' : 'Please wait…'}
                       </p>
                     </div>
                   </div>
@@ -389,7 +394,6 @@ export default function PaymentLinkPage() {
                   </div>
                 )}
 
-                {/* Mobile money phone */}
                 {isMobileMoney && (
                   <div>
                     <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
@@ -417,7 +421,6 @@ export default function PaymentLinkPage() {
                   </div>
                 )}
 
-                {/* Card fields */}
                 {method === 'card' && (
                   <div className="space-y-3">
                     <div>
@@ -458,7 +461,6 @@ export default function PaymentLinkPage() {
                   </div>
                 )}
 
-                {/* PayPal note */}
                 {method === 'paypal' && (
                   <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-[13px] text-blue-800">
                     You’ll be redirected to PayPal to complete payment securely.
