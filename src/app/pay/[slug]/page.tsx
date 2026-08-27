@@ -11,6 +11,7 @@ import {
   Mail,
   User,
   Shield,
+  CreditCard,
 } from 'lucide-react';
 
 interface PaymentLinkData {
@@ -28,6 +29,8 @@ interface PaymentLinkData {
   linkType: string;
 }
 
+type PayMethod = 'mpesa' | 'airtel' | 'tkash' | 'card' | 'paypal';
+
 export default function PaymentLinkPage() {
   const params = useParams();
   const router = useRouter();
@@ -40,6 +43,7 @@ export default function PaymentLinkPage() {
   const [customerName, setCustomerName] = useState('');
   const [email, setEmail] = useState('');
   const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState<PayMethod>('mpesa');
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -71,16 +75,17 @@ export default function PaymentLinkPage() {
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    let phone = phoneNumber.replace(/\D/g, '');
-    if (phone.startsWith('0')) phone = '254' + phone.slice(1);
-    if (!phone.startsWith('254') && (phone.length === 9 || phone.length === 10)) {
-      phone = '254' + phone.slice(-9);
-    }
-
-    if (!phone || phone.length < 12) {
-      setErrorMessage('Enter a valid 9-digit M-PESA number');
-      setPaymentStatus('error');
-      return;
+    if (method === 'mpesa' || method === 'airtel' || method === 'tkash') {
+      let phone = phoneNumber.replace(/\D/g, '');
+      if (phone.startsWith('0')) phone = '254' + phone.slice(1);
+      if (!phone.startsWith('254') && (phone.length === 9 || phone.length === 10)) {
+        phone = '254' + phone.slice(-9);
+      }
+      if (!phone || phone.length < 12) {
+        setErrorMessage('Enter a valid 9-digit phone number');
+        setPaymentStatus('error');
+        return;
+      }
     }
 
     const amountToPay = Number(amount);
@@ -110,10 +115,11 @@ export default function PaymentLinkPage() {
           billId: paymentLink?.billId,
           merchantId: paymentLink?.merchantId,
           amount: amountToPay,
-          phone,
+          phone: phoneNumber,
           customerName: customerName || 'Customer',
           email: email || undefined,
           currency: paymentLink?.currency || 'KES',
+          method,
         }),
       });
 
@@ -172,13 +178,67 @@ export default function PaymentLinkPage() {
   const displayAmount = Number(amount || paymentLink.price || 0);
   const merchant = paymentLink.businessName || 'Merchant';
 
+  const methods: {
+    id: PayMethod;
+    label: string;
+    color: string;
+    bg: string;
+    border: string;
+    icon: React.ReactNode;
+  }[] = [
+    {
+      id: 'mpesa',
+      label: 'M-PESA',
+      color: 'text-white',
+      bg: 'bg-[#09A747]',
+      border: 'border-[#09A747]',
+      icon: <span className="text-[10px] font-bold">M</span>,
+    },
+    {
+      id: 'airtel',
+      label: 'Airtel',
+      color: 'text-white',
+      bg: 'bg-[#ED1C24]',
+      border: 'border-[#ED1C24]',
+      icon: <span className="text-[9px] font-bold">A</span>,
+    },
+    {
+      id: 'tkash',
+      label: 'T-Kash',
+      color: 'text-white',
+      bg: 'bg-[#FF6B00]',
+      border: 'border-[#FF6B00]',
+      icon: <span className="text-[9px] font-bold">T</span>,
+    },
+    {
+      id: 'card',
+      label: 'Card',
+      color: 'text-white',
+      bg: 'bg-[#1A1F36]',
+      border: 'border-[#1A1F36]',
+      icon: <CreditCard className="w-3.5 h-3.5" />,
+    },
+    {
+      id: 'paypal',
+      label: 'PayPal',
+      color: 'text-white',
+      bg: 'bg-[#003087]',
+      border: 'border-[#003087]',
+      icon: <span className="text-[9px] font-bold">P</span>,
+    },
+  ];
+
+  const isMobileMoney = method === 'mpesa' || method === 'airtel' || method === 'tkash';
+
   return (
     <div className="min-h-screen bg-white">
       <div className="min-h-screen grid lg:grid-cols-2">
-        {/* ════════════ LEFT — Order summary ════════════ */}
+        {/* ── LEFT: Summary ── */}
         <div className="bg-[#f6f9fc] px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col">
-          <div className="flex items-center gap-2 mb-8">
-            <span className="text-[15px] font-semibold text-gray-800">{merchant}</span>
+          <div className="mb-8">
+            <span className="text-[13px] font-semibold tracking-wide text-gray-500 uppercase">
+              {merchant}
+            </span>
           </div>
 
           <p className="text-sm text-gray-500 mb-1">Pay {merchant}</p>
@@ -227,9 +287,9 @@ export default function PaymentLinkPage() {
           </p>
         </div>
 
-        {/* ════════════ RIGHT — Payment form ════════════ */}
+        {/* ── RIGHT: Pay form ── */}
         <div className="px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col justify-center">
-          <div className="w-full max-w-[400px] mx-auto">
+          <div className="w-full max-w-[420px] mx-auto">
             {isPaid ? (
               <div className="text-center py-6">
                 <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -239,35 +299,51 @@ export default function PaymentLinkPage() {
                 <p className="text-sm text-gray-500 mt-2">
                   {formatPrice(displayAmount, paymentLink.currency)} paid to {merchant}
                 </p>
-                {paymentLink.returnUrl ? (
-                  <p className="text-xs text-gray-400 mt-4">Redirecting…</p>
-                ) : (
-                  <button
-                    onClick={() => router.push('/')}
-                    className="mt-6 text-sm font-medium text-[#635bff] hover:underline"
-                  >
-                    Done
-                  </button>
-                )}
               </div>
             ) : isExpired ? (
               <div className="text-center py-6">
                 <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
                 <h2 className="text-lg font-semibold text-gray-900">Link expired</h2>
-                <p className="text-sm text-gray-500 mt-2">
-                  Contact the merchant for a new link.
-                </p>
+                <p className="text-sm text-gray-500 mt-2">Contact the merchant for a new link.</p>
               </div>
             ) : (
               <form onSubmit={handlePay} className="space-y-5">
-                {/* M-PESA method badge */}
-                <div className="flex items-center gap-3 p-3.5 rounded-xl border-2 border-[#09A747] bg-[#09A747]/5">
-                  <div className="w-9 h-9 rounded-lg bg-[#09A747] flex items-center justify-center text-white text-[11px] font-bold">
-                    M
-                  </div>
-                  <div>
-                    <p className="text-[14px] font-semibold text-gray-900">M-PESA</p>
-                    <p className="text-[12px] text-gray-500">STK Push to your phone</p>
+                {/* Pay with logos */}
+                <div>
+                  <p className="text-[13px] font-medium text-gray-700 mb-2.5">Pay with</p>
+                  <div className="grid grid-cols-5 gap-2">
+                    {methods.map((m) => {
+                      const active = method === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => {
+                            setMethod(m.id);
+                            setPaymentStatus('idle');
+                            setErrorMessage('');
+                          }}
+                          className={`flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl border-2 transition-all ${
+                            active
+                              ? `${m.border} bg-white shadow-sm`
+                              : 'border-gray-200 hover:border-gray-300 bg-white'
+                          }`}
+                        >
+                          <div
+                            className={`w-8 h-8 rounded-lg ${m.bg} ${m.color} flex items-center justify-center`}
+                          >
+                            {m.icon}
+                          </div>
+                          <span
+                            className={`text-[10px] font-semibold ${
+                              active ? 'text-gray-900' : 'text-gray-500'
+                            }`}
+                          >
+                            {m.label}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -275,9 +351,13 @@ export default function PaymentLinkPage() {
                   <div className="flex items-start gap-3 text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
                     <Loader2 className="w-4 h-4 animate-spin shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-medium text-[13px]">Waiting for M-PESA</p>
+                      <p className="font-medium text-[13px]">
+                        {isMobileMoney ? 'Waiting for confirmation' : 'Processing payment'}
+                      </p>
                       <p className="text-blue-600 text-[12px] mt-0.5">
-                        Enter your PIN on your phone
+                        {isMobileMoney
+                          ? 'Enter your PIN on your phone'
+                          : 'Please wait…'}
                       </p>
                     </div>
                   </div>
@@ -309,26 +389,81 @@ export default function PaymentLinkPage() {
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                    M-PESA number
-                  </label>
-                  <div className="flex h-11 rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
-                    <span className="flex items-center gap-1.5 px-3 bg-gray-50 border-r border-gray-200 text-[13px] text-gray-500 shrink-0">
-                      <Smartphone className="w-4 h-4" />
-                      +254
-                    </span>
-                    <input
-                      type="tel"
-                      inputMode="numeric"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      placeholder="712071385"
-                      disabled={isProcessing}
-                      className="flex-1 min-w-0 px-3 text-sm outline-none disabled:opacity-60"
-                    />
+                {/* Mobile money phone */}
+                {isMobileMoney && (
+                  <div>
+                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                      {method === 'mpesa'
+                        ? 'M-PESA number'
+                        : method === 'airtel'
+                        ? 'Airtel Money number'
+                        : 'T-Kash number'}
+                    </label>
+                    <div className="flex h-11 rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
+                      <span className="flex items-center gap-1.5 px-3 bg-gray-50 border-r border-gray-200 text-[13px] text-gray-500 shrink-0">
+                        <Smartphone className="w-4 h-4" />
+                        +254
+                      </span>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        placeholder="712071385"
+                        disabled={isProcessing}
+                        className="flex-1 min-w-0 px-3 text-sm outline-none disabled:opacity-60"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* Card fields */}
+                {method === 'card' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                        Card number
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="4242 4242 4242 4242"
+                        disabled={isProcessing}
+                        className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                          Expiry
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="MM / YY"
+                          disabled={isProcessing}
+                          className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                          CVC
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="123"
+                          disabled={isProcessing}
+                          className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* PayPal note */}
+                {method === 'paypal' && (
+                  <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-[13px] text-blue-800">
+                    You’ll be redirected to PayPal to complete payment securely.
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
@@ -381,7 +516,7 @@ export default function PaymentLinkPage() {
 
                 <p className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
                   <Shield className="w-3 h-3 text-emerald-500" />
-                  Secure M-PESA payment
+                  Secure payment
                 </p>
               </form>
             )}
