@@ -211,12 +211,29 @@ export default function PaymentLinkPage() {
   const isVerified = paymentLink.verified === true;
   const isMobileMoney = method === 'mpesa' || method === 'airtel' || method === 'tkash';
 
+  const poweredBy = (
+    <p className="text-[12px] text-gray-400 text-center lg:text-left">
+      Powered by{' '}
+      <span className="font-semibold text-gray-500">
+        <span className="text-[#0a2540]">Xeco</span>
+        <span className="text-[#10B981]">Flow</span>
+      </span>
+      <span className="mx-1.5">·</span>
+      <Link href="/terms" className="hover:text-gray-600">
+        Terms
+      </Link>
+      <span className="mx-1.5">·</span>
+      <Link href="/privacy" className="hover:text-gray-600">
+        Privacy
+      </Link>
+    </p>
+  );
+
   return (
-    <div className="min-h-screen bg-white">
-      <div className="min-h-screen grid lg:grid-cols-2">
+    <div className="min-h-screen bg-white flex flex-col">
+      <div className="flex-1 grid lg:grid-cols-2">
         {/* ── LEFT: Merchant + summary ── */}
         <div className="bg-[#f6f9fc] px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col">
-          {/* Merchant — avatar + name + verified */}
           <div className="mb-8">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-full bg-[#0a2540] flex items-center justify-center shrink-0 overflow-hidden shadow-sm ring-2 ring-white">
@@ -277,21 +294,8 @@ export default function PaymentLinkPage() {
             </div>
           </div>
 
-          <p className="mt-10 text-[12px] text-gray-400">
-            Powered by{' '}
-            <span className="font-semibold text-gray-500">
-              <span className="text-[#0a2540]">Xeco</span>
-              <span className="text-[#10B981]">Flow</span>
-            </span>
-            <span className="mx-1.5">·</span>
-            <Link href="/terms" className="hover:text-gray-600">
-              Terms
-            </Link>
-            <span className="mx-1.5">·</span>
-            <Link href="/privacy" className="hover:text-gray-600">
-              Privacy
-            </Link>
-          </p>
+          {/* Desktop only — stays at bottom of left panel */}
+          <div className="mt-10 hidden lg:block">{poweredBy}</div>
         </div>
 
         {/* ── RIGHT: Pay form ── */}
@@ -315,7 +319,6 @@ export default function PaymentLinkPage() {
               </div>
             ) : (
               <form onSubmit={handlePay} className="space-y-5">
-                {/* Pay with logos */}
                 <div>
                   <p className="text-[13px] font-medium text-gray-700 mb-2.5">Pay with</p>
                   <div className="grid grid-cols-5 gap-2">
@@ -538,6 +541,11 @@ export default function PaymentLinkPage() {
           </div>
         </div>
       </div>
+
+      {/* Mobile only — bottom of page, centered */}
+      <footer className="lg:hidden border-t border-gray-100 px-6 py-5">
+        {poweredBy}
+      </footer>
     </div>
   );
 }
