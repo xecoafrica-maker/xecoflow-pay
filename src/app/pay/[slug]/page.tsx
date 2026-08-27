@@ -28,6 +28,7 @@ interface PaymentLinkData {
   returnUrl: string;
   linkType: string;
   verified?: boolean;
+  logoUrl?: string;
 }
 
 type PayMethod = 'mpesa' | 'airtel' | 'tkash' | 'card' | 'paypal';
@@ -54,7 +55,7 @@ const METHOD_LOGOS: Record<PayMethod, { src: string; label: string; activeBorder
     activeBorder: 'border-[#1A1F36]',
   },
   paypal: {
-    src: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/1280px-PayPal.svg.png?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=thumbnail',
+    src: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/1280px-PayPal.svg.png',
     label: 'PayPal',
     activeBorder: 'border-[#003087]',
   },
@@ -215,23 +216,35 @@ export default function PaymentLinkPage() {
       <div className="min-h-screen grid lg:grid-cols-2">
         {/* ── LEFT: Merchant + summary ── */}
         <div className="bg-[#f6f9fc] px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col">
-          {/* Merchant details */}
+          {/* Merchant — avatar + name + verified */}
           <div className="mb-8">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-              Merchant details
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[15px] font-semibold text-gray-900">{merchantName}</span>
-              {isVerified ? (
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
-                  <BadgeCheck className="w-3 h-3" />
-                  Verified
-                </span>
-              ) : (
-                <span className="inline-flex items-center text-[11px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                  Unverified
-                </span>
-              )}
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-[#0a2540] flex items-center justify-center shrink-0 overflow-hidden shadow-sm ring-2 ring-white">
+                {paymentLink.logoUrl ? (
+                  <img
+                    src={paymentLink.logoUrl}
+                    alt={merchantName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-sm font-bold text-white">
+                    {merchantName.slice(0, 2).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[15px] font-semibold text-gray-900 truncate">
+                  {merchantName}
+                </p>
+                {isVerified ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 mt-0.5">
+                    <BadgeCheck className="w-3.5 h-3.5" />
+                    Verified merchant
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-gray-400 mt-0.5 block">Merchant</span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -302,7 +315,7 @@ export default function PaymentLinkPage() {
               </div>
             ) : (
               <form onSubmit={handlePay} className="space-y-5">
-                {/* Pay with — real logos */}
+                {/* Pay with logos */}
                 <div>
                   <p className="text-[13px] font-medium text-gray-700 mb-2.5">Pay with</p>
                   <div className="grid grid-cols-5 gap-2">
