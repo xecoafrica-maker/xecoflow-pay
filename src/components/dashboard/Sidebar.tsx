@@ -63,6 +63,7 @@ import {
   Store,
   Receipt,
   Layers,
+  ChevronUp, // ← ADD THIS
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -239,6 +240,7 @@ export default function Sidebar() {
   const [showLoading, setShowLoading] = useState(false);
   const isManualToggle = useRef(false);
   const [pinnedApps, setPinnedApps] = useState<string[]>([]);
+  const [showUserMenu, setShowUserMenu] = useState(false); // ← ADD THIS
 
   // Check if we're on the loan page
   const isLoanPage = pathname?.startsWith('/dashboard/loans') || false;
@@ -347,6 +349,15 @@ export default function Sidebar() {
       setShowLoading(false);
     }
   }, [pathname]);
+
+  // ─── Handle Sign Out ──────────────────────────────────────────────
+  const handleSignOut = () => {
+    // Clear auth tokens
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('xecoflow_merchant');
+    // Redirect to login
+    router.push('/login');
+  };
 
   // Don't render sidebar on loan page
   if (isLoanPage) {
@@ -603,15 +614,52 @@ export default function Sidebar() {
 
         {/* ─── Footer ────────────────────────────────────────────────── */}
         <div className="border-t border-slate-700/50 p-4 mt-auto">
-          <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-slate-800/50 transition-all cursor-pointer">
+          {/* User Profile Button with Arrow Up */}
+          <button
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-slate-800/50 transition-all"
+          >
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-emerald-500/20">
               {merchantName.charAt(0).toUpperCase()}
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 text-left">
               <p className="text-sm font-semibold text-white truncate">{merchantName}</p>
               <p className="text-xs text-slate-400 truncate">Admin Account</p>
             </div>
-          </div>
+            <ChevronUp 
+              className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
+                showUserMenu ? 'rotate-180' : ''
+              }`} 
+            />
+          </button>
+
+          {/* Dropdown Menu */}
+          {showUserMenu && (
+            <div className="mt-2 rounded-xl bg-slate-800/50 border border-slate-700/50 overflow-hidden">
+              <Link
+                href="/dashboard/account/profile"
+                className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-700/50 transition-colors text-sm text-slate-300 hover:text-white"
+              >
+                <User className="w-4 h-4" />
+                My Profile
+              </Link>
+              <Link
+                href="/dashboard/account/preferences"
+                className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-700/50 transition-colors text-sm text-slate-300 hover:text-white"
+              >
+                <Settings className="w-4 h-4" />
+                Preferences
+              </Link>
+              <div className="border-t border-slate-700/50"></div>
+              <button
+                onClick={handleSignOut}
+                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-500/10 transition-colors text-sm text-red-400 hover:text-red-300"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </button>
+            </div>
+          )}
         </div>
       </aside>
     </>
