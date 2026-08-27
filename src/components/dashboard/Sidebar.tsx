@@ -238,7 +238,6 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [merchantName, setMerchantName] = useState('Merchant');
-  const [merchantEmail, setMerchantEmail] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showLoading, setShowLoading] = useState(false);
   const isManualToggle = useRef(false);
@@ -311,9 +310,6 @@ export default function Sidebar() {
       setMerchantName(stored.businessName);
     } else if (stored?.business_name) {
       setMerchantName(stored.business_name);
-    }
-    if (stored?.email) {
-      setMerchantEmail(stored.email);
     }
   }, []);
 
@@ -633,11 +629,11 @@ export default function Sidebar() {
         </nav>
 
         {/* ─── Footer ────────────────────────────────────────────────── */}
-        <div ref={menuRef} className="border-t border-slate-700/50 p-4 mt-auto flex-shrink-0">
-          {/* User Profile Button */}
+        <div ref={menuRef} className="border-t border-slate-700/50 p-4 mt-auto flex-shrink-0 relative">
+          {/* User Profile Button - Stays at bottom */}
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-slate-800/50 transition-all relative"
+            className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-slate-800/50 transition-all relative z-10"
           >
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-emerald-500/20 shrink-0">
               {merchantName.charAt(0).toUpperCase()}
@@ -653,13 +649,13 @@ export default function Sidebar() {
             />
           </button>
 
-          {/* Dropdown Menu - Clean Design */}
+          {/* Dropdown Menu - Opens UPWARD from the button */}
           <div
-            className={`overflow-hidden transition-all duration-300 ease-in-out ${
-              showUserMenu ? 'max-h-80 opacity-100 mt-2' : 'max-h-0 opacity-0'
+            className={`absolute bottom-full left-0 right-0 mb-2 overflow-hidden transition-all duration-300 ease-in-out ${
+              showUserMenu ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'
             }`}
           >
-            <div className="rounded-xl bg-slate-800/50 border border-slate-700/50 overflow-hidden">
+            <div className="mx-2 rounded-xl bg-slate-800/95 border border-slate-700/50 overflow-hidden shadow-xl shadow-black/30 backdrop-blur-sm">
               {/* Account Header */}
               <div className="px-4 py-3 border-b border-slate-700/50">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Account</p>
