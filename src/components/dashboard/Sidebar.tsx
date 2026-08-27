@@ -63,7 +63,7 @@ import {
   Store,
   Receipt,
   Layers,
-  ChevronUp, // ← ADD THIS
+  ChevronUp,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -240,10 +240,25 @@ export default function Sidebar() {
   const [showLoading, setShowLoading] = useState(false);
   const isManualToggle = useRef(false);
   const [pinnedApps, setPinnedApps] = useState<string[]>([]);
-  const [showUserMenu, setShowUserMenu] = useState(false); // ← ADD THIS
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Check if we're on the loan page
   const isLoanPage = pathname?.startsWith('/dashboard/loans') || false;
+
+  // ─── Close menu when clicking outside ──────────────────────────────
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // ─── Load pinned apps from localStorage ──────────────────────────
   useEffect(() => {
@@ -352,10 +367,8 @@ export default function Sidebar() {
 
   // ─── Handle Sign Out ──────────────────────────────────────────────
   const handleSignOut = () => {
-    // Clear auth tokens
     localStorage.removeItem('auth_token');
     localStorage.removeItem('xecoflow_merchant');
-    // Redirect to login
     router.push('/login');
   };
 
@@ -415,9 +428,10 @@ export default function Sidebar() {
 
         {/* ─── Navigation ───────────────────────────────────────────── */}
         <nav 
-          className={`flex-1 px-3 py-4 ${
-            hasExpanded ? 'overflow-y-auto' : 'overflow-hidden'
+          className={`flex-1 px-3 py-4 overflow-y-auto ${
+            hasExpanded ? '' : 'overflow-hidden'
           }`}
+          style={{ scrollbarWidth: 'thin', scrollbarColor: '#1a2a4a transparent' }}
         >
           {sections.map((section) => {
             if (section.items.length === 0) return null;
@@ -613,13 +627,13 @@ export default function Sidebar() {
         </nav>
 
         {/* ─── Footer ────────────────────────────────────────────────── */}
-        <div className="border-t border-slate-700/50 p-4 mt-auto">
-          {/* User Profile Button with Arrow Up */}
+        <div ref={menuRef} className="border-t border-slate-700/50 p-4 mt-auto flex-shrink-0">
+          {/* User Profile Button */}
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-slate-800/50 transition-all"
+            className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-slate-800/50 transition-all relative"
           >
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-emerald-500/20">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-emerald-500/20 shrink-0">
               {merchantName.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0 text-left">
@@ -627,15 +641,19 @@ export default function Sidebar() {
               <p className="text-xs text-slate-400 truncate">Admin Account</p>
             </div>
             <ChevronUp 
-              className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
+              className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${
                 showUserMenu ? 'rotate-180' : ''
               }`} 
             />
           </button>
 
-          {/* Dropdown Menu */}
-          {showUserMenu && (
-            <div className="mt-2 rounded-xl bg-slate-800/50 border border-slate-700/50 overflow-hidden">
+          {/* Dropdown Menu - Animated from bottom to top */}
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-in-out ${
+              showUserMenu ? 'max-h-64 opacity-100 mt-2' : 'max-h-0 opacity-0'
+            }`}
+          >
+            <div className="rounded-xl bg-slate-800/50 border border-slate-700/50 overflow-hidden">
               <Link
                 href="/dashboard/account/profile"
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-700/50 transition-colors text-sm text-slate-300 hover:text-white"
@@ -659,7 +677,7 @@ export default function Sidebar() {
                 Sign Out
               </button>
             </div>
-          )}
+          </div>
         </div>
       </aside>
     </>
