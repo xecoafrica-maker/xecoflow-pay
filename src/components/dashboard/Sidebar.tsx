@@ -64,6 +64,8 @@ import {
   Receipt,
   Layers,
   ChevronUp,
+  UserCircle,
+  Trash2,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -236,6 +238,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [merchantName, setMerchantName] = useState('Merchant');
+  const [merchantEmail, setMerchantEmail] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showLoading, setShowLoading] = useState(false);
   const isManualToggle = useRef(false);
@@ -308,6 +311,9 @@ export default function Sidebar() {
       setMerchantName(stored.businessName);
     } else if (stored?.business_name) {
       setMerchantName(stored.business_name);
+    }
+    if (stored?.email) {
+      setMerchantEmail(stored.email);
     }
   }, []);
 
@@ -647,34 +653,49 @@ export default function Sidebar() {
             />
           </button>
 
-          {/* Dropdown Menu - Animated from bottom to top */}
+          {/* Dropdown Menu - Clean Design */}
           <div
             className={`overflow-hidden transition-all duration-300 ease-in-out ${
-              showUserMenu ? 'max-h-64 opacity-100 mt-2' : 'max-h-0 opacity-0'
+              showUserMenu ? 'max-h-80 opacity-100 mt-2' : 'max-h-0 opacity-0'
             }`}
           >
             <div className="rounded-xl bg-slate-800/50 border border-slate-700/50 overflow-hidden">
+              {/* Account Header */}
+              <div className="px-4 py-3 border-b border-slate-700/50">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Account</p>
+              </div>
+
+              {/* Menu Items */}
               <Link
                 href="/dashboard/account/profile"
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-700/50 transition-colors text-sm text-slate-300 hover:text-white"
               >
-                <User className="w-4 h-4" />
-                My Profile
+                <UserCircle className="w-4 h-4" />
+                Profile
               </Link>
               <Link
                 href="/dashboard/account/preferences"
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-700/50 transition-colors text-sm text-slate-300 hover:text-white"
               >
                 <Settings className="w-4 h-4" />
-                Preferences
+                Settings
               </Link>
+              
               <div className="border-t border-slate-700/50"></div>
+              
               <button
                 onClick={handleSignOut}
                 className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-500/10 transition-colors text-sm text-red-400 hover:text-red-300"
               >
                 <LogOut className="w-4 h-4" />
-                Sign Out
+                Log out
+              </button>
+              <button
+                onClick={handleSignOut}
+                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-500/10 transition-colors text-sm text-red-400/60 hover:text-red-300"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete account
               </button>
             </div>
           </div>
