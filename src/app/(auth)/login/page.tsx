@@ -302,86 +302,63 @@ export default function LoginPage() {
       console.log('📤 Login response status:', response.status);
       console.log('📤 Login response data:', data);
 
-      // ─── Check if login was successful ──────────────────────────────
-      if (response.ok && data.success) {
-        clearAttempts();
-        
-        await log(
-          ActivityActions.LOGIN,
-          `User logged in successfully`
-        );
+      // ─── ✅ FIX: Extract token from nested data object ──────────────
+      // The backend returns: { success: true, data: { accessToken: '...', ... } }
+      // The API route might return: { success: true, token: '...', merchant: {...} }
+      
+      let token = null;
+      let merchantData = null;
 
-        // ─── ✅ FIX: Get token from the response ──────────────────────
-        // The API route returns: { success: true, token: '...', merchant: {...} }
-        // But the backend returns: { success: true, data: { accessToken: '...' } }
-        
-        // First check if the API route already formatted it
-        let token = data.token || data.accessToken;
-        
-        // If not, check if it's in the data object
-        if (!token && data.data) {
-          token = data.data.accessToken || data.data.token;
-        }
-        
-        console.log('🔑 Extracted token:', token ? token.substring(0, 30) + '...' : 'NO TOKEN');
+      // Check if API route already formatted it (has token at root)
+      if (data.token) {
+        token = data.token;
+        merchantData = data.merchant || data;
+      } 
+      // Check if it's the raw backend response (token inside data.accessToken)
+      else if (data.data && data.data.accessToken) {
+        token = data.data.accessToken;
+        merchantData = data.data;
+      }
+      // Check if token is at root as accessToken
+      else if (data.accessToken) {
+        token = data.accessToken;
+        merchantData = data;
+      }
+      
+      console.log('🔑 Extracted token:', token ? token.substring(0, 30) + '...' : 'NO TOKEN');
 
-        if (!token) {
-          showToast('error', 'Error', 'No token received from server');
-          setLoading(false);
-          return;
-        }
-
-        // ─── Get merchant data ──────────────────────────────────────────
-        let merchantData = data.merchant || data.data || data;
-        
-        const merchant = {
-          merchantId: Number(merchantData.merchantId || merchantData.merchant_id || 0),
-          businessName: merchantData.businessName || merchantData.business_name || '',
-          email: merchantData.email || email,
-        };
-
-        console.log('✅ Login successful, storing token and redirecting...');
-
-        // ─── Store token and merchant data ────────────────────────────
-        localStorage.setItem('xecoflow_token', token);
-        localStorage.setItem('token_expiry', String(Date.now() + 7 * 24 * 60 * 60 * 1000));
-        localStorage.setItem('session_start', String(Date.now()));
-        localStorage.setItem('merchant', JSON.stringify(merchant));
-
-        // ─── Set cookie for middleware ─────────────────────────────────
-        document.cookie = `auth_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'Secure;' : ''}`;
-
-        // ─── Redirect based on role ────────────────────────────────────
-        if (role === 'developer') {
-          router.push('/developer/dashboard');
-        } else {
-          router.push('/dashboard');
-        }
+      if (!token) {
+        showToast('error', 'Login Failed', 'No token received from server. Please try again.');
+        setLoading(false);
         return;
       }
 
-      // ─── Handle errors ────────────────────────────────────────────────
-      if (response.status === 401) {
-        trackFailedAttempt();
-        const errorMsg = data.error || data.message || 'Invalid email or password';
-        const attemptsMsg = data.attempts_remaining !== undefined 
-          ? ` (${data.attempts_remaining} attempts remaining)` 
-          : '';
-        showToast('error', 'Login Failed', errorMsg + attemptsMsg);
-      } else if (response.status === 423) {
-        showToast('error', 'Account Locked', data.error || data.message || 'Too many failed attempts. Please try again later.');
-      } else if (response.status === 403) {
-        if (data.requiresVerification) {
-          showToast('warning', 'Verification Required', 'Please verify your email before logging in.');
-        } else {
-          showToast('error', 'Login Failed', data.error || data.message || 'Access denied');
-        }
+      // ─── Get merchant data ──────────────────────────────────────────
+      const merchant = {
+        merchantId: Number(merchantData?.merchantId || merchantData?.merchant_id || 0),
+        businessName: merchantData?.businessName || merchantData?.business_name || '',
+        email: merchantData?.email || email,
+      };
+
+      console.log('✅ Login successful, storing token and redirecting...');
+
+      // ─── Store token and merchant data ────────────────────────────
+      localStorage.setItem('xecoflow_token', token);
+      localStorage.setItem('token_expiry', String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+      localStorage.setItem('session_start', String(Date.now()));
+      localStorage.setItem('merchant', JSON.stringify(merchant));
+
+      // ─── Set cookie for middleware ─────────────────────────────────
+      document.cookie = `auth_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'Secure;' : ''}`;
+
+      // ─── Redirect based on role ────────────────────────────────────
+      if (role === 'developer') {
+        router.push('/developer/dashboard');
       } else {
-        const errorMsg = data.error || data.message || 'Invalid email or password';
-        showToast('error', 'Login Failed', errorMsg);
-        trackFailedAttempt();
+        router.push('/dashboard');
       }
-      
+      return;
+
     } catch (err: any) {
       console.error('❌ Login error:', err);
       trackFailedAttempt();
