@@ -372,16 +372,6 @@ export default function DashboardOverview() {
     }
   }, [loading, merchantId, merchantName, log]);
 
-  // ─── Sign Out Handler ─────────────────────────────────────────────
-  const handleSignOut = async () => {
-    await log(
-      ActivityActions.LOGOUT,
-      `User logged out from ${merchantName}`
-    );
-    removeToken();
-    router.push('/login');
-  };
-
   // ─── Generate Real Stats ──────────────────────────────────────────
   const currentMonth = getCurrentMonth();
 
@@ -577,13 +567,7 @@ export default function DashboardOverview() {
             Here's what's happening with your business today.
           </p>
         </div>
-        <button
-          onClick={handleSignOut}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 border border-gray-200 hover:border-red-200"
-        >
-          <LogOut size={18} className="text-gray-400" />
-          <span>Sign Out</span>
-        </button>
+        {/* ─── SIGN OUT BUTTON REMOVED ───────────────────────────────── */}
       </div>
 
       {/* ─── COLLAPSIBLE ACTIVATION CENTER ──────────────────────────── */}
