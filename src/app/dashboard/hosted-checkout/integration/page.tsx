@@ -73,7 +73,6 @@ export default function HostedCheckoutIntegration() {
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/[^0-9.]/g, '');
-    // Allow only valid number format
     if (value === '' || /^\d*\.?\d*$/.test(value)) {
       setUserAmount(value);
     }
@@ -94,9 +93,10 @@ export default function HostedCheckoutIntegration() {
 
       if (data.success) {
         console.log('✅ Credentials fetched successfully');
-        setApiKey(data.data.apiKey);
-        setApiSecret(data.data.apiSecret);
-        setMerchantId(String(data.data.merchantId));
+        // Handle both naming conventions
+        setApiKey(data.data.apiKey || data.data.api_key || '');
+        setApiSecret(data.data.apiSecret || data.data.api_secret || '');
+        setMerchantId(String(data.data.merchantId || data.data.merchant_id || merchantId));
         setIsReady(true);
         setLoading(false);
         setError(null);
@@ -182,7 +182,7 @@ export default function HostedCheckoutIntegration() {
     }
 
     if (!apiKey || !apiSecret) {
-      setErrorMessage('API credentials not found');
+      setErrorMessage('API credentials not found. Please contact support.');
       return;
     }
 
@@ -191,7 +191,7 @@ export default function HostedCheckoutIntegration() {
     setErrorMessage('');
 
     try {
-      // 1. Build the request body as per Unified Gateway documentation
+      // 1. Build the request body
       const body = {
         action: 'charge',
         method: 'mpesa',
@@ -212,14 +212,19 @@ export default function HostedCheckoutIntegration() {
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = crypto.randomBytes(16).toString('hex');
 
-      // 4. ✅ CORRECT: Match backend EXACTLY with '/' (not '/v1/payments')
+      // 4. Build canonical string for signature
       const canonicalString = `${timestamp}.${nonce}.POST./.${bodyString}`;
 
-      // 5. Generate HMAC-SHA256 signature over the canonical string
+      // 5. Generate HMAC-SHA256 signature
       const signature = crypto
         .createHmac('sha256', apiSecret)
         .update(canonicalString)
         .digest('hex');
+
+      console.log('🔑 Request details:');
+      console.log('  API Key:', apiKey);
+      console.log('  Signature:', signature);
+      console.log('  Body:', bodyString);
 
       // 6. Send the request to the Unified Gateway
       const response = await fetch('/v1/payments', {
@@ -236,6 +241,8 @@ export default function HostedCheckoutIntegration() {
 
       const data = await response.json();
 
+      console.log('📡 Response:', data);
+
       if (response.ok && data.success) {
         setPaymentStatus('success');
         setPaymentResponse(data);
@@ -244,10 +251,13 @@ export default function HostedCheckoutIntegration() {
         }, 3000);
       } else {
         setPaymentStatus('error');
-        setErrorMessage(data.error || 'Payment failed');
+        // Enhanced error message
+        const errorMsg = data.error || data.message || 'Payment failed';
+        setErrorMessage(errorMsg);
         setPaymentResponse(data);
       }
     } catch (error: any) {
+      console.error('❌ Payment error:', error);
       setPaymentStatus('error');
       setErrorMessage(error.message || 'An error occurred');
     } finally {
@@ -401,7 +411,7 @@ export default function HostedCheckoutIntegration() {
               <h2 className="text-xl font-light text-gray-700 tracking-wide mb-5">PAYMENT DETAILS</h2>
               <p className="text-sm text-gray-800 mb-4">Reference: {customerRef || '—'}</p>
               
-              {/* Amount Input Field - Added here */}
+              {/* Amount Input Field */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Enter Amount ({currency})
@@ -482,7 +492,14 @@ export default function HostedCheckoutIntegration() {
                           <div className="w-24 flex items-center justify-center gap-1 border-r border-gray-300 py-3 text-sm text-gray-700">
                             <Smartphone size={14} /> +254
                           </div>
-                          <input type="tel" value={phoneNumber || customerPhone} onChange={handlePhoneChange} className="flex-1 px-4 py-3 text-sm outline-none bg-gray-50 focus:bg-white transition-colors" placeholder="708050827" disabled={isProcessing} />
+                          <input 
+                            type="tel" 
+                            value={phoneNumber || customerPhone} 
+                            onChange={handlePhoneChange} 
+                            className="flex-1 px-4 py-3 text-sm outline-none bg-gray-50 focus:bg-white transition-colors" 
+                            placeholder="708050827" 
+                            disabled={isProcessing} 
+                          />
                         </div>
                       </div>
                     </>
