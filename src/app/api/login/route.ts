@@ -47,8 +47,12 @@ export async function POST(request: NextRequest) {
     if (response.ok && data.success) {
       console.log('✅ [API] Backend login successful');
       
-      // Get token from backend response (use the actual token, don't generate a new one)
-      const token = data.token || data.accessToken || data.data?.token;
+      // ─── ✅ FIX: Extract token from nested data object ──────────────
+      // The backend returns: { success: true, data: { accessToken: '...', ... } }
+      const responseData = data.data || data;
+      
+      // Get token from accessToken field (inside data)
+      const token = responseData.accessToken || responseData.token || data.token;
       
       if (!token) {
         console.error('❌ [API] No token in backend response');
@@ -62,14 +66,14 @@ export async function POST(request: NextRequest) {
         );
       }
       
-      // Extract merchant data
-      let merchantData = data.data || data.merchant || data;
+      // Extract merchant data from the nested data object
+      const merchantData = data.data || data.merchant || data;
       
       // ─── Return the backend token directly ────────────────────────
       return NextResponse.json({
         success: true,
         message: 'Login successful',
-        token: token,  // ← Use backend token, not a generated one
+        token: token,  // ← Now using the correct token from data.accessToken
         merchant: {
           merchantId: Number(merchantData.merchantId || merchantData.merchant_id || 0),
           businessName: merchantData.businessName || merchantData.business_name || '',
