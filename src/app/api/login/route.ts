@@ -20,7 +20,6 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: 'Email and password are required',
-          code: 'MISSING_CREDENTIALS',
         },
         { status: 400 }
       );
@@ -48,11 +47,13 @@ export async function POST(request: NextRequest) {
       console.log('✅ [API] Backend login successful');
       
       // ─── ✅ FIX: Extract token from nested data object ──────────────
-      // The backend returns: { success: true, data: { accessToken: '...', ... } }
-      const responseData = data.data || data;
+      // Backend returns: { success: true, data: { accessToken: '...', ... } }
+      const responseData = data.data || {};
       
       // Get token from accessToken field (inside data)
-      const token = responseData.accessToken || responseData.token || data.token;
+      const token = responseData.accessToken || data.accessToken || null;
+      
+      console.log('🔑 [API] Extracted token:', token ? token.substring(0, 30) + '...' : 'NO TOKEN');
       
       if (!token) {
         console.error('❌ [API] No token in backend response');
@@ -60,66 +61,55 @@ export async function POST(request: NextRequest) {
           {
             success: false,
             error: 'No token received from authentication server',
-            code: 'NO_TOKEN',
           },
           { status: 500 }
         );
       }
       
-      // Extract merchant data from the nested data object
-      const merchantData = data.data || data.merchant || data;
-      
-      // ─── Return the backend token directly ────────────────────────
+      // ─── ✅ Return formatted response ──────────────────────────────
       return NextResponse.json({
         success: true,
         message: 'Login successful',
-        token: token,  // ← Now using the correct token from data.accessToken
+        token: token,
         merchant: {
-          merchantId: Number(merchantData.merchantId || merchantData.merchant_id || 0),
-          businessName: merchantData.businessName || merchantData.business_name || '',
-          email: merchantData.email || email,
+          merchantId: Number(responseData.merchantId || data.merchantId || 0),
+          businessName: responseData.businessName || data.businessName || '',
+          email: responseData.email || email,
         },
         sessionExpiry: 60 * 60 * 24 * 7,
       });
     }
     
-    // ─── Handle Email not verified (403) ────────────────────────────
+    // ─── Handle errors ──────────────────────────────────────────────
+    console.log('⚠️ [API] Login failed:', response.status, data);
+    
+    if (response.status === 401) {
+      return NextResponse.json({
+        success: false,
+        error: data.message || 'Invalid email or password',
+        attempts_remaining: data.attempts_remaining,
+      }, { status: 401 });
+    }
+    
     if (response.status === 403) {
       return NextResponse.json({
         success: false,
         requiresVerification: true,
         error: data.message || 'Please verify your email before logging in.',
-        code: 'EMAIL_NOT_VERIFIED',
       }, { status: 403 });
     }
     
-    // ─── Handle Account locked (423) ─────────────────────────────────
     if (response.status === 423) {
       return NextResponse.json({
         success: false,
         locked: true,
         error: data.message || 'Too many failed attempts. Please try again later.',
-        code: 'ACCOUNT_LOCKED',
-        lock_until: data.lock_until,
       }, { status: 423 });
     }
     
-    // ─── Handle Invalid credentials (401) ────────────────────────────
-    if (response.status === 401) {
-      return NextResponse.json({
-        success: false,
-        error: data.message || 'Invalid email or password',
-        code: 'INVALID_CREDENTIALS',
-        attempts_remaining: data.attempts_remaining,
-      }, { status: 401 });
-    }
-    
-    // ─── Handle other errors ────────────────────────────────────────
-    console.log('⚠️ [API] Other error:', response.status, data);
     return NextResponse.json({
       success: false,
       error: data.message || data.error || 'Login failed. Please try again.',
-      code: 'LOGIN_FAILED',
     }, { status: response.status || 500 });
     
   } catch (error: any) {
@@ -127,7 +117,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: false,
       error: 'An unexpected error occurred',
-      code: 'INTERNAL_ERROR',
     }, { status: 500 });
   }
 }
