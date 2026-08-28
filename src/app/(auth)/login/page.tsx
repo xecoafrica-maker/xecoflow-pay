@@ -302,55 +302,8 @@ export default function LoginPage() {
       console.log('📤 Login response status:', response.status);
       console.log('📤 Login response data:', data);
 
-      // ─── Handle rate limiting ──────────────────────────────────
-      if (response.status === 429) {
-        showToast('error', 'Too Many Attempts', data.error || 'Please wait before trying again.');
-        setLoading(false);
-        return;
-      }
-
-      // ─── Handle locked account ──────────────────────────────────
-      if (data.code === 'RATE_LIMITED' || data.lockoutRemaining || data.locked) {
-        showToast('error', 'Account Locked', data.error || 'Too many failed attempts. Please try again later.');
-        setLoading(false);
-        return;
-      }
-
-      // ─── Handle email verification required ─────────────────────
-      if (data.requiresVerification) {
-        showToast('warning', 'Verification Required', 'Please verify your email before logging in. Check your inbox.');
-        setLoading(false);
-        return;
-      }
-
-      // ─── Handle OTP required ────────────────────────────────────
-      if (data.requiresOTP) {
-        router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
-        setLoading(false);
-        return;
-      }
-
-      // ─── Handle invalid credentials ─────────────────────────────
-      if (!data.success) {
-        trackFailedAttempt();
-        await log(
-          'Failed login attempt',
-          `Failed login attempt for ${email} - ${data.error || 'Invalid credentials'}`
-        );
-        
-        // Show attempts remaining if available
-        let errorMessage = data.error || 'Invalid email or password';
-        if (data.attempts_remaining !== undefined && data.attempts_remaining > 0) {
-          errorMessage = `${errorMessage} (${data.attempts_remaining} attempts remaining)`;
-        }
-        
-        showToast('error', 'Login Failed', errorMessage);
-        setLoading(false);
-        return;
-      }
-
-      // ─── Handle successful login ────────────────────────────────
-      if (data.success && data.token) {
+      // ─── Check if login was successful ──────────────────────────────
+      if (response.ok && data.success) {
         clearAttempts();
         
         await log(
@@ -358,30 +311,77 @@ export default function LoginPage() {
           `User logged in successfully`
         );
 
-        console.log('✅ Login successful, storing token and redirecting...');
+        // ─── ✅ FIX: Get token from the response ──────────────────────
+        // The API route returns: { success: true, token: '...', merchant: {...} }
+        // But the backend returns: { success: true, data: { accessToken: '...' } }
+        
+        // First check if the API route already formatted it
+        let token = data.token || data.accessToken;
+        
+        // If not, check if it's in the data object
+        if (!token && data.data) {
+          token = data.data.accessToken || data.data.token;
+        }
+        
+        console.log('🔑 Extracted token:', token ? token.substring(0, 30) + '...' : 'NO TOKEN');
 
-        // ─── Store token and merchant data ────────────────────────
-        localStorage.setItem('xecoflow_token', data.token);
-        localStorage.setItem('token_expiry', String(Date.now() + 7 * 24 * 60 * 60 * 1000));
-        localStorage.setItem('session_start', String(Date.now()));
-
-        if (data.merchant) {
-          localStorage.setItem('merchant', JSON.stringify(data.merchant));
+        if (!token) {
+          showToast('error', 'Error', 'No token received from server');
+          setLoading(false);
+          return;
         }
 
-        // ─── Set cookie for middleware ─────────────────────────────
-        document.cookie = `auth_token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'Secure;' : ''}`;
+        // ─── Get merchant data ──────────────────────────────────────────
+        let merchantData = data.merchant || data.data || data;
+        
+        const merchant = {
+          merchantId: Number(merchantData.merchantId || merchantData.merchant_id || 0),
+          businessName: merchantData.businessName || merchantData.business_name || '',
+          email: merchantData.email || email,
+        };
 
-        // ─── Redirect based on role ────────────────────────────────
+        console.log('✅ Login successful, storing token and redirecting...');
+
+        // ─── Store token and merchant data ────────────────────────────
+        localStorage.setItem('xecoflow_token', token);
+        localStorage.setItem('token_expiry', String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+        localStorage.setItem('session_start', String(Date.now()));
+        localStorage.setItem('merchant', JSON.stringify(merchant));
+
+        // ─── Set cookie for middleware ─────────────────────────────────
+        document.cookie = `auth_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'Secure;' : ''}`;
+
+        // ─── Redirect based on role ────────────────────────────────────
         if (role === 'developer') {
           router.push('/developer/dashboard');
         } else {
           router.push('/dashboard');
         }
-      } else {
-        trackFailedAttempt();
-        showToast('error', 'Login Failed', data.error || 'Invalid email or password');
+        return;
       }
+
+      // ─── Handle errors ────────────────────────────────────────────────
+      if (response.status === 401) {
+        trackFailedAttempt();
+        const errorMsg = data.error || data.message || 'Invalid email or password';
+        const attemptsMsg = data.attempts_remaining !== undefined 
+          ? ` (${data.attempts_remaining} attempts remaining)` 
+          : '';
+        showToast('error', 'Login Failed', errorMsg + attemptsMsg);
+      } else if (response.status === 423) {
+        showToast('error', 'Account Locked', data.error || data.message || 'Too many failed attempts. Please try again later.');
+      } else if (response.status === 403) {
+        if (data.requiresVerification) {
+          showToast('warning', 'Verification Required', 'Please verify your email before logging in.');
+        } else {
+          showToast('error', 'Login Failed', data.error || data.message || 'Access denied');
+        }
+      } else {
+        const errorMsg = data.error || data.message || 'Invalid email or password';
+        showToast('error', 'Login Failed', errorMsg);
+        trackFailedAttempt();
+      }
+      
     } catch (err: any) {
       console.error('❌ Login error:', err);
       trackFailedAttempt();
