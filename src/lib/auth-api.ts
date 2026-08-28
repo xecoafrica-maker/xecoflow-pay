@@ -1,8 +1,9 @@
 ﻿// src/lib/auth-api.ts
 
-// ✅ UPDATED: Default to the live monolith URL instead of localhost
+// ─── Configuration ──────────────────────────────────────────────────
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL || 'https://xecoflow-2gen.onrender.com';
 
+// ─── Types ──────────────────────────────────────────────────────────
 export interface RegisterRequest {
   email: string;
   password: string;
@@ -75,21 +76,15 @@ export interface MerchantProfile {
   country?: string;
   business_location?: string;
   business_registration_number?: string;
-  
-  // ✅ SETTLEMENT FIELDS
   settlement_method?: string;
   bank_name?: string;
   bank_account_number?: string;
   bank_account_holder?: string;
-
-  // ✅ TAX & COMPLIANCE FIELDS (Stage 3)
   vat_registered?: boolean;
   vat_number?: string;
   filing_preference?: 'auto' | 'manual';
   tax_agent_name?: string;
   tax_agent_pin?: string;
-
-  // ✅ NEW DIRECTORS FIELD (Stage 2)
   directors?: Array<{
     id: string;
     fullName: string;
@@ -98,6 +93,7 @@ export interface MerchantProfile {
   }>;
 }
 
+// ─── REGISTER ──────────────────────────────────────────────────────
 export async function registerMerchant(data: RegisterRequest): Promise<RegisterResponse> {
   if (!data.email || !data.password || !data.businessName) {
     throw new Error('Email, password, and business name are required');
@@ -114,7 +110,6 @@ export async function registerMerchant(data: RegisterRequest): Promise<RegisterR
   };
 
   console.log('📤 Register request to:', AUTH_API_BASE + '/v1/auth/register');
-  console.log('📤 Payload:', { ...payload, password: '***' });
 
   try {
     const res = await fetch(AUTH_API_BASE + '/v1/auth/register', {
@@ -169,6 +164,7 @@ export async function registerMerchant(data: RegisterRequest): Promise<RegisterR
   }
 }
 
+// ─── LOGIN ──────────────────────────────────────────────────────────
 export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> {
   console.log('📤 Login request to:', AUTH_API_BASE + '/v1/auth/login');
   
@@ -183,6 +179,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
     console.log('📥 Login response:', responseData);
     console.log('📥 Login status:', res.status);
     
+    // ─── 401: Invalid credentials ──────────────────────────────────
     if (res.status === 401) {
       console.log('🔴 401 Unauthorized - Invalid credentials');
       let message = responseData.message || 'Invalid email or password';
@@ -195,6 +192,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
       };
     }
     
+    // ─── 423: Account locked ──────────────────────────────────────
     if (res.status === 423) {
       console.log('🔴 423 Account locked');
       return {
@@ -205,6 +203,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
       };
     }
     
+    // ─── 403: Email not verified ──────────────────────────────────
     if (res.status === 403) {
       console.log('🔴 403 Email not verified');
       return {
@@ -214,6 +213,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
       };
     }
     
+    // ─── Other errors ──────────────────────────────────────────────
     if (!res.ok) {
       console.log('🔴 Other error:', res.status);
       return {
@@ -222,6 +222,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
       };
     }
     
+    // ─── Success ────────────────────────────────────────────────────
     if (responseData.success && responseData.data) {
       const data = responseData.data;
       console.log('✅ Login successful');
@@ -242,6 +243,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
       };
     }
     
+    // ─── Fallback success ──────────────────────────────────────────
     if (responseData.success) {
       const token = responseData.token || responseData.data?.token;
       const merchantData = responseData.merchant || responseData.data;
@@ -274,6 +276,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
   }
 }
 
+// ─── REFRESH TOKEN ──────────────────────────────────────────────────
 export async function refreshToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
   const res = await fetch(AUTH_API_BASE + '/v1/auth/refresh', {
     method: 'POST',
@@ -288,6 +291,7 @@ export async function refreshToken(refreshToken: string): Promise<{ accessToken:
   return data.data;
 }
 
+// ─── LOGOUT ──────────────────────────────────────────────────────────
 export async function logoutMerchant(token: string): Promise<void> {
   await fetch(AUTH_API_BASE + '/v1/auth/logout', {
     method: 'POST',
@@ -297,6 +301,7 @@ export async function logoutMerchant(token: string): Promise<void> {
   });
 }
 
+// ─── GET MERCHANT PROFILE ──────────────────────────────────────────
 export async function getMerchantProfile(token: string): Promise<MerchantProfile> {
   const res = await fetch(AUTH_API_BASE + '/v1/auth/account/details', {
     headers: {
@@ -325,6 +330,7 @@ export async function getMerchantProfile(token: string): Promise<MerchantProfile
   return json;
 }
 
+// ─── API CREDENTIALS ──────────────────────────────────────────────
 export interface ApiCredentials {
   apiKey: string;
 }

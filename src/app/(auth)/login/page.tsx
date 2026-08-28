@@ -25,8 +25,8 @@ import { loginMerchant } from '@/lib/auth-api';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 // ─── Constants ──────────────────────────────────────────────────────
-const MAX_LOGIN_ATTEMPTS = 4;
-const LOCKOUT_DURATION = 2 * 60 * 1000; // 2 minutes
+const MAX_LOGIN_ATTEMPTS = 5; // Increased to match backend
+const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes (match backend)
 const TOAST_DURATION = 5000; // 5 seconds
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -67,25 +67,25 @@ const Toast = ({
 
   const colors = {
     error: {
-      bg: 'bg-red-50',
-      border: 'border-red-200',
+      bg: 'bg-red-50 dark:bg-red-950/30',
+      border: 'border-red-200 dark:border-red-800',
       icon: 'text-red-500',
-      title: 'text-red-700',
-      message: 'text-red-600',
+      title: 'text-red-700 dark:text-red-400',
+      message: 'text-red-600 dark:text-red-300',
     },
     warning: {
-      bg: 'bg-amber-50',
-      border: 'border-amber-200',
+      bg: 'bg-amber-50 dark:bg-amber-950/30',
+      border: 'border-amber-200 dark:border-amber-800',
       icon: 'text-amber-500',
-      title: 'text-amber-700',
-      message: 'text-amber-600',
+      title: 'text-amber-700 dark:text-amber-400',
+      message: 'text-amber-600 dark:text-amber-300',
     },
     info: {
-      bg: 'bg-blue-50',
-      border: 'border-blue-200',
+      bg: 'bg-blue-50 dark:bg-blue-950/30',
+      border: 'border-blue-200 dark:border-blue-800',
       icon: 'text-blue-500',
-      title: 'text-blue-700',
-      message: 'text-blue-600',
+      title: 'text-blue-700 dark:text-blue-400',
+      message: 'text-blue-600 dark:text-blue-300',
     },
   };
 
@@ -246,7 +246,7 @@ export default function LoginPage() {
       data.lockedUntil = Date.now() + LOCKOUT_DURATION;
       setIsLocked(true);
       startLockTimer(data.lockedUntil);
-      showToast('error', 'Account Locked', 'Too many failed attempts. Please try again later.');
+      showToast('error', 'Account Locked', 'Too many failed attempts. Please try again in 15 minutes.');
     }
     
     localStorage.setItem(`login_attempts_${key}`, JSON.stringify(data));
@@ -277,7 +277,7 @@ export default function LoginPage() {
     setError('');
     
     if (isLocked) {
-      showToast('error', 'Account Locked', 'Too many failed attempts. Please try again later.');
+      showToast('error', 'Account Locked', 'Too many failed attempts. Please try again in 15 minutes.');
       return;
     }
 
@@ -289,79 +289,82 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const result = await loginMerchant({ email, password });
-      
-      console.log('📤 Login result:', result);
-      
-      // ✅ Handle locked account
-      if (result.locked) {
-        showToast('error', 'Account Locked', result.message || 'Too many failed attempts. Please try again later.');
+      // ─── Use the new login API ──────────────────────────────────
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      console.log('📤 Login response:', data);
+
+      // ─── Handle rate limiting ──────────────────────────────────
+      if (response.status === 429) {
+        showToast('error', 'Too Many Attempts', data.error || 'Please wait before trying again.');
         setLoading(false);
         return;
       }
-      
-      // ✅ Handle email verification required
-      if (result.requiresVerification) {
+
+      // ─── Handle locked account ──────────────────────────────────
+      if (data.code === 'RATE_LIMITED' || data.lockoutRemaining) {
+        showToast('error', 'Account Locked', data.error || 'Too many failed attempts. Please try again later.');
+        setLoading(false);
+        return;
+      }
+
+      // ─── Handle email verification required ─────────────────────
+      if (data.requiresVerification) {
         showToast('warning', 'Verification Required', 'Please verify your email before logging in. Check your inbox.');
         setLoading(false);
         return;
       }
-      
-      // ✅ Handle attempts remaining - Use message as-is from auth engine
-      if (result.attempts_remaining !== undefined && result.attempts_remaining !== null) {
-        setAttemptsRemaining(result.attempts_remaining);
-        
-        // ✅ FIX: Use the message directly from the auth engine
-        // The auth engine already returns: "Invalid credentials. 3 attempt(s) remaining."
-        const toastMessage = result.message || 'Invalid credentials';
-        
-        console.log('📢 Showing attempts toast:', toastMessage);
-        showToast('warning', 'Invalid Credentials', toastMessage);
-        
-        // Track the failed attempt
-        trackFailedAttempt();
-        await log(
-          'Failed login attempt',
-          `Failed login attempt for ${email} - ${result.message}`
-        );
+
+      // ─── Handle OTP required ────────────────────────────────────
+      if (data.requiresOTP) {
+        // Redirect to OTP page with email
+        router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
         setLoading(false);
         return;
       }
-      
-      // ✅ Handle invalid credentials (no attempts_remaining)
-      if (!result.success) {
+
+      // ─── Handle invalid credentials ─────────────────────────────
+      if (!data.success) {
         trackFailedAttempt();
         await log(
           'Failed login attempt',
-          `Failed login attempt for ${email} - ${result.message || 'Invalid credentials'}`
+          `Failed login attempt for ${email} - ${data.error || 'Invalid credentials'}`
         );
-        showToast('error', 'Error', result.message || 'Invalid email or password');
+        showToast('error', 'Login Failed', data.error || 'Invalid email or password');
         setLoading(false);
         return;
       }
-      
-      // ✅ Handle successful login
-      if (result && result.token) {
+
+      // ─── Handle successful login ────────────────────────────────
+      if (data.success && data.token) {
         clearAttempts();
         
         await log(
           ActivityActions.LOGIN,
-          `User logged in successfully from ${window.navigator.userAgent}`
+          `User logged in successfully`
         );
-        
-        const tokenExpiry = Date.now() + (7 * 24 * 60 * 60 * 1000);
-        localStorage.setItem('xecoflow_token', result.token);
-        localStorage.setItem('token_expiry', tokenExpiry.toString());
-        localStorage.setItem('session_start', Date.now().toString());
-        
-        if (result.refreshToken) {
-          localStorage.setItem('xecoflow_refresh_token', result.refreshToken);
+
+        // ─── Store token and merchant data ────────────────────────
+        localStorage.setItem('xecoflow_token', data.token);
+        localStorage.setItem('token_expiry', String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+        localStorage.setItem('session_start', String(Date.now()));
+
+        if (data.merchant) {
+          localStorage.setItem('merchant', JSON.stringify(data.merchant));
         }
-        
-        if (result.merchant) {
-          localStorage.setItem('merchant', JSON.stringify(result.merchant));
-        }
-        
+
+        // ─── Set cookie for middleware ─────────────────────────────
+        document.cookie = `auth_token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'Secure;' : ''}`;
+
+        // ─── Redirect based on role ────────────────────────────────
         if (role === 'developer') {
           router.push('/developer/dashboard');
         } else {
@@ -369,11 +372,7 @@ export default function LoginPage() {
         }
       } else {
         trackFailedAttempt();
-        await log(
-          'Failed login attempt',
-          `Failed login attempt for ${email} - ${result.message || 'Invalid credentials'}`
-        );
-        showToast('error', 'Error', result.message || 'Invalid email or password');
+        showToast('error', 'Login Failed', data.error || 'Invalid email or password');
       }
     } catch (err: any) {
       trackFailedAttempt();
@@ -381,7 +380,7 @@ export default function LoginPage() {
         'Failed login attempt',
         `Failed login attempt for ${email} - ${err.message || 'Unknown error'}`
       );
-      showToast('error', 'Error', err.message || 'Invalid email or password');
+      showToast('error', 'Error', err.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -400,7 +399,7 @@ export default function LoginPage() {
     setXecoflowLoading(true);
 
     try {
-      const response = await fetch(process.env.NEXT_PUBLIC_AUTH_API_URL + '/v1/auth/login-xecoflow', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/auth/login-xecoflow`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ businessName, merchantId }),
@@ -409,19 +408,24 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // ✅ Login successful - store token and redirect
         await log(
           ActivityActions.LOGIN,
           `XecoFlow ID login successful for ${businessName} (ID: ${merchantId})`
         );
         
         localStorage.setItem('xecoflow_token', data.token);
+        localStorage.setItem('token_expiry', String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+        localStorage.setItem('session_start', String(Date.now()));
+        
         if (data.merchant) {
           localStorage.setItem('merchant', JSON.stringify(data.merchant));
         }
+
+        // ─── Set cookie for middleware ─────────────────────────────
+        document.cookie = `auth_token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'Secure;' : ''}`;
+
         router.push('/dashboard');
       } else {
-        // ✅ Handle error response
         setXecoflowError(data.message || 'Login failed. Please check your credentials.');
         await log(
           'Failed XecoFlow ID login',
@@ -450,8 +454,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
-      {/* ─── TOAST NOTIFICATIONS (Top Right Corner) ── */}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#0a2540] dark:to-[#0f1f3a] flex items-center justify-center p-4">
+      {/* ─── TOAST NOTIFICATIONS ── */}
       {toasts.map((toast) => (
         <Toast
           key={toast.id}
@@ -462,7 +466,7 @@ export default function LoginPage() {
         />
       ))}
 
-      <div className="w-full max-w-6xl flex flex-col lg:flex-row bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
+      <div className="w-full max-w-6xl flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
         
         {/* ── LEFT PANEL – Brand ── */}
         <div className="lg:w-1/2 bg-[#0a2540] p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden min-h-[500px]">
@@ -519,34 +523,34 @@ export default function LoginPage() {
         </div>
 
         {/* ── RIGHT PANEL – Login Form ── */}
-        <div className="lg:w-1/2 p-8 lg:p-12 bg-white">
+        <div className="lg:w-1/2 p-8 lg:p-12 bg-white dark:bg-[#0f1f3a]">
           <div className="max-w-sm mx-auto w-full">
             <div className="lg:hidden mb-8">
               <Link href="/" className="inline-block">
-                <h1 className="text-2xl font-bold text-[#0a2540]">
+                <h1 className="text-2xl font-bold text-[#0a2540] dark:text-white">
                   Xeco<span className="text-emerald-500">Flow</span>
                 </h1>
               </Link>
             </div>
 
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                 Welcome back
               </h2>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 Sign in to your account
               </p>
             </div>
 
             {/* ── Role Selector ── */}
-            <div className="flex gap-2 p-1 bg-gray-100 rounded-xl border border-gray-200 mb-6">
+            <div className="flex gap-2 p-1 bg-gray-100 dark:bg-[#1a2a4a] rounded-xl border border-gray-200 dark:border-gray-700 mb-6">
               <button
                 type="button"
                 onClick={() => setRole('merchant')}
                 className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
                   role === 'merchant'
                     ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-[#1a2a4a]'
                 }`}
               >
                 <Users className="w-4 h-4" />
@@ -558,7 +562,7 @@ export default function LoginPage() {
                 className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
                   role === 'developer'
                     ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-[#1a2a4a]'
                 }`}
               >
                 <Code className="w-4 h-4" />
@@ -571,7 +575,7 @@ export default function LoginPage() {
               /* ─── EMAIL LOGIN ─── */
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                     Email address or Merchant ID
                   </label>
                   <div className="relative">
@@ -581,7 +585,7 @@ export default function LoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter your email or ID number"
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-[#1a2a4a] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white"
                       required
                       autoFocus
                       disabled={isLocked}
@@ -590,7 +594,7 @@ export default function LoginPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Password</label>
                   <div className="relative">
                     <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
@@ -598,7 +602,7 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Password"
-                      className="w-full pl-10 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full pl-10 pr-11 py-3 bg-gray-50 dark:bg-[#1a2a4a] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white"
                       required
                       disabled={isLocked}
                     />
@@ -609,9 +613,9 @@ export default function LoginPage() {
                       disabled={isLocked}
                     >
                       {showPassword ? (
-                        <EyeOff className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                        <EyeOff className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
                       ) : (
-                        <Eye className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                        <Eye className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
                       )}
                     </button>
                   </div>
@@ -623,14 +627,14 @@ export default function LoginPage() {
                       type="checkbox"
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
+                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
                       disabled={isLocked}
                     />
-                    <span className="text-sm text-gray-600">Remember for 30 days</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Remember for 30 days</span>
                   </label>
                   <Link
                     href="/forgot-password"
-                    className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+                    className="text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
                   >
                     Forgot Password?
                   </Link>
@@ -639,13 +643,13 @@ export default function LoginPage() {
                 {isLocked ? (
                   <div className="w-full py-3.5 bg-gray-400 cursor-not-allowed text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2">
                     <Clock className="w-4 h-4" />
-                    Too many attempts - Try again later
+                    Too many attempts - Try again in {formatLockoutTime(lockoutTimeLeft)}
                   </div>
                 ) : (
                   <button
                     type="submit"
                     disabled={loading || !email || !password}
-                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 flex items-center justify-center gap-2"
+                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 flex items-center justify-center gap-2"
                   >
                     {loading ? (
                       <>
@@ -663,10 +667,10 @@ export default function LoginPage() {
                 {/* ── OR DIVIDER ── */}
                 <div className="relative my-4">
                   <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-200" />
+                    <div className="w-full border-t border-gray-200 dark:border-gray-700" />
                   </div>
                   <div className="relative flex justify-center text-xs">
-                    <span className="px-3 bg-white text-gray-400">Or continue with</span>
+                    <span className="px-3 bg-white dark:bg-[#0f1f3a] text-gray-400 dark:text-gray-500">Or continue with</span>
                   </div>
                 </div>
 
@@ -674,7 +678,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={switchToXecoflow}
-                  className="w-full flex items-center justify-center gap-3 py-3.5 border-2 border-gray-200 hover:border-emerald-400 rounded-xl text-sm font-medium text-gray-600 hover:text-emerald-600 transition-all duration-300 group"
+                  className="w-full flex items-center justify-center gap-3 py-3.5 border-2 border-gray-200 dark:border-gray-700 hover:border-emerald-400 dark:hover:border-emerald-500 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all duration-300 group"
                 >
                   <Building className="w-4 h-4 text-gray-400 group-hover:text-emerald-500 transition-colors" />
                   Login with XecoFlow ID
@@ -684,22 +688,21 @@ export default function LoginPage() {
             ) : (
               /* ─── XECOFLOW ID LOGIN ─── */
               <div>
-                {/* ── ERROR AT THE TOP ── */}
                 {xecoflowError && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                  <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-2">
                     <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium text-red-700">Error</p>
-                      <p className="text-sm text-red-600">{xecoflowError}</p>
+                      <p className="text-sm font-medium text-red-700 dark:text-red-400">Error</p>
+                      <p className="text-sm text-red-600 dark:text-red-300">{xecoflowError}</p>
                     </div>
                   </div>
                 )}
 
-                <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
+                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-4">
                   <button
                     type="button"
                     onClick={switchToEmail}
-                    className="text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                    className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium flex items-center gap-1"
                   >
                     ← Back
                   </button>
@@ -707,7 +710,7 @@ export default function LoginPage() {
 
                 <form onSubmit={handleXecoflowSubmit} className="space-y-5">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Business Name</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Business Name</label>
                     <div className="relative">
                       <Building className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
@@ -715,7 +718,7 @@ export default function LoginPage() {
                         value={businessName}
                         onChange={(e) => setBusinessName(e.target.value)}
                         placeholder="Enter your business name"
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-[#1a2a4a] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-gray-900 dark:text-white"
                         required
                         autoFocus
                       />
@@ -723,7 +726,7 @@ export default function LoginPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Merchant ID</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Merchant ID</label>
                     <div className="relative">
                       <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
@@ -731,7 +734,7 @@ export default function LoginPage() {
                         value={merchantId}
                         onChange={(e) => setMerchantId(e.target.value)}
                         placeholder="Enter your merchant ID"
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-[#1a2a4a] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-gray-900 dark:text-white"
                         required
                       />
                     </div>
@@ -740,7 +743,7 @@ export default function LoginPage() {
                   <button
                     type="submit"
                     disabled={xecoflowLoading || !businessName || !merchantId}
-                    className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/20 flex items-center justify-center gap-2"
+                    className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/20 flex items-center justify-center gap-2"
                   >
                     {xecoflowLoading ? (
                       <>
@@ -760,25 +763,25 @@ export default function LoginPage() {
 
             {/* ── Footer Links ── */}
             <div className="mt-6 space-y-3">
-              <p className="text-center text-sm text-gray-500">
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
                 {role === 'merchant' ? (
                   <>
                     Don't have a merchant account?{' '}
-                    <Link href="/signup" className="font-medium text-indigo-600 hover:text-indigo-700">
+                    <Link href="/signup" className="font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300">
                       Sign up
                     </Link>
                   </>
                 ) : (
                   <>
                     New developer?{' '}
-                    <Link href="/developer/signup" className="font-medium text-indigo-600 hover:text-indigo-700">
+                    <Link href="/developer/signup" className="font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300">
                       Create developer account
                     </Link>
                   </>
                 )}
               </p>
 
-              <div className="text-center text-xs text-gray-400">
+              <div className="text-center text-xs text-gray-400 dark:text-gray-500">
                 {role === 'merchant' ? (
                   <span>Merchant Portal</span>
                 ) : (
