@@ -32,7 +32,7 @@ export default function AutomatedPayBillPage() {
   const [exporting, setExporting] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const GREEN = '#0D9488'; // teal — fintech
+  const GREEN = '#0D9488';
   const NAVY = '#0f172a';
   const ACCENT = '#10B981';
 
@@ -140,7 +140,6 @@ export default function AutomatedPayBillPage() {
   return (
     <div className="min-h-screen bg-slate-100 p-4 md:p-8">
       <div className="max-w-3xl mx-auto">
-        {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5 no-print">
           <div className="flex items-center gap-3">
             <button
@@ -163,10 +162,8 @@ export default function AutomatedPayBillPage() {
           </button>
         </div>
 
-        {/* Full-width sticker card */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-3 sm:p-5 mb-5 no-print">
           <div ref={posterRef} className="sticker">
-            {/* Header */}
             <div className="sticker-header">
               <div className="sticker-brand">
                 <span className="sticker-brand-xeco">Xeco</span>
@@ -175,33 +172,39 @@ export default function AutomatedPayBillPage() {
               <div className="sticker-lipa">LIPA NA M-PESA</div>
             </div>
 
-            {/* Paybill */}
             <div className="sticker-paybill-wrap">
               <p className="sticker-label-top">PAYBILL</p>
               <p className="sticker-paybill-num">{paybill}</p>
             </div>
 
-            {/* Account panel */}
+            {/* Labels OUTSIDE the boxes */}
             <div className="sticker-panel">
-              <div className="sticker-box">
-                <p className="sticker-box-value">{account}</p>
-                <p className="sticker-box-label">ACCOUNT NUMBER</p>
+              <div className="sticker-field">
+                <div className="sticker-box">
+                  <p className="sticker-box-value">{account}</p>
+                </div>
+                <p className="sticker-field-label">ACCOUNT NUMBER</p>
               </div>
-              <div className="sticker-box">
-                <p className="sticker-box-value sticker-box-name">{bizName}</p>
-                <p className="sticker-box-label">ACCOUNT NAME</p>
+
+              <div className="sticker-field">
+                <div className="sticker-box">
+                  <p className="sticker-box-value sticker-box-name">{bizName}</p>
+                </div>
+                <p className="sticker-field-label">ACCOUNT NAME</p>
               </div>
             </div>
 
-            {/* Footer */}
             <div className="sticker-footer">
-              <span>Get your PayBill at</span>
-              <strong> xecoflowpay.com</strong>
+              <p className="sticker-footer-title">
+                XecoFlow Automated Business PayBill
+              </p>
+              <p className="sticker-footer-sub">
+                Simple · Secure · Fast — Apply at <strong>xecoflowpay.com</strong>
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Actions */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 no-print">
           <button
             onClick={handleDownloadPDF}
@@ -235,7 +238,6 @@ export default function AutomatedPayBillPage() {
           border-radius: 12px;
           overflow: hidden;
           font-family: Arial, Helvetica, 'Segoe UI', sans-serif;
-          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
         }
 
         .sticker-header {
@@ -274,7 +276,7 @@ export default function AutomatedPayBillPage() {
 
         .sticker-paybill-wrap {
           text-align: center;
-          padding: 32px 24px 24px;
+          padding: 28px 24px 20px;
           background: #ffffff;
         }
         .sticker-label-top {
@@ -295,47 +297,71 @@ export default function AutomatedPayBillPage() {
 
         .sticker-panel {
           background: ${GREEN};
-          padding: 20px 28px 24px;
+          padding: 20px 28px 18px;
           display: flex;
           flex-direction: column;
-          gap: 14px;
+          gap: 16px;
         }
+
+        .sticker-field {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+        }
+
         .sticker-box {
+          width: 100%;
           background: #ffffff;
           border-radius: 10px;
-          padding: 18px 20px 14px;
+          padding: 16px 20px;
           text-align: center;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
         }
+
+        /* Larger fonts for account number & name */
         .sticker-box-value {
           margin: 0;
-          font-size: 32px;
+          font-size: 36px;
           font-weight: 900;
           color: ${NAVY};
           line-height: 1.15;
           word-break: break-all;
         }
         .sticker-box-name {
-          font-size: 22px;
+          font-size: 26px;
           text-transform: uppercase;
           letter-spacing: 0.02em;
         }
-        .sticker-box-label {
-          margin: 8px 0 0;
+
+        /* Label OUTSIDE / under the white box */
+        .sticker-field-label {
+          margin: 0;
           font-size: 12px;
           font-weight: 800;
-          color: ${GREEN};
-          letter-spacing: 0.12em;
+          color: #ffffff;
+          letter-spacing: 0.14em;
+          text-align: center;
         }
 
         .sticker-footer {
           text-align: center;
-          padding: 14px 24px;
+          padding: 16px 24px 18px;
           background: ${NAVY};
-          color: rgba(255, 255, 255, 0.75);
-          font-size: 13px;
         }
-        .sticker-footer strong {
+        .sticker-footer-title {
+          margin: 0 0 4px;
+          font-size: 13px;
+          font-weight: 800;
+          color: #ffffff;
+          letter-spacing: 0.02em;
+        }
+        .sticker-footer-sub {
+          margin: 0;
+          font-size: 12px;
+          color: rgba(255, 255, 255, 0.75);
+          font-weight: 500;
+        }
+        .sticker-footer-sub strong {
           color: ${ACCENT};
           font-weight: 800;
         }
@@ -348,24 +374,17 @@ export default function AutomatedPayBillPage() {
           .sticker-brand-flow {
             font-size: 20px;
           }
-          .sticker-paybill-wrap {
-            padding: 24px 16px 18px;
-          }
           .sticker-paybill-num {
             font-size: 44px;
           }
           .sticker-panel {
-            padding: 14px 16px 18px;
-            gap: 10px;
-          }
-          .sticker-box {
-            padding: 14px 12px 12px;
+            padding: 14px 16px 14px;
           }
           .sticker-box-value {
-            font-size: 24px;
+            font-size: 28px;
           }
           .sticker-box-name {
-            font-size: 16px;
+            font-size: 18px;
           }
         }
 
@@ -386,7 +405,6 @@ export default function AutomatedPayBillPage() {
           .sticker {
             width: 100% !important;
             border-radius: 0 !important;
-            box-shadow: none !important;
           }
         }
       `}</style>
