@@ -32,8 +32,9 @@ export default function AutomatedPayBillPage() {
   const [exporting, setExporting] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const GREEN = '#099447';
-  const NAVY = '#0a2540';
+  const GREEN = '#0D9488'; // teal — fintech
+  const NAVY = '#0f172a';
+  const ACCENT = '#10B981';
 
   useEffect(() => {
     const fetchMerchantData = async () => {
@@ -99,10 +100,10 @@ export default function AutomatedPayBillPage() {
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       const ratio = canvas.width / canvas.height;
-      let w = pageWidth - 20;
+      let w = pageWidth - 16;
       let h = w / ratio;
-      if (h > pageHeight - 20) {
-        h = pageHeight - 20;
+      if (h > pageHeight - 16) {
+        h = pageHeight - 16;
         w = h * ratio;
       }
       pdf.addImage(imgData, 'PNG', (pageWidth - w) / 2, (pageHeight - h) / 2, w, h);
@@ -126,8 +127,8 @@ export default function AutomatedPayBillPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-10 h-10 animate-spin" style={{ color: GREEN }} />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-teal-600" />
       </div>
     );
   }
@@ -137,35 +138,35 @@ export default function AutomatedPayBillPage() {
   const bizName = merchant?.businessName || 'Xeco BIZ Account';
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 md:p-8">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-slate-100 p-4 md:p-8">
+      <div className="max-w-3xl mx-auto">
         {/* Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 no-print">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5 no-print">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
-              className="p-2 hover:bg-white rounded-lg border border-transparent hover:border-gray-200"
+              className="p-2 hover:bg-white rounded-lg transition-colors"
             >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
+              <ArrowLeft className="w-5 h-5 text-slate-600" />
             </button>
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">PayBill Sticker</h1>
-              <p className="text-sm text-gray-500">Printable · A4 ready</p>
+              <h1 className="text-lg font-semibold text-slate-900">PayBill Sticker</h1>
+              <p className="text-xs text-slate-500">Printable · A4 ready</p>
             </div>
           </div>
           <button
             onClick={handleCopyDetails}
-            className="flex items-center gap-2 px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-700"
           >
             {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
             {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
 
-        {/* Sticker preview */}
-        <div className="bg-white rounded-xl shadow-md p-4 sm:p-8 mb-6 no-print flex justify-center">
+        {/* Full-width sticker card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-3 sm:p-5 mb-5 no-print">
           <div ref={posterRef} className="sticker">
-            {/* Header strip */}
+            {/* Header */}
             <div className="sticker-header">
               <div className="sticker-brand">
                 <span className="sticker-brand-xeco">Xeco</span>
@@ -174,13 +175,13 @@ export default function AutomatedPayBillPage() {
               <div className="sticker-lipa">LIPA NA M-PESA</div>
             </div>
 
-            {/* Paybill number — big */}
+            {/* Paybill */}
             <div className="sticker-paybill-wrap">
               <p className="sticker-label-top">PAYBILL</p>
               <p className="sticker-paybill-num">{paybill}</p>
             </div>
 
-            {/* White boxes on green panel */}
+            {/* Account panel */}
             <div className="sticker-panel">
               <div className="sticker-box">
                 <p className="sticker-box-value">{account}</p>
@@ -205,22 +206,21 @@ export default function AutomatedPayBillPage() {
           <button
             onClick={handleDownloadPDF}
             disabled={exporting}
-            className="flex items-center justify-center gap-2 py-3 rounded-xl text-white font-medium disabled:opacity-60"
-            style={{ backgroundColor: GREEN }}
+            className="flex items-center justify-center gap-2 py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-60 bg-teal-600 hover:bg-teal-700 transition-colors"
           >
             {exporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
             {exporting ? 'Generating…' : 'Download PDF'}
           </button>
           <button
             onClick={handlePrint}
-            className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white border border-gray-200 font-medium text-gray-800 hover:bg-gray-50"
+            className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white border border-slate-200 font-semibold text-sm text-slate-800 hover:bg-slate-50 transition-colors"
           >
             <Printer className="w-5 h-5" />
             Print sticker
           </button>
           <button
             onClick={handleShareWhatsApp}
-            className="flex items-center justify-center gap-2 py-3 rounded-xl bg-[#25D366] text-white font-medium hover:bg-[#1da851]"
+            className="flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors"
           >
             <Share2 className="w-5 h-5" />
             WhatsApp
@@ -230,19 +230,19 @@ export default function AutomatedPayBillPage() {
 
       <style jsx global>{`
         .sticker {
-          width: 420px;
-          max-width: 100%;
+          width: 100%;
           background: #ffffff;
-          border: 3px solid ${NAVY};
-          font-family: Arial, Helvetica, sans-serif;
+          border-radius: 12px;
           overflow: hidden;
+          font-family: Arial, Helvetica, 'Segoe UI', sans-serif;
+          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
         }
 
         .sticker-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 14px 18px;
+          padding: 18px 28px;
           background: ${NAVY};
         }
         .sticker-brand {
@@ -251,109 +251,128 @@ export default function AutomatedPayBillPage() {
           gap: 1px;
         }
         .sticker-brand-xeco {
-          font-size: 22px;
+          font-size: 26px;
           font-weight: 900;
           color: #ffffff;
-          letter-spacing: -0.5px;
+          letter-spacing: -0.6px;
         }
         .sticker-brand-flow {
-          font-size: 22px;
+          font-size: 26px;
           font-weight: 900;
-          color: ${GREEN};
-          letter-spacing: -0.5px;
+          color: ${ACCENT};
+          letter-spacing: -0.6px;
         }
         .sticker-lipa {
           font-size: 11px;
           font-weight: 800;
           color: #ffffff;
-          letter-spacing: 0.06em;
-          border: 1.5px solid rgba(255, 255, 255, 0.5);
-          padding: 4px 10px;
-          border-radius: 4px;
+          letter-spacing: 0.08em;
+          border: 1.5px solid rgba(255, 255, 255, 0.35);
+          padding: 6px 12px;
+          border-radius: 6px;
         }
 
         .sticker-paybill-wrap {
           text-align: center;
-          padding: 20px 16px 12px;
+          padding: 32px 24px 24px;
           background: #ffffff;
         }
         .sticker-label-top {
-          margin: 0 0 4px;
-          font-size: 13px;
+          margin: 0 0 8px;
+          font-size: 14px;
           font-weight: 800;
           color: ${GREEN};
-          letter-spacing: 0.12em;
+          letter-spacing: 0.16em;
         }
         .sticker-paybill-num {
           margin: 0;
-          font-size: 52px;
+          font-size: 64px;
           font-weight: 900;
           color: ${NAVY};
-          letter-spacing: 0.08em;
-          line-height: 1.1;
+          letter-spacing: 0.06em;
+          line-height: 1;
         }
 
         .sticker-panel {
           background: ${GREEN};
-          padding: 16px 18px 18px;
+          padding: 20px 28px 24px;
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 14px;
         }
         .sticker-box {
           background: #ffffff;
-          border-radius: 6px;
-          padding: 12px 14px 10px;
+          border-radius: 10px;
+          padding: 18px 20px 14px;
           text-align: center;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
         }
         .sticker-box-value {
           margin: 0;
-          font-size: 26px;
+          font-size: 32px;
           font-weight: 900;
-          color: #111827;
-          line-height: 1.2;
+          color: ${NAVY};
+          line-height: 1.15;
           word-break: break-all;
         }
         .sticker-box-name {
-          font-size: 18px;
+          font-size: 22px;
           text-transform: uppercase;
+          letter-spacing: 0.02em;
         }
         .sticker-box-label {
-          margin: 6px 0 0;
-          font-size: 11px;
+          margin: 8px 0 0;
+          font-size: 12px;
           font-weight: 800;
           color: ${GREEN};
-          letter-spacing: 0.1em;
+          letter-spacing: 0.12em;
         }
 
         .sticker-footer {
           text-align: center;
-          padding: 10px 16px;
+          padding: 14px 24px;
           background: ${NAVY};
-          color: rgba(255, 255, 255, 0.85);
-          font-size: 12px;
+          color: rgba(255, 255, 255, 0.75);
+          font-size: 13px;
         }
         .sticker-footer strong {
-          color: #6ee7b7;
+          color: ${ACCENT};
           font-weight: 800;
         }
 
-        @media (max-width: 480px) {
-          .sticker-paybill-num {
-            font-size: 40px;
+        @media (max-width: 640px) {
+          .sticker-header {
+            padding: 14px 16px;
           }
-          .sticker-box-value {
+          .sticker-brand-xeco,
+          .sticker-brand-flow {
             font-size: 20px;
           }
+          .sticker-paybill-wrap {
+            padding: 24px 16px 18px;
+          }
+          .sticker-paybill-num {
+            font-size: 44px;
+          }
+          .sticker-panel {
+            padding: 14px 16px 18px;
+            gap: 10px;
+          }
+          .sticker-box {
+            padding: 14px 12px 12px;
+          }
+          .sticker-box-value {
+            font-size: 24px;
+          }
           .sticker-box-name {
-            font-size: 15px;
+            font-size: 16px;
           }
         }
 
         @media print {
           @page {
             size: A4 portrait;
-            margin: 12mm;
+            margin: 10mm;
           }
           html,
           body {
@@ -366,9 +385,8 @@ export default function AutomatedPayBillPage() {
           }
           .sticker {
             width: 100% !important;
-            max-width: 160mm !important;
-            margin: 0 auto;
-            border-width: 3px !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
           }
         }
       `}</style>
