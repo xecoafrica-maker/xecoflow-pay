@@ -21,13 +21,12 @@ import {
   AlertTriangle,
   X,
 } from 'lucide-react';
-import { loginMerchant } from '@/lib/auth-api';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 // ─── Constants ──────────────────────────────────────────────────────
-const MAX_LOGIN_ATTEMPTS = 5; // Increased to match backend
-const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes (match backend)
-const TOAST_DURATION = 5000; // 5 seconds
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+const TOAST_DURATION = 5000;
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface LoginAttempt {
@@ -289,7 +288,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // ─── Use the new login API ──────────────────────────────────
+      // ─── Call the Next.js API route ──────────────────────────────────
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
@@ -300,7 +299,8 @@ export default function LoginPage() {
 
       const data = await response.json();
 
-      console.log('📤 Login response:', data);
+      console.log('📤 Login response status:', response.status);
+      console.log('📤 Login response data:', data);
 
       // ─── Handle rate limiting ──────────────────────────────────
       if (response.status === 429) {
@@ -310,7 +310,7 @@ export default function LoginPage() {
       }
 
       // ─── Handle locked account ──────────────────────────────────
-      if (data.code === 'RATE_LIMITED' || data.lockoutRemaining) {
+      if (data.code === 'RATE_LIMITED' || data.lockoutRemaining || data.locked) {
         showToast('error', 'Account Locked', data.error || 'Too many failed attempts. Please try again later.');
         setLoading(false);
         return;
@@ -325,7 +325,6 @@ export default function LoginPage() {
 
       // ─── Handle OTP required ────────────────────────────────────
       if (data.requiresOTP) {
-        // Redirect to OTP page with email
         router.push(`/verify-otp?email=${encodeURIComponent(email)}`);
         setLoading(false);
         return;
@@ -338,7 +337,14 @@ export default function LoginPage() {
           'Failed login attempt',
           `Failed login attempt for ${email} - ${data.error || 'Invalid credentials'}`
         );
-        showToast('error', 'Login Failed', data.error || 'Invalid email or password');
+        
+        // Show attempts remaining if available
+        let errorMessage = data.error || 'Invalid email or password';
+        if (data.attempts_remaining !== undefined && data.attempts_remaining > 0) {
+          errorMessage = `${errorMessage} (${data.attempts_remaining} attempts remaining)`;
+        }
+        
+        showToast('error', 'Login Failed', errorMessage);
         setLoading(false);
         return;
       }
@@ -351,6 +357,8 @@ export default function LoginPage() {
           ActivityActions.LOGIN,
           `User logged in successfully`
         );
+
+        console.log('✅ Login successful, storing token and redirecting...');
 
         // ─── Store token and merchant data ────────────────────────
         localStorage.setItem('xecoflow_token', data.token);
@@ -375,6 +383,7 @@ export default function LoginPage() {
         showToast('error', 'Login Failed', data.error || 'Invalid email or password');
       }
     } catch (err: any) {
+      console.error('❌ Login error:', err);
       trackFailedAttempt();
       await log(
         'Failed login attempt',
@@ -421,7 +430,6 @@ export default function LoginPage() {
           localStorage.setItem('merchant', JSON.stringify(data.merchant));
         }
 
-        // ─── Set cookie for middleware ─────────────────────────────
         document.cookie = `auth_token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'Secure;' : ''}`;
 
         router.push('/dashboard');
