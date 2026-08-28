@@ -1,23 +1,9 @@
 // src/app/api/auth/login/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 
 // ─── CONFIGURATION ──────────────────────────────────────────────────
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-this';
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'https://xecoflow-2gen.onrender.com';
-
-// ─── HELPER: Generate JWT Token ────────────────────────────────────
-function generateJWT(payload: any): string {
-  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-  const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const signature = crypto
-    .createHmac('sha256', JWT_SECRET)
-    .update(`${header}.${payloadStr}`)
-    .digest('base64url');
-  
-  return `${header}.${payloadStr}.${signature}`;
-}
 
 // ─── MAIN POST HANDLER ─────────────────────────────────────────────
 export async function POST(request: NextRequest) {
@@ -25,6 +11,8 @@ export async function POST(request: NextRequest) {
     // ─── 1. Parse Request Body ──────────────────────────────────────
     const body = await request.json();
     const { email, password } = body;
+    
+    console.log('📤 [API] Login request for:', email);
     
     // ─── 2. Validate Input ──────────────────────────────────────────
     if (!email || !password) {
@@ -39,8 +27,7 @@ export async function POST(request: NextRequest) {
     }
     
     // ─── 3. Forward to Backend ──────────────────────────────────────
-    console.log('📤 Forwarding login to backend:', BACKEND_URL + '/v1/auth/login');
-    console.log('📤 Email:', email);
+    console.log('📤 [API] Forwarding to backend:', BACKEND_URL + '/v1/auth/login');
     
     const response = await fetch(`${BACKEND_URL}/v1/auth/login`, {
       method: 'POST',
@@ -51,30 +38,20 @@ export async function POST(request: NextRequest) {
     });
     
     const data = await response.json();
-    console.log('📥 Backend response status:', response.status);
-    console.log('📥 Backend response body:', JSON.stringify(data, null, 2));
+    console.log('📥 [API] Backend status:', response.status);
+    console.log('📥 [API] Backend response:', JSON.stringify(data, null, 2));
     
     // ─── 4. Handle Backend Response ─────────────────────────────────
     
     // ✅ Handle successful login (200 OK)
     if (response.ok && data.success) {
-      console.log('✅ Backend login successful');
+      console.log('✅ [API] Backend login successful');
       
-      // Extract merchant data
-      let merchantData = data.data || data.merchant || data;
-      
-      if (!merchantData.merchantId && !merchantData.merchant_id) {
-        merchantData = {
-          merchantId: data.merchantId || data.merchant_id || '',
-          businessName: data.businessName || data.business_name || '',
-          email: data.email || email,
-        };
-      }
-      
+      // Get token from backend response (use the actual token, don't generate a new one)
       const token = data.token || data.accessToken || data.data?.token;
       
       if (!token) {
-        console.error('❌ No token in response');
+        console.error('❌ [API] No token in backend response');
         return NextResponse.json(
           {
             success: false,
@@ -85,21 +62,14 @@ export async function POST(request: NextRequest) {
         );
       }
       
-      // ─── Generate our own token ──────────────────────────────────
-      const ourToken = generateJWT({
-        merchantId: String(merchantData.merchantId || merchantData.merchant_id || ''),
-        email: merchantData.email || email,
-        businessName: merchantData.businessName || merchantData.business_name || '',
-        role: 'admin',
-        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7,
-        iat: Math.floor(Date.now() / 1000),
-      });
+      // Extract merchant data
+      let merchantData = data.data || data.merchant || data;
       
-      // ─── Return Success Response ──────────────────────────────────
+      // ─── Return the backend token directly ────────────────────────
       return NextResponse.json({
         success: true,
         message: 'Login successful',
-        token: ourToken,
+        token: token,  // ← Use backend token, not a generated one
         merchant: {
           merchantId: Number(merchantData.merchantId || merchantData.merchant_id || 0),
           businessName: merchantData.businessName || merchantData.business_name || '',
@@ -141,7 +111,7 @@ export async function POST(request: NextRequest) {
     }
     
     // ─── Handle other errors ────────────────────────────────────────
-    console.log('⚠️ Other error:', response.status, data);
+    console.log('⚠️ [API] Other error:', response.status, data);
     return NextResponse.json({
       success: false,
       error: data.message || data.error || 'Login failed. Please try again.',
@@ -149,7 +119,7 @@ export async function POST(request: NextRequest) {
     }, { status: response.status || 500 });
     
   } catch (error: any) {
-    console.error('❌ Login error:', error);
+    console.error('❌ [API] Login error:', error);
     return NextResponse.json({
       success: false,
       error: 'An unexpected error occurred',
