@@ -65,7 +65,6 @@ import {
   Layers,
   ChevronUp,
   UserCircle,
-  Trash2,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -469,11 +468,11 @@ export default function Sidebar() {
                         <button
                           key={item.label}
                           onClick={handleLoanClick}
-                          className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${
+                          className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${(
                             isActive
                               ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/5'
                               : 'text-slate-400 hover:bg-slate-800/50 hover:text-white border border-transparent'
-                          }`}
+                          )}`}
                         >
                           {item.icon && (
                             <item.icon
@@ -685,13 +684,6 @@ export default function Sidebar() {
               >
                 <LogOut className="w-4 h-4" />
                 Log out
-              </button>
-              <button
-                onClick={handleSignOut}
-                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-500/10 transition-colors text-sm text-red-400/60 hover:text-red-300"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete account
               </button>
             </div>
           </div>
