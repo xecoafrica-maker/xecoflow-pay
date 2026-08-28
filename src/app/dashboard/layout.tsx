@@ -35,9 +35,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         return;
       }
 
-      // Check if token is about to expire
+      // Check if token is about to expire (30 seconds)
       const remaining = getRemainingSessionTime();
-      if (remaining > 0 && remaining < 300) { // Less than 5 minutes
+      if (remaining > 0 && remaining < 30) { // ← Changed from 300 to 30
         setSessionExpiring(true);
         setSessionTimeLeft(remaining);
       }
@@ -47,7 +47,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
     checkAuth();
 
-    // ─── Session expiry checker (every 30 seconds) ──────────────────
+    // ─── Session expiry checker (every 5 seconds) ──────────────────
     const interval = setInterval(() => {
       const token = getToken();
       if (!token) {
@@ -63,13 +63,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         return;
       }
 
-      if (remaining < 300) {
+      if (remaining < 30) { // ← Changed from 300 to 30
         setSessionExpiring(true);
         setSessionTimeLeft(remaining);
       } else {
         setSessionExpiring(false);
       }
-    }, 30000); // Check every 30 seconds
+    }, 5000); // ← Changed from 30000 to 5000 (check every 5 seconds)
 
     return () => clearInterval(interval);
   }, [router]);

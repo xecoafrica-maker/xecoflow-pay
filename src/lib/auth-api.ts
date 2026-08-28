@@ -3,6 +3,10 @@
 // ─── Configuration ──────────────────────────────────────────────────
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL || 'https://xecoflow-2gen.onrender.com';
 
+// ─── Session Duration ──────────────────────────────────────────────
+export const SESSION_DURATION_SECONDS = 5 * 60; // 5 minutes
+export const SESSION_DURATION_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
+
 // ─── Types ──────────────────────────────────────────────────────────
 export interface RegisterRequest {
   email: string;
@@ -47,6 +51,7 @@ export interface LoginResponse {
   token?: string;
   refreshToken?: string;
   attempts_remaining?: number;
+  sessionDuration?: number; // ← Added: session duration in seconds
   merchant?: {
     merchantId: number;
     merchant_id?: number;
@@ -230,6 +235,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
         success: true,
         token: data.accessToken || data.token,
         refreshToken: data.refreshToken,
+        sessionDuration: SESSION_DURATION_SECONDS, // ← Added: 5 minutes
         merchant: {
           merchantId: data.merchantId,
           merchant_id: data.merchantId,
@@ -250,6 +256,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
       return {
         success: true,
         token: token,
+        sessionDuration: SESSION_DURATION_SECONDS, // ← Added: 5 minutes
         merchant: {
           merchantId: merchantData?.merchantId || merchantData?.merchant_id,
           merchant_id: merchantData?.merchant_id || merchantData?.merchantId,

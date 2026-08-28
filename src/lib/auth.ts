@@ -1,7 +1,8 @@
 // src/lib/auth.ts
 
 // ─── CONFIGURATION ──────────────────────────────────────────────────
-const TOKEN_EXPIRY = '7d'; // 7 days
+const TOKEN_EXPIRY = '5m'; // ← Changed from '7d' to '5m' (5 minutes)
+const SESSION_WARNING_THRESHOLD = 30; // 30 seconds warning (was 5 minutes)
 
 // ─── TYPES ──────────────────────────────────────────────────────────
 export interface MerchantAuth {
@@ -171,13 +172,13 @@ export function getRemainingSessionTime(): number {
 }
 
 /**
- * Check if token is about to expire (within 5 minutes)
+ * Check if token is about to expire (within 30 seconds)
  * JOB: Warns when session is about to expire
  * Used for: Showing "Session expiring soon" notifications
  */
 export function isTokenExpiringSoon(): boolean {
   const remaining = getRemainingSessionTime();
-  return remaining > 0 && remaining < 300; // 5 minutes
+  return remaining > 0 && remaining < SESSION_WARNING_THRESHOLD; // 30 seconds
 }
 
 /**

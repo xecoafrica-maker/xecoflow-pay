@@ -3,12 +3,12 @@ import type { NextRequest } from 'next/server';
 
 // ─── SECURE CONFIGURATION ──────────────────────────────────────────
 const CONFIG = {
-  // Token expiry checks
-  TOKEN_EXPIRY_BUFFER: 5 * 60, // 5 minutes buffer before expiry
-  MAX_TOKEN_AGE: 7 * 24 * 60 * 60, // 7 days in seconds
+  // Token expiry checks - 5 minutes session
+  TOKEN_EXPIRY_BUFFER: 30, // ← Changed from 5*60 (5 minutes) to 30 seconds
+  MAX_TOKEN_AGE: 5 * 60, // ← Changed from 7 days to 5 minutes in seconds
   
   // Security headers
-  CSP: "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://*.onrender.com; frame-ancestors 'none';",
+  CSP: "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://*.onrender.com https://api.ipify.org https://api.my-ip.io https://ipapi.co; frame-ancestors 'none';",
   
   // Rate limiting
   RATE_LIMIT_WINDOW: 60, // 1 minute
@@ -137,9 +137,8 @@ function validateToken(token: string): TokenValidation {
       return { valid: false, expired: true, payload };
     }
     
-    // Check if token is about to expire (within buffer time)
+    // Check if token is about to expire (within buffer time - 30 seconds)
     if (payload.exp && payload.exp - now < CONFIG.TOKEN_EXPIRY_BUFFER) {
-      // Token is valid but expiring soon - we'll let it through but add a header
       return { valid: true, expired: false, payload, expiringSoon: true };
     }
     

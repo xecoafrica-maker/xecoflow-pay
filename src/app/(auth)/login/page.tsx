@@ -27,6 +27,7 @@ import { useActivityLogger } from '@/hooks/useActivityLogger';
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
 const TOAST_DURATION = 5000;
+const SESSION_DURATION = 5 * 60; // 5 minutes in seconds
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface LoginAttempt {
@@ -302,24 +303,26 @@ export default function LoginPage() {
       console.log('📤 Login response status:', response.status);
       console.log('📤 Login response data:', data);
 
-      // ─── ✅ FIX: Extract token from nested data object ──────────────
-      // The backend returns: { success: true, data: { accessToken: '...', ... } }
-      // The API route might return: { success: true, token: '...', merchant: {...} }
-      
+      // ─── Rate Limit Error Handling ──────────────────────────────────
+      if (response.status === 429) {
+        const retryAfter = data.retryAfter || 60;
+        showToast('warning', 'Too Many Requests', `Please wait ${retryAfter} seconds before trying again.`);
+        setLoading(false);
+        return;
+      }
+
+      // ─── Extract token from response ─────────────────────────────────
       let token = null;
       let merchantData = null;
 
-      // Check if API route already formatted it (has token at root)
       if (data.token) {
         token = data.token;
         merchantData = data.merchant || data;
       } 
-      // Check if it's the raw backend response (token inside data.accessToken)
       else if (data.data && data.data.accessToken) {
         token = data.data.accessToken;
         merchantData = data.data;
       }
-      // Check if token is at root as accessToken
       else if (data.accessToken) {
         token = data.accessToken;
         merchantData = data;
@@ -328,7 +331,12 @@ export default function LoginPage() {
       console.log('🔑 Extracted token:', token ? token.substring(0, 30) + '...' : 'NO TOKEN');
 
       if (!token) {
-        showToast('error', 'Login Failed', 'No token received from server. Please try again.');
+        // Check if it's a rate limit or lockout error
+        if (data.error?.includes('Too many') || data.error?.includes('rate')) {
+          showToast('warning', 'Too Many Attempts', data.error || 'Please wait before trying again.');
+        } else {
+          showToast('error', 'Login Failed', data.error || 'No token received from server.');
+        }
         setLoading(false);
         return;
       }
@@ -342,14 +350,16 @@ export default function LoginPage() {
 
       console.log('✅ Login successful, storing token and redirecting...');
 
-      // ─── Store token and merchant data ────────────────────────────
+      // ─── Store token and merchant data (5 minutes session) ──────────
+      const expiryTime = Date.now() + SESSION_DURATION * 1000;
+      
       localStorage.setItem('xecoflow_token', token);
-      localStorage.setItem('token_expiry', String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+      localStorage.setItem('token_expiry', String(expiryTime));
       localStorage.setItem('session_start', String(Date.now()));
       localStorage.setItem('merchant', JSON.stringify(merchant));
 
-      // ─── Set cookie for middleware ─────────────────────────────────
-      document.cookie = `auth_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'Secure;' : ''}`;
+      // ─── Set cookie for middleware (5 minutes) ──────────────────────
+      document.cookie = `auth_token=${token}; path=/; max-age=${SESSION_DURATION}; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'Secure;' : ''}`;
 
       // ─── Redirect based on role ────────────────────────────────────
       if (role === 'developer') {
@@ -366,7 +376,12 @@ export default function LoginPage() {
         'Failed login attempt',
         `Failed login attempt for ${email} - ${err.message || 'Unknown error'}`
       );
-      showToast('error', 'Error', err.message || 'An unexpected error occurred');
+      
+      if (err.message?.includes('Too many') || err.message?.includes('rate')) {
+        showToast('warning', 'Too Many Requests', err.message || 'Please wait before trying again.');
+      } else {
+        showToast('error', 'Error', err.message || 'An unexpected error occurred');
+      }
     } finally {
       setLoading(false);
     }
@@ -399,15 +414,17 @@ export default function LoginPage() {
           `XecoFlow ID login successful for ${businessName} (ID: ${merchantId})`
         );
         
+        const expiryTime = Date.now() + SESSION_DURATION * 1000;
+        
         localStorage.setItem('xecoflow_token', data.token);
-        localStorage.setItem('token_expiry', String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+        localStorage.setItem('token_expiry', String(expiryTime));
         localStorage.setItem('session_start', String(Date.now()));
         
         if (data.merchant) {
           localStorage.setItem('merchant', JSON.stringify(data.merchant));
         }
 
-        document.cookie = `auth_token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'Secure;' : ''}`;
+        document.cookie = `auth_token=${data.token}; path=/; max-age=${SESSION_DURATION}; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'Secure;' : ''}`;
 
         router.push('/dashboard');
       } else {

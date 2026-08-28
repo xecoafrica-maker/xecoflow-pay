@@ -1,6 +1,8 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import { getToken, isAuthenticated, getRemainingSessionTime } from '@/lib/auth';
 
 interface PreferencesContextType {
   theme: string;
@@ -17,11 +19,23 @@ interface PreferencesContextType {
   setNotifications: (notifications: any) => void;
   toggleTheme: () => void;
   applyTheme: (theme: string) => void;
+  // ─── Session Management ──────────────────────────────────────────
+  isAuthenticated: boolean;
+  sessionTimeLeft: number;
+  isSessionExpiring: boolean;
+  refreshSession: () => void;
+  logout: () => void;
 }
 
 const PreferencesContext = createContext<PreferencesContextType | undefined>(undefined);
 
+const SESSION_WARNING_THRESHOLD = 60; // 1 minute warning
+const SESSION_CHECK_INTERVAL = 10000; // Check every 10 seconds
+
 export function PreferencesProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  
+  // ─── Preferences State ────────────────────────────────────────────
   const [theme, setThemeState] = useState('light');
   const [language, setLanguageState] = useState('en');
   const [currency, setCurrencyState] = useState('KES');
@@ -31,8 +45,60 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     push: true,
   });
   const [isLoaded, setIsLoaded] = useState(false);
+  
+  // ─── Session State ────────────────────────────────────────────────
+  const [isAuthenticatedState, setIsAuthenticatedState] = useState(false);
+  const [sessionTimeLeft, setSessionTimeLeft] = useState(0);
+  const [isSessionExpiring, setIsSessionExpiring] = useState(false);
 
-  // ─── Load preferences from localStorage on mount ──────────────
+  // ─── Check Session ─────────────────────────────────────────────────
+  const checkSession = () => {
+    const authenticated = isAuthenticated();
+    setIsAuthenticatedState(authenticated);
+    
+    if (authenticated) {
+      const remaining = getRemainingSessionTime();
+      setSessionTimeLeft(remaining);
+      setIsSessionExpiring(remaining > 0 && remaining < SESSION_WARNING_THRESHOLD);
+      
+      // Auto-logout if session expired
+      if (remaining <= 0) {
+        logout();
+      }
+    }
+  };
+
+  // ─── Refresh Session ──────────────────────────────────────────────
+  const refreshSession = () => {
+    // Get current token and refresh it
+    const token = getToken();
+    if (token) {
+      // Refresh the page to renew session
+      window.location.reload();
+    }
+  };
+
+  // ─── Logout ────────────────────────────────────────────────────────
+  const logout = () => {
+    // Clear all auth data
+    localStorage.removeItem('xecoflow_token');
+    localStorage.removeItem('token_expiry');
+    localStorage.removeItem('session_start');
+    localStorage.removeItem('merchant');
+    
+    // Clear cookies
+    document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    
+    // Reset session state
+    setIsAuthenticatedState(false);
+    setSessionTimeLeft(0);
+    setIsSessionExpiring(false);
+    
+    // Redirect to login
+    router.push('/login?session=expired');
+  };
+
+  // ─── Load preferences from localStorage ──────────────────────────
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') || 'light';
     const savedLanguage = localStorage.getItem('language') || 'en';
@@ -55,6 +121,19 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     applyTheme(savedTheme);
     setIsLoaded(true);
   }, []);
+
+  // ─── Session Monitoring ───────────────────────────────────────────
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    // Initial check
+    checkSession();
+
+    // Periodic check
+    const interval = setInterval(checkSession, SESSION_CHECK_INTERVAL);
+    
+    return () => clearInterval(interval);
+  }, [isLoaded]);
 
   // ─── Apply Theme ──────────────────────────────────────────────────
   const applyTheme = (newTheme: string) => {
@@ -111,10 +190,16 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setNotifications,
     toggleTheme,
     applyTheme,
+    // ─── Session Management ──────────────────────────────────────────
+    isAuthenticated: isAuthenticatedState,
+    sessionTimeLeft,
+    isSessionExpiring,
+    refreshSession,
+    logout,
   };
 
   if (!isLoaded) {
-    return null; // or a loading spinner
+    return null;
   }
 
   return (
