@@ -31,7 +31,7 @@ import {
   AlertCircle,
   Users,
   Loader2,
-  ArrowUpLeft, // ← ADDED for withdraw icon
+  ArrowUpLeft,
 } from 'lucide-react';
 import {
   BarChart,
@@ -448,7 +448,7 @@ export default function DashboardOverview() {
           value: 'KES 0', 
           change: 'All withdrawals',
           up: true, 
-          icon: ArrowUpLeft, // ← FIXED: Changed from Coins to ArrowUpLeft
+          icon: ArrowUpLeft,
           color: 'text-purple-500', 
           bg: 'bg-purple-50' 
         },
@@ -510,7 +510,7 @@ export default function DashboardOverview() {
         value: `KES ${totalWithdrawn.toLocaleString()}`, 
         change: 'All withdrawals',
         up: true, 
-        icon: ArrowUpLeft, // ← FIXED: Changed from Coins to ArrowUpLeft
+        icon: ArrowUpLeft,
         color: 'text-purple-500', 
         bg: 'bg-purple-50' 
       },
@@ -856,12 +856,12 @@ export default function DashboardOverview() {
                       axisLine={false} 
                       tickLine={false}
                     />
-                  <YAxis 
-  tick={{ fontSize: 12, fill: '#94a3b8', dy: 2 }}  // ← MERGED: dy added here
-  axisLine={false} 
-  tickLine={false}
-  tickFormatter={(value) => `KES ${value.toLocaleString()}`}
-/>
+                    <YAxis 
+                      tick={{ fontSize: 12, fill: '#94a3b8', dy: 2 }}
+                      axisLine={false} 
+                      tickLine={false}
+                      tickFormatter={(value) => `KES ${value.toLocaleString()}`}
+                    />
                     <Tooltip 
                       contentStyle={{ 
                         backgroundColor: 'white', 
@@ -890,12 +890,10 @@ export default function DashboardOverview() {
                       tickLine={false}
                     />
                     <YAxis 
-                      tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                      tick={{ fontSize: 12, fill: '#94a3b8', dy: 2 }}
                       axisLine={false} 
                       tickLine={false}
                       tickFormatter={(value) => `KES ${value.toLocaleString()}`}
-                      // ─── FIXED: Added padding to align labels properly ───
-                      tick={{ dy: 2 }}
                     />
                     <Tooltip 
                       contentStyle={{ 
