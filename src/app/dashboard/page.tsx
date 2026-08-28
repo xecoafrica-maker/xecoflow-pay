@@ -407,9 +407,9 @@ export default function DashboardOverview() {
           bg: 'bg-amber-50' 
         },
         { 
-          label: 'Utilities Earnings', 
+          label: 'Total Withdrawn',  // ← UPDATED
           value: 'KES 0', 
-          change: 'From airtime & KPLC', 
+          change: 'All withdrawals',  // ← UPDATED
           up: true, 
           icon: Coins, 
           color: 'text-purple-500', 
@@ -437,8 +437,8 @@ export default function DashboardOverview() {
     // ✅ Use REAL ledgerBalance from journal_entries
     const availableBalance = ledgerBalance;
 
-    // Utilities earnings from real data (no mock)
-    const utilitiesEarnings = 0; // This will come from API
+    // Total Withdrawn - this should come from withdrawals API
+    const totalWithdrawn = 0; // This will come from API
 
     return [
       { 
@@ -469,9 +469,9 @@ export default function DashboardOverview() {
         bg: 'bg-amber-50' 
       },
       { 
-        label: 'Utilities Earnings', 
-        value: `KES ${utilitiesEarnings.toLocaleString()}`, 
-        change: 'From airtime & KPLC sales', 
+        label: 'Total Withdrawn',  // ← UPDATED
+        value: `KES ${totalWithdrawn.toLocaleString()}`, 
+        change: 'All withdrawals',  // ← UPDATED
         up: true, 
         icon: Coins, 
         color: 'text-purple-500', 
@@ -567,7 +567,6 @@ export default function DashboardOverview() {
             Here's what's happening with your business today.
           </p>
         </div>
-        {/* ─── SIGN OUT BUTTON REMOVED ───────────────────────────────── */}
       </div>
 
       {/* ─── COLLAPSIBLE ACTIVATION CENTER ──────────────────────────── */}
