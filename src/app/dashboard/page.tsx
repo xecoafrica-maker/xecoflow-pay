@@ -407,9 +407,9 @@ export default function DashboardOverview() {
           bg: 'bg-amber-50' 
         },
         { 
-          label: 'Total Withdrawn',  // ← UPDATED
+          label: 'Total Withdrawn',
           value: 'KES 0', 
-          change: 'All withdrawals',  // ← UPDATED
+          change: 'All withdrawals',
           up: true, 
           icon: Coins, 
           color: 'text-purple-500', 
@@ -469,9 +469,9 @@ export default function DashboardOverview() {
         bg: 'bg-amber-50' 
       },
       { 
-        label: 'Total Withdrawn',  // ← UPDATED
+        label: 'Total Withdrawn',
         value: `KES ${totalWithdrawn.toLocaleString()}`, 
-        change: 'All withdrawals',  // ← UPDATED
+        change: 'All withdrawals',
         up: true, 
         icon: Coins, 
         color: 'text-purple-500', 
@@ -491,17 +491,34 @@ export default function DashboardOverview() {
     }))
     .reverse();
 
-  // ─── Recent Transactions ──────────────────────────────────────────
-  const recentTransactions = filteredTransactions.slice(0, 10).map(t => ({
-    id: t.id.slice(0, 8),
-    customer: t.phone_number,
-    amount: parseFloat(t.amount),
-    method: t.source || 'M-PESA',
-    status: t.status || t.payment_status || 'PENDING',
-    checkoutId: t.checkout_id,
-    date: new Date(t.created_at).toLocaleString(),
-    receipt: t.mpesa_receipt,
-  }));
+  // ─── Recent Transactions - Only Today, Max 6 ──────────────────────
+  const getTodayTransactions = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const todayTxs = transactions.filter(t => {
+      const txDate = new Date(t.created_at);
+      txDate.setHours(0, 0, 0, 0);
+      return txDate.getTime() === today.getTime();
+    });
+
+    // Sort by newest first and take only 6
+    return todayTxs
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 6)
+      .map(t => ({
+        id: t.id.slice(0, 8),
+        customer: t.phone_number,
+        amount: parseFloat(t.amount),
+        method: t.source || 'M-PESA',
+        status: t.status || t.payment_status || 'PENDING',
+        checkoutId: t.checkout_id,
+        date: new Date(t.created_at).toLocaleString(),
+        receipt: t.mpesa_receipt,
+      }));
+  };
+
+  const recentTransactions = getTodayTransactions();
 
   // ─── Status Helper ────────────────────────────────────────────────
   const getStatusDisplay = (status: string) => {
@@ -928,7 +945,7 @@ export default function DashboardOverview() {
       {/* ─── Recent Transactions ──────────────────────────────────────── */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Recent Transactions</h2>
+          <h2 className="text-lg font-bold text-gray-900">Today's Transactions</h2>
           <Link href="/dashboard/transactions" className="text-sm text-emerald-500 font-medium hover:text-emerald-600">
             View All →
           </Link>
@@ -979,7 +996,7 @@ export default function DashboardOverview() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-400">No transactions found</td>
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-400">No transactions today</td>
                 </tr>
               )}
             </tbody>
