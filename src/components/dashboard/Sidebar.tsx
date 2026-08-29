@@ -7,34 +7,64 @@ import { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard,
   CreditCard,
+  ShoppingCart,
   Link2,
+  Terminal,
   Settings,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ChevronDown,
   ChevronRight,
   PlusCircle,
   ArrowUpRight,
   ArrowDownRight,
   BarChart3,
   Send,
+  Key,
   Building,
+  Briefcase,
   Shield,
+  X,
   Clock,
   History,
   Wallet,
+  User,
+  Activity,
+  Lock,
+  Mail,
   Users,
+  Globe,
   Bell,
   Smartphone,
+  Zap,
+  FileText,
   Download,
   TrendingUp,
+  Repeat,
+  Box,
+  BriefcaseBusiness,
   Coins,
+  Handshake,
+  AppWindow,
+  Grid3x3,
+  Webhook,
+  Landmark,
+  PiggyBank,
+  Pin,
+  MonitorSmartphone,
+  HelpCircle,
+  BookOpen,
+  Code,
+  Brackets,
   Phone,
   Building2,
+  Package,
+  Store,
+  Receipt,
   Layers,
   ChevronUp,
   UserCircle,
-  FileSpreadsheet,
-  Upload,
-  Code,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -51,6 +81,39 @@ interface SidebarSection {
   title: string;
   items: SidebarItem[];
 }
+
+// ─── Pinned Apps Mapping ──────────────────────────────────────────
+const APP_ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  'pamojafund': Handshake,
+  'boost-loan': TrendingUp,
+  'airtime-retail': Smartphone,
+  'airtime-bulk': Box,
+  'kplc-token': Zap,
+  'wallet-transactions': Wallet,
+  'pos-terminal': MonitorSmartphone,
+};
+
+const APP_LABEL_MAP: Record<string, string> = {
+  'pamojafund': 'PamojaFund',
+  'boost-loan': 'Boost Biashara Loan',
+  'airtime-retail': 'Retail Quick Top-Up',
+  'airtime-bulk': 'Bulk Airtime',
+  'kplc-token': 'Buy KPLC Token',
+  'wallet-transactions': 'Wallet Transactions',
+  'pos-terminal': 'POS / Counter Pay',
+};
+
+const APP_HREF_MAP: Record<string, string> = {
+  'pamojafund': '/dashboard/pamojafund',
+  'boost-loan': '/dashboard/loans',
+  'airtime-retail': '/dashboard/utilities/airtime/retail',
+  'airtime-bulk': '/dashboard/utilities/airtime/bulk',
+  'kplc-token': '/dashboard/utilities/kplc',
+  'wallet-transactions': '/dashboard/transactions/wallet',
+  'pos-terminal': '/dashboard/pos',
+};
+
+const PINNED_APPS_KEY = 'xecoflow_pinned_apps';
 
 // ─── Configuration ──────────────────────────────────────────────────
 const sidebarSections: SidebarSection[] = [
@@ -70,6 +133,7 @@ const sidebarSections: SidebarSection[] = [
           { icon: ArrowUpRight, label: 'Inflow', href: '/dashboard/transactions/inflow' },
           { icon: ArrowDownRight, label: 'Outflow', href: '/dashboard/transactions/outflow' },
           { icon: Coins, label: 'Wallet Transactions', href: '/dashboard/transactions/wallet' },
+          { icon: Download, label: 'Generate Statement', href: '/dashboard/transactions/statement' },
         ],
       },
       {
@@ -77,24 +141,9 @@ const sidebarSections: SidebarSection[] = [
         label: 'Withdrawals',
         children: [
           { icon: PlusCircle, label: 'Withdraw Funds', href: '/dashboard/withdrawals/Withdraw-fund' },
-          { icon: History, label: 'Withdrawal History', href: '/dashboard/withdrawals/Withdraw-History' },
-          { icon: Clock, label: 'Scheduled Withdrawals', href: '/dashboard/withdrawals/Withdraw-scheduled' },
+          { icon: History, label: 'Withdraw History', href: '/dashboard/withdrawals/Withdraw-History' },
+          { icon: Clock, label: 'Scheduled Withdraws', href: '/dashboard/withdrawals/Withdraw-scheduled' },
         ],
-      },
-      {
-        icon: Link2,
-        label: 'Payment Links',
-        href: '/dashboard/smart-bills/pages',
-      },
-      {
-        icon: Layers,
-        label: 'Payment Pages',
-        href: '/dashboard/payment-pages',
-      },
-      {
-        icon: Send,
-        label: 'Send STK Push',
-        href: '/dashboard/hosted-checkout/integration',
       },
     ],
   },
@@ -102,20 +151,41 @@ const sidebarSections: SidebarSection[] = [
     title: 'PRODUCTS',
     items: [
       {
+        icon: Send,
+        label: 'Send STK Push',
+        href: '/dashboard/hosted-checkout/integration',
+      },
+      {
+        icon: Link2,
+        label: 'Payment Links',
+        children: [
+          { 
+            icon: Package, 
+            label: 'Create Product Link', 
+            href: '/dashboard/smart-bills/create-product',
+          },
+          { 
+            icon: CreditCard, 
+            label: 'Create Payment Page', 
+            href: '/dashboard/payment-pages/create',
+          },
+          { 
+            icon: Layers, 
+            label: 'All Payment Links', 
+            href: '/dashboard/smart-bills/pages',
+          },
+        ],
+      },
+      {
         icon: Building2,
-        label: 'Automated PayBill',
+        label: 'Get Automated PayBill',
         href: '/dashboard/paybill/automated',
       },
     ],
   },
   {
-    title: 'DISBURSEMENTS',
+    title: 'DISBURSEMENT',
     items: [
-      {
-        icon: Upload,
-        label: 'Bulk Payments',
-        href: '/dashboard/disbursements/bulk-payments',
-      },
       {
         icon: Phone,
         label: 'Bulk Airtime',
@@ -131,10 +201,22 @@ const sidebarSections: SidebarSection[] = [
         label: 'Boost Biashara Loan',
         href: '/dashboard/loans',
       },
+    ],
+  },
+  {
+    title: 'SYSTEM',
+    items: [
       {
-        icon: FileSpreadsheet,
-        label: 'Statements',
-        href: '/dashboard/transactions/statement',
+        icon: Settings,
+        label: 'Business & Account',
+        children: [
+          { icon: Building, label: 'Business Identity', href: '/dashboard/business/identity' },
+          { icon: Users, label: 'Team Management', href: '/dashboard/business/team' },
+          { icon: BarChart3, label: 'Reports & Analytics', href: '/dashboard/business/reports' },
+          { icon: Bell, label: 'Preferences', href: '/dashboard/account/preferences' },
+          { icon: Shield, label: 'Security', href: '/dashboard/account/security' },
+          { icon: Activity, label: 'Activity Logs', href: '/dashboard/activity-logs' },
+        ],
       },
     ],
   },
@@ -143,7 +225,7 @@ const sidebarSections: SidebarSection[] = [
     items: [
       {
         icon: Code,
-        label: 'API Keys',
+        label: 'API Keys & Webhooks',
         href: '/dashboard/account/api-keys',
       },
     ],
@@ -158,6 +240,7 @@ export default function Sidebar() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showLoading, setShowLoading] = useState(false);
   const isManualToggle = useRef(false);
+  const [pinnedApps, setPinnedApps] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -178,6 +261,47 @@ export default function Sidebar() {
     };
   }, []);
 
+  // ─── Load pinned apps from localStorage ──────────────────────────
+  useEffect(() => {
+    const saved = localStorage.getItem(PINNED_APPS_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setPinnedApps(parsed);
+      } catch (e) {
+        console.error('Error loading pinned apps:', e);
+      }
+    }
+  }, []);
+
+  // ─── Build dynamic pinned app items ──────────────────────────────
+  const getPinnedItems = (): SidebarItem[] => {
+    return pinnedApps.map(appId => ({
+      icon: APP_ICON_MAP[appId] || Pin,
+      label: APP_LABEL_MAP[appId] || appId,
+      href: APP_HREF_MAP[appId] || '#',
+    }));
+  };
+
+  // ─── Get sections with dynamic pinned apps ──────────────────────
+  const getSections = (): SidebarSection[] => {
+    const pinnedItems = getPinnedItems();
+    
+    if (pinnedItems.length > 0) {
+      return sidebarSections.map(section => {
+        if (section.title === 'MY APPS & SHORTCUTS') {
+          return {
+            ...section,
+            items: pinnedItems,
+          };
+        }
+        return section;
+      });
+    }
+    
+    return sidebarSections.filter(section => section.title !== 'MY APPS & SHORTCUTS');
+  };
+
   // Load merchant data from stored profile
   useEffect(() => {
     const stored = getStoredMerchant();
@@ -196,7 +320,8 @@ export default function Sidebar() {
     }
 
     const newExpanded: Record<string, boolean> = {};
-    sidebarSections.forEach((section) => {
+    const sections = getSections();
+    sections.forEach((section) => {
       section.items.forEach((item) => {
         if (item.children) {
           const isActive = item.children.some((child) => pathname === child.href);
@@ -207,7 +332,7 @@ export default function Sidebar() {
       });
     });
     setExpanded(newExpanded);
-  }, [pathname]);
+  }, [pathname, pinnedApps]);
 
   // ─── Auto-collapse other sections ────────────────────────────────
   const toggleExpand = (label: string) => {
@@ -252,6 +377,8 @@ export default function Sidebar() {
   if (isLoanPage) {
     return null;
   }
+
+  const sections = getSections();
 
   return (
     <>
@@ -307,7 +434,7 @@ export default function Sidebar() {
           }`}
           style={{ scrollbarWidth: 'thin', scrollbarColor: '#1a2a4a transparent' }}
         >
-          {sidebarSections.map((section) => {
+          {sections.map((section) => {
             if (section.items.length === 0) return null;
 
             return (
@@ -542,7 +669,7 @@ export default function Sidebar() {
                 Profile
               </Link>
               <Link
-                href="/dashboard/account/settings"
+                href="/dashboard/account/preferences"
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-700/50 transition-colors text-sm text-slate-300 hover:text-white"
               >
                 <Settings className="w-4 h-4" />
