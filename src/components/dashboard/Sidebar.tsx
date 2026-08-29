@@ -542,7 +542,7 @@ export default function Sidebar() {
                 Profile
               </Link>
               <Link
-                href="/dashboard/account/preferences"
+                href="/dashboard/account/settings"
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-700/50 transition-colors text-sm text-slate-300 hover:text-white"
               >
                 <Settings className="w-4 h-4" />
