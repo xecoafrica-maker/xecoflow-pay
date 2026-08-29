@@ -1,7 +1,7 @@
 // src/app/dashboard/account/settings/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   User,
@@ -20,6 +20,7 @@ import {
   Check,
   AlertCircle,
   Loader2,
+  Image,
 } from 'lucide-react';
 import { getToken, getStoredMerchant } from '@/lib/auth';
 
@@ -41,6 +42,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Business Settings State ──────────────────────────────────────
   const [settings, setSettings] = useState<BusinessSettings>({
@@ -85,7 +87,6 @@ export default function SettingsPage() {
       const token = getToken();
       const merchant = getStoredMerchant();
 
-      // Load from stored merchant data
       if (merchant) {
         setSettings({
           business_name: merchant.business_name || merchant.businessName || '',
@@ -98,7 +99,6 @@ export default function SettingsPage() {
         });
       }
 
-      // Try to fetch from API
       const response = await fetch('/v1/auth/account/settings', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -113,7 +113,6 @@ export default function SettingsPage() {
         }
       }
 
-      // Load profile photo from localStorage
       const savedPhoto = localStorage.getItem('profile_photo');
       if (savedPhoto) {
         setProfilePhoto(savedPhoto);
@@ -165,14 +164,12 @@ export default function SettingsPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       setError('Please upload a JPEG, PNG, or WebP image.');
       return;
     }
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       setError('Image must be less than 5MB.');
       return;
@@ -190,6 +187,10 @@ export default function SettingsPage() {
       setTimeout(() => setSuccess(false), 3000);
     };
     reader.readAsDataURL(file);
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
   };
 
   // ─── Loading State ──────────────────────────────────────────────
@@ -233,13 +234,16 @@ export default function SettingsPage() {
             <User className="w-5 h-5 text-indigo-500" />
             Profile
           </h2>
-          <p className="text-sm text-gray-500">Update your profile photo and personal information</p>
+          <p className="text-sm text-gray-500">Click the avatar to upload a new photo (JPEG, PNG, WebP — max 5 MB)</p>
         </div>
 
         <div className="p-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
             {/* Avatar */}
-            <div className="relative">
+            <div 
+              className="relative cursor-pointer group"
+              onClick={triggerFileInput}
+            >
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-3xl font-bold shadow-lg overflow-hidden">
                 {profilePhoto ? (
                   <img 
@@ -251,23 +255,24 @@ export default function SettingsPage() {
                   settings.business_name?.charAt(0)?.toUpperCase() || 'U'
                 )}
               </div>
-              <label className="absolute bottom-0 right-0 w-8 h-8 bg-indigo-600 hover:bg-indigo-700 rounded-full flex items-center justify-center cursor-pointer shadow-lg transition-colors">
-                <Camera className="w-4 h-4 text-white" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoUpload}
-                  className="hidden"
-                />
-              </label>
+              <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Camera className="w-6 h-6 text-white" />
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+                className="hidden"
+              />
             </div>
 
             <div>
               <p className="text-sm text-gray-600">
-                Click the camera icon to upload a new photo
+                Upload a new photo
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                JPEG, PNG, WebP — Max 5 MB
+                JPG, PNG or WebP. Max 5 MB.
               </p>
             </div>
           </div>
@@ -289,46 +294,17 @@ export default function SettingsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Business Name <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              value={settings.business_name}
-              onChange={(e) => setSettings({ ...settings, business_name: e.target.value })}
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-              placeholder="Enter your business name"
-            />
+            <div className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900">
+              {settings.business_name || 'XECO DEVELOPERS'}
+            </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Phone Number
             </label>
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-sm text-gray-600">
-                +254
-              </span>
-              <input
-                type="tel"
-                value={settings.phone.replace('254', '')}
-                onChange={(e) => setSettings({ ...settings, phone: '254' + e.target.value })}
-                className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                placeholder="708050827"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Email Address
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="email"
-                value={settings.email}
-                onChange={(e) => setSettings({ ...settings, email: e.target.value })}
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                placeholder="your@email.com"
-              />
+            <div className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900">
+              {settings.phone || '254708050827'}
             </div>
           </div>
 
@@ -336,13 +312,9 @@ export default function SettingsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Trading Name
             </label>
-            <input
-              type="text"
-              value={settings.trading_name}
-              onChange={(e) => setSettings({ ...settings, trading_name: e.target.value })}
-              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-              placeholder="Trading name (optional)"
-            />
+            <div className="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900">
+              {settings.trading_name || 'Acme Shop'}
+            </div>
           </div>
 
           <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-2">
@@ -387,83 +359,6 @@ export default function SettingsPage() {
               <option value="medium">Medium</option>
               <option value="large">Large</option>
             </select>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── Notification Preferences ────────────────────────────────── */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden mb-6">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <Bell className="w-5 h-5 text-indigo-500" />
-            Notification Preferences
-          </h2>
-          <p className="text-sm text-gray-500">Manage how you receive notifications</p>
-        </div>
-
-        <div className="p-6 space-y-3">
-          <div className="flex items-center justify-between py-2 border-b border-gray-50">
-            <div>
-              <p className="text-sm font-medium text-gray-700">Email — Payment Notifications</p>
-              <p className="text-xs text-gray-400">Receive payment confirmations via email</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notifications.email_payments}
-                onChange={(e) => setNotifications({ ...notifications, email_payments: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-            </label>
-          </div>
-
-          <div className="flex items-center justify-between py-2 border-b border-gray-50">
-            <div>
-              <p className="text-sm font-medium text-gray-700">Email — Security Alerts</p>
-              <p className="text-xs text-gray-400">Receive security alerts via email</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notifications.email_security}
-                onChange={(e) => setNotifications({ ...notifications, email_security: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-            </label>
-          </div>
-
-          <div className="flex items-center justify-between py-2 border-b border-gray-50">
-            <div>
-              <p className="text-sm font-medium text-gray-700">SMS — Payment Notifications</p>
-              <p className="text-xs text-gray-400">Receive payment confirmations via SMS</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notifications.sms_payments}
-                onChange={(e) => setNotifications({ ...notifications, sms_payments: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-            </label>
-          </div>
-
-          <div className="flex items-center justify-between py-2">
-            <div>
-              <p className="text-sm font-medium text-gray-700">Marketing Communications</p>
-              <p className="text-xs text-gray-400">Receive product updates and promotions</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={notifications.marketing}
-                onChange={(e) => setNotifications({ ...notifications, marketing: e.target.checked })}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-            </label>
           </div>
         </div>
       </div>
