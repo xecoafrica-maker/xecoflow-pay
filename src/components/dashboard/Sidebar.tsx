@@ -27,17 +27,14 @@ import {
   Download,
   TrendingUp,
   Coins,
-  Handshake,
   Phone,
   Building2,
-  Package,
   Layers,
   ChevronUp,
   UserCircle,
   FileSpreadsheet,
   Upload,
   Code,
-  BookOpen,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -105,11 +102,6 @@ const sidebarSections: SidebarSection[] = [
     title: 'PRODUCTS',
     items: [
       {
-        icon: Handshake,
-        label: 'Chamaa Pro',
-        href: '/dashboard/chamaa-pro',
-      },
-      {
         icon: Building2,
         label: 'Automated PayBill',
         href: '/dashboard/paybill/automated',
@@ -147,34 +139,12 @@ const sidebarSections: SidebarSection[] = [
     ],
   },
   {
-    title: 'SYSTEM',
-    items: [
-      {
-        icon: Settings,
-        label: 'Business & Account',
-        children: [
-          { icon: Building, label: 'Business Identity', href: '/dashboard/business/identity' },
-          { icon: Users, label: 'Team Management', href: '/dashboard/business/team' },
-          { icon: BarChart3, label: 'Reports & Analytics', href: '/dashboard/business/reports' },
-          { icon: Bell, label: 'Preferences', href: '/dashboard/account/preferences' },
-          { icon: Shield, label: 'Security', href: '/dashboard/account/security' },
-          { icon: History, label: 'Activity Logs', href: '/dashboard/activity-logs' },
-        ],
-      },
-    ],
-  },
-  {
     title: 'DEVELOPER HUB',
     items: [
       {
         icon: Code,
         label: 'API Keys',
         href: '/dashboard/account/api-keys',
-      },
-      {
-        icon: BookOpen,
-        label: 'API Documentation',
-        href: '/dashboard/developers/docs',
       },
     ],
   },
