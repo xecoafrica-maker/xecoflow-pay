@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -16,6 +16,8 @@ import {
   Zap,
   BadgeCheck,
   Shield,
+  XCircle,
+  Clock,
 } from 'lucide-react';
 
 interface ProductData {
@@ -37,6 +39,23 @@ interface ProductData {
   fileSizeMb?: number;
 }
 
+interface TransactionStatus {
+  transactionId: string;
+  status: string;
+  paymentStatus: string;
+  mpesaReceipt: string | null;
+  resultCode: number | null;
+  resultDesc: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  product: {
+    productId: string;
+    status: string;
+    fileUrl: string;
+    fileName: string;
+  };
+}
+
 export default function ProductPage() {
   const params = useParams();
   const router = useRouter();
@@ -48,33 +67,119 @@ export default function ProductPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [email, setEmail] = useState('');
+  
+  // ─── Payment State ──────────────────────────────────────────────
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error' | 'pending'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [transactionId, setTransactionId] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [pollingCount, setPollingCount] = useState(0);
+  const [showRetry, setShowRetry] = useState(false);
+
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const MAX_POLLING_ATTEMPTS = 30; // 30 * 3 seconds = 90 seconds
+  const POLLING_INTERVAL = 3000; // 3 seconds
 
   useEffect(() => {
     if (!slug) return;
-    (async () => {
-      try {
-        const res = await fetch(`/api/product-links/${slug}`);
-        const data = await res.json();
-        if (data.success) setProduct(data.data);
-        else setError(data.error || 'Product not found');
-      } catch {
-        setError('Failed to load product');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchProduct();
   }, [slug]);
 
-  const formatPrice = (amount: number, currency: string) =>
-    `${currency} ${Number(amount).toLocaleString('en-KE', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
+  // ─── Fetch Product ──────────────────────────────────────────────
+  const fetchProduct = async () => {
+    try {
+      const res = await fetch(`/api/product-links/${slug}`);
+      const data = await res.json();
+      if (data.success) {
+        setProduct(data.data);
+        // If product is already paid, show file
+        if (data.data.status === 'PAID' || data.data.status === 'COMPLETED') {
+          setPaymentStatus('success');
+          setFileUrl(data.data.fileUrl);
+          setFileName(data.data.fileName);
+        }
+      } else {
+        setError(data.error || 'Product not found');
+      }
+    } catch {
+      setError('Failed to load product');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // ─── Poll Payment Status ────────────────────────────────────────
+  const pollPaymentStatus = (txId: string) => {
+    setPollingCount(0);
+    setShowRetry(false);
+    
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    pollingIntervalRef.current = setInterval(async () => {
+      setPollingCount((prev) => {
+        const newCount = prev + 1;
+        
+        // Check if max attempts reached
+        if (newCount >= MAX_POLLING_ATTEMPTS) {
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+          }
+          setPaymentStatus('error');
+          setErrorMessage('Payment is taking longer than expected. Please check your M-PESA app or contact support.');
+          setShowRetry(true);
+          return newCount;
+        }
+        
+        return newCount;
+      });
+
+      try {
+        const res = await fetch(`/v1/product-links/status/${txId}`);
+        const data = await res.json();
+
+        if (data.success && data.data) {
+          const status = data.data;
+          
+          // Payment successful - show file
+          if (status.status === 'SETTLED' || status.status === 'COMPLETED') {
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+            }
+            setPaymentStatus('success');
+            setFileUrl(status.product?.fileUrl || null);
+            setFileName(status.product?.fileName || null);
+            setProduct((prev) => prev ? { ...prev, status: 'PAID', fileUrl: status.product?.fileUrl || prev.fileUrl } : prev);
+          }
+          // Payment failed
+          else if (status.status === 'FAILED' || status.status === 'DECLINED' || status.status === 'TERMINATED_BY_TIMEOUT') {
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+            }
+            setPaymentStatus('error');
+            setErrorMessage(status.resultDesc || 'Payment failed. Please try again.');
+            setShowRetry(true);
+          }
+          // Still pending - continue polling
+          else {
+            // Update status message for user
+            if (pollingCount % 5 === 0) {
+              // Show a subtle update every 15 seconds
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Status polling error:', error);
+        // Don't stop polling on network errors - retry
+      }
+    }, POLLING_INTERVAL);
+  };
+
+  // ─── Handle Payment ──────────────────────────────────────────────
   const handlePay = async () => {
     let phone = phoneNumber.replace(/\D/g, '');
     if (phone.startsWith('0')) phone = '254' + phone.slice(1);
@@ -91,6 +196,7 @@ export default function ProductPage() {
     setIsProcessing(true);
     setPaymentStatus('processing');
     setErrorMessage('');
+    setShowRetry(false);
 
     try {
       const res = await fetch('/api/product-links/pay', {
@@ -103,37 +209,72 @@ export default function ProductPage() {
           customerName: customerName || 'Customer',
         }),
       });
+      
       const data = await res.json();
 
       if (res.ok && data.success) {
-        setPaymentStatus('success');
-        setProduct(data.data);
-        setTimeout(() => {
-          if (data.data?.fileUrl) triggerDownload(data.data.fileUrl);
-        }, 1200);
+        // Payment initiated - start polling for status
+        const txId = data.data?.transactionId;
+        if (txId) {
+          setTransactionId(txId);
+          setPaymentStatus('pending');
+          pollPaymentStatus(txId);
+        } else {
+          setPaymentStatus('error');
+          setErrorMessage('No transaction ID received. Please try again.');
+        }
       } else {
         setPaymentStatus('error');
         setErrorMessage(data.error || 'Payment failed. Please try again.');
+        setShowRetry(true);
       }
     } catch (err: any) {
       setPaymentStatus('error');
       setErrorMessage(err.message || 'Something went wrong.');
+      setShowRetry(true);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const triggerDownload = (url: string) => {
+  // ─── Download File ──────────────────────────────────────────────
+  const triggerDownload = () => {
+    const url = fileUrl || product?.fileUrl;
     if (!url) return;
+    
     setIsDownloading(true);
     const a = document.createElement('a');
     a.href = url;
-    a.download = product?.fileName || 'download';
+    a.download = fileName || product?.fileName || 'download';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     setIsDownloading(false);
   };
+
+  // ─── Retry Payment ──────────────────────────────────────────────
+  const retryPayment = () => {
+    setPaymentStatus('idle');
+    setErrorMessage('');
+    setShowRetry(false);
+    setTransactionId(null);
+  };
+
+  // ─── Cleanup polling on unmount ─────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // ─── Render Helpers ──────────────────────────────────────────────
+  const formatPrice = (amount: number, currency: string) =>
+    `${currency} ${Number(amount).toLocaleString('en-KE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
 
   if (loading) {
     return (
@@ -164,7 +305,7 @@ export default function ProductPage() {
   }
 
   const isExpired = new Date(product.expiryDate) < new Date();
-  const isPaid = product.status === 'PAID' || product.status === 'COMPLETED';
+  const isPaid = paymentStatus === 'success' || product.status === 'PAID' || product.status === 'COMPLETED';
   const merchantName = product.businessName || 'Merchant';
   const isVerified = product.verified === true;
   const pageCount = product.pageCount;
@@ -177,6 +318,78 @@ export default function ProductPage() {
   ]
     .filter(Boolean)
     .join(' · ');
+
+  // ─── Payment Status Rendering ────────────────────────────────────
+  const renderPaymentStatus = () => {
+    if (paymentStatus === 'processing') {
+      return (
+        <div className="mt-4 flex items-start gap-2.5 text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-3">
+          <Loader2 className="w-4 h-4 animate-spin shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-[13px]">Initiating payment...</p>
+            <p className="text-blue-600 text-[12px] mt-0.5">Please wait while we connect to M-PESA</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (paymentStatus === 'pending') {
+      return (
+        <div className="mt-4 flex flex-col items-start gap-2.5 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-3">
+          <div className="flex items-center gap-2.5 w-full">
+            <Loader2 className="w-4 h-4 animate-spin shrink-0 text-amber-600" />
+            <div className="flex-1">
+              <p className="font-medium text-[13px]">Waiting for payment confirmation</p>
+              <p className="text-amber-600 text-[12px] mt-0.5">
+                Please check your phone and enter your PIN
+              </p>
+            </div>
+          </div>
+          <div className="w-full mt-1">
+            <div className="flex justify-between text-[10px] text-amber-600">
+              <span>Processing...</span>
+              <span>{Math.min(Math.round(pollingCount * 3 / 60), 2)}m {pollingCount * 3 % 60}s</span>
+            </div>
+            <div className="w-full h-1 bg-amber-200 rounded-full mt-1 overflow-hidden">
+              <div 
+                className="h-full bg-amber-500 rounded-full transition-all duration-1000"
+                style={{ width: `${Math.min((pollingCount / MAX_POLLING_ATTEMPTS) * 100, 95)}%` }}
+              />
+            </div>
+          </div>
+          <p className="text-[10px] text-amber-500 mt-1">
+            {pollingCount > 5 && pollingCount < 10 && "⏳ Still waiting for M-PESA..."}
+            {pollingCount >= 10 && pollingCount < 20 && "📱 Did you receive the STK push on your phone?"}
+            {pollingCount >= 20 && "⏰ This is taking longer than usual. Please check your M-PESA app."}
+          </p>
+        </div>
+      );
+    }
+
+    if (paymentStatus === 'error') {
+      return (
+        <div className="mt-4 flex flex-col gap-2.5 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3.5 py-3">
+          <div className="flex items-start gap-2.5">
+            <XCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+            <div>
+              <p className="font-medium text-[13px]">Payment Failed</p>
+              <p className="text-red-600 text-[12px] mt-0.5">{errorMessage}</p>
+            </div>
+          </div>
+          {showRetry && (
+            <button
+              onClick={retryPayment}
+              className="mt-1 px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors self-start"
+            >
+              Try Again
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <div className="min-h-screen bg-[#fafafa] flex flex-col">
@@ -206,13 +419,11 @@ export default function ProductPage() {
             <div className="relative rounded-xl sm:rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-sm h-[220px] sm:h-[260px] md:h-[300px]">
               {product.fileUrl ? (
                 <>
-                  {/* Mobile: Google Docs viewer (direct PDF iframes often fail on phones) */}
                   <iframe
                     src={`https://docs.google.com/gview?url=${encodeURIComponent(product.fileUrl)}&embedded=true`}
                     className="md:hidden w-full h-full border-0"
                     title="Preview"
                   />
-                  {/* Desktop: direct PDF */}
                   <iframe
                     src={`${product.fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
                     className="hidden md:block w-full h-full border-0"
@@ -237,6 +448,12 @@ export default function ProductPage() {
                     </div>
                   </div>
                 </>
+              )}
+
+              {isPaid && (
+                <div className="absolute top-3 right-3 bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
+                  ✓ PAID
+                </div>
               )}
             </div>
 
@@ -296,7 +513,7 @@ export default function ProductPage() {
                 <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Payment successful</h2>
                 <p className="text-sm text-gray-500 mt-1.5">Your file is ready to download.</p>
                 <button
-                  onClick={() => triggerDownload(product.fileUrl)}
+                  onClick={triggerDownload}
                   disabled={isDownloading}
                   className="mt-5 w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
                 >
@@ -335,117 +552,105 @@ export default function ProductPage() {
                   </p>
                 </div>
 
-                {paymentStatus === 'processing' && (
-                  <div className="mt-4 flex items-start gap-2.5 text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-xl px-3.5 py-3">
-                    <Loader2 className="w-4 h-4 animate-spin shrink-0 mt-0.5" />
+                {/* ─── Payment Status ─────────────────────────────────── */}
+                {renderPaymentStatus()}
+
+                {/* ─── Payment Form ───────────────────────────────────── */}
+                {(paymentStatus === 'idle' || paymentStatus === 'error') && (
+                  <div className="mt-5 space-y-4">
                     <div>
-                      <p className="font-medium text-[13px]">Waiting for M-PESA</p>
-                      <p className="text-blue-600 text-[12px] mt-0.5">Enter your PIN on your phone</p>
+                      <label className="block text-[12px] sm:text-[13px] font-medium text-gray-700 mb-1.5">
+                        Name <span className="text-gray-400 font-normal">optional</span>
+                      </label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          placeholder="Your full name"
+                          disabled={isProcessing}
+                          className="w-full h-10 sm:h-11 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-[14px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff] disabled:opacity-60"
+                        />
+                      </div>
                     </div>
-                  </div>
-                )}
 
-                {paymentStatus === 'error' && (
-                  <div className="mt-4 flex items-start gap-2.5 text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-3.5 py-3">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <p className="text-[13px]">{errorMessage}</p>
-                  </div>
-                )}
-
-                <div className="mt-5 space-y-4">
-                  <div>
-                    <label className="block text-[12px] sm:text-[13px] font-medium text-gray-700 mb-1.5">
-                      Name <span className="text-gray-400 font-normal">optional</span>
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                      <input
-                        type="text"
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        placeholder="Your full name"
-                        disabled={isProcessing}
-                        className="w-full h-10 sm:h-11 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-[14px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff] disabled:opacity-60"
-                      />
+                    <div>
+                      <label className="block text-[12px] sm:text-[13px] font-medium text-gray-700 mb-1.5">
+                        Email <span className="text-gray-400 font-normal">for receipt</span>
+                      </label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="you@example.com"
+                          disabled={isProcessing}
+                          className="w-full h-10 sm:h-11 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-[14px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff] disabled:opacity-60"
+                        />
+                      </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-[12px] sm:text-[13px] font-medium text-gray-700 mb-1.5">
-                      Email <span className="text-gray-400 font-normal">for receipt</span>
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="you@example.com"
-                        disabled={isProcessing}
-                        className="w-full h-10 sm:h-11 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-[14px] text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff] disabled:opacity-60"
-                      />
+                    <div>
+                      <label className="block text-[12px] sm:text-[13px] font-medium text-gray-700 mb-1.5">
+                        M-PESA number
+                      </label>
+                      <div className="flex h-10 sm:h-11 rounded-xl border border-gray-200 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/25 focus-within:border-[#635bff]">
+                        <span className="flex items-center gap-1 px-2.5 sm:px-3.5 bg-gray-50 border-r border-gray-200 text-[12px] sm:text-[13px] text-gray-500 shrink-0">
+                          <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          +254
+                        </span>
+                        <input
+                          type="tel"
+                          inputMode="numeric"
+                          value={phoneNumber}
+                          onChange={(e) => setPhoneNumber(e.target.value)}
+                          placeholder="712071385"
+                          disabled={isProcessing}
+                          className="flex-1 min-w-0 px-2.5 sm:px-3.5 text-[14px] text-gray-900 outline-none placeholder:text-gray-400 disabled:opacity-60"
+                        />
+                      </div>
+                      <p className="text-[11px] sm:text-[12px] text-gray-400 mt-1.5">
+                        STK push will be sent to this number
+                      </p>
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-[12px] sm:text-[13px] font-medium text-gray-700 mb-1.5">
-                      M-PESA number
-                    </label>
-                    <div className="flex h-10 sm:h-11 rounded-xl border border-gray-200 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/25 focus-within:border-[#635bff]">
-                      <span className="flex items-center gap-1 px-2.5 sm:px-3.5 bg-gray-50 border-r border-gray-200 text-[12px] sm:text-[13px] text-gray-500 shrink-0">
-                        <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        +254
-                      </span>
-                      <input
-                        type="tel"
-                        inputMode="numeric"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                        placeholder="712071385"
-                        disabled={isProcessing}
-                        className="flex-1 min-w-0 px-2.5 sm:px-3.5 text-[14px] text-gray-900 outline-none placeholder:text-gray-400 disabled:opacity-60"
-                      />
+                    <button
+                      onClick={handlePay}
+                      disabled={isProcessing}
+                      className="w-full h-11 sm:h-12 bg-[#0a2540] hover:bg-[#152a45] active:scale-[0.99] text-white rounded-xl font-semibold text-sm sm:text-[15px] flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                          Processing…
+                        </>
+                      ) : (
+                        <>Pay {formatPrice(product.price, product.currency)}</>
+                      )}
+                    </button>
+
+                    <div className="flex items-center justify-center gap-1.5 text-[11px] sm:text-[12px] text-gray-400">
+                      <Shield className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-500" />
+                      <span>Payments are encrypted and secure</span>
                     </div>
-                    <p className="text-[11px] sm:text-[12px] text-gray-400 mt-1.5">
-                      STK push will be sent to this number
+
+                    <p className="text-center text-[11px] sm:text-[12px] text-gray-400">
+                      Need help?{' '}
+                      <Link href="/help-centre" className="text-[#635bff] font-medium hover:underline">
+                        Contact support
+                      </Link>
                     </p>
                   </div>
-
-                  {/* Pay button inside card on all screens */}
-                  <button
-                    onClick={handlePay}
-                    disabled={isProcessing}
-                    className="w-full h-11 sm:h-12 bg-[#0a2540] hover:bg-[#152a45] active:scale-[0.99] text-white rounded-xl font-semibold text-sm sm:text-[15px] flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                        Processing…
-                      </>
-                    ) : (
-                      <>Pay {formatPrice(product.price, product.currency)}</>
-                    )}
-                  </button>
-
-                  <div className="flex items-center justify-center gap-1.5 text-[11px] sm:text-[12px] text-gray-400">
-                    <Shield className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-500" />
-                    <span>Payments are encrypted and secure</span>
-                  </div>
-
-                  <p className="text-center text-[11px] sm:text-[12px] text-gray-400">
-                    Need help?{' '}
-                    <Link href="/help-centre" className="text-[#635bff] font-medium hover:underline">
-                      Contact support
-                    </Link>
-                  </p>
-                </div>
+                )}
               </div>
             )}
           </div>
         </div>
       </main>
 
-      {/* Acquisition */}
+      {/* Footer */}
       <section className="bg-[#0a2540] text-white">
         <div className="max-w-5xl mx-auto px-4 py-6 sm:py-9 md:py-11 flex flex-col items-center text-center md:flex-row md:text-left md:justify-between gap-4 sm:gap-6">
           <div className="max-w-md">
@@ -466,23 +671,16 @@ export default function ProductPage() {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="bg-white border-t border-gray-100">
         <div className="max-w-5xl mx-auto px-4 py-4 sm:py-5">
           <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[10px] sm:text-[11px] text-gray-400">
             <span>© 2026 XecoFlow</span>
             <span className="text-gray-200">·</span>
-            <Link href="/terms" className="hover:text-gray-600">
-              Terms
-            </Link>
+            <Link href="/terms" className="hover:text-gray-600">Terms</Link>
             <span className="text-gray-200">·</span>
-            <Link href="/privacy" className="hover:text-gray-600">
-              Privacy
-            </Link>
+            <Link href="/privacy" className="hover:text-gray-600">Privacy</Link>
             <span className="text-gray-200">·</span>
-            <Link href="/help-centre" className="hover:text-gray-600">
-              Report
-            </Link>
+            <Link href="/help-centre" className="hover:text-gray-600">Report</Link>
           </div>
         </div>
       </footer>
