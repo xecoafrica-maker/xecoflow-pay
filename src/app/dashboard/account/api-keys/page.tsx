@@ -82,6 +82,7 @@ export default function DevelopersPage() {
       
       if (data.success && data.data) {
         setApiKey(data.data.api_key || '');
+        setApiSecret(data.data.api_secret || ''); // ✅ FIXED: Added this line!
         setMerchantId(String(data.data.merchant_id || ''));
         setWebhookUrl(data.data.webhook_url || '');
         setHasCredentials(true);
