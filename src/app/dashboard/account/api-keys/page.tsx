@@ -1,4 +1,4 @@
-// src/app/dashboard/developers/page.tsx
+// src/app/dashboard/api-keys/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -14,10 +14,8 @@ import {
   AlertCircle,
   Building2,
   Shield,
-  X,
 } from 'lucide-react';
 import { getToken, getStoredMerchant, removeToken } from '@/lib/auth';
-import { getMerchantProfile } from '@/lib/auth-api';
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface ApiKeyData {
@@ -44,12 +42,6 @@ export default function DevelopersPage() {
   const [baseEndpoint] = useState('https://xecoflow-2gen.onrender.com/v1/payments');
   const [error, setError] = useState<string | null>(null);
 
-  // ─── Secret Modal State ──────────────────────────────────────────
-  const [showSecretModal, setShowSecretModal] = useState(false);
-  const [passwordInput, setPasswordInput] = useState('');
-  const [secretError, setSecretError] = useState('');
-  const [fetchingSecret, setFetchingSecret] = useState(false);
-
   // ─── Fetch API Credentials ──────────────────────────────────────
   const fetchCredentials = async () => {
     try {
@@ -59,7 +51,6 @@ export default function DevelopersPage() {
         return;
       }
 
-      // ✅ CORRECT ENDPOINT: /v1/auth/credentials
       const response = await fetch('/v1/auth/credentials', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -82,7 +73,7 @@ export default function DevelopersPage() {
       
       if (data.success && data.data) {
         setApiKey(data.data.api_key || '');
-        setApiSecret(data.data.api_secret || ''); // ✅ FIXED: Added this line!
+        setApiSecret(data.data.api_secret || '');
         setMerchantId(String(data.data.merchant_id || ''));
         setWebhookUrl(data.data.webhook_url || '');
         setHasCredentials(true);
@@ -95,46 +86,6 @@ export default function DevelopersPage() {
       setError('Failed to load API credentials.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  // ─── Fetch Secret (requires password) ──────────────────────────
-  const fetchSecret = async (password: string) => {
-    try {
-      const token = getToken();
-      if (!token) return;
-
-      // ✅ CORRECT ENDPOINT: POST /v1/auth/secret
-      const response = await fetch('/v1/auth/secret', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ password })
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Invalid password. Please try again.');
-        }
-        throw new Error(`Failed to fetch secret: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.success && data.data) {
-        setApiSecret(data.data.api_secret || '');
-        setShowSecret(true);
-        setShowSecretModal(false);
-        setPasswordInput('');
-        return true;
-      } else {
-        throw new Error(data.error || 'Failed to fetch secret');
-      }
-    } catch (error: any) {
-      setSecretError(error.message || 'Failed to verify password');
-      return false;
     }
   };
 
@@ -186,18 +137,9 @@ export default function DevelopersPage() {
     }
   };
 
-  // ─── Secret Handlers ────────────────────────────────────────────
-  const handleRevealSecret = () => {
-    setShowSecretModal(true);
-    setPasswordInput('');
-    setSecretError('');
-  };
-
-  const handleVerifyPassword = async () => {
-    setFetchingSecret(true);
-    setSecretError('');
-    await fetchSecret(passwordInput);
-    setFetchingSecret(false);
+  // ─── Toggle Secret Visibility (No Password Required) ──────────
+  const toggleSecretVisibility = () => {
+    setShowSecret(!showSecret);
   };
 
   // ─── Mask functions ─────────────────────────────────────────────
@@ -360,9 +302,9 @@ export default function DevelopersPage() {
                 {apiSecret && (
                   <>
                     <button
-                      onClick={handleRevealSecret}
+                      onClick={toggleSecretVisibility}
                       className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                      title="Reveal secret (requires password)"
+                      title="Toggle secret visibility"
                     >
                       {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -380,7 +322,7 @@ export default function DevelopersPage() {
               </div>
               <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                <span>Click the eye icon to reveal the secret – you will be prompted for your login password.</span>
+                <span>Click the eye icon to toggle visibility of the secret.</span>
               </div>
             </div>
           </div>
@@ -452,62 +394,6 @@ export default function DevelopersPage() {
           </div>
         </div>
       </div>
-
-      {/* ─── Secret Reveal Modal ────────────────────────────────────── */}
-      {showSecretModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-gray-900">Reveal API Secret</h3>
-                <button
-                  onClick={() => setShowSecretModal(false)}
-                  className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
-              <p className="text-sm text-gray-600 mb-4">
-                Enter your login password to view the API secret.
-              </p>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
-                <input
-                  type="password"
-                  value={passwordInput}
-                  onChange={(e) => setPasswordInput(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                  placeholder="Enter your password"
-                  autoFocus
-                  onKeyDown={(e) => e.key === 'Enter' && handleVerifyPassword()}
-                />
-                {secretError && (
-                  <p className="mt-2 text-sm text-red-600">{secretError}</p>
-                )}
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowSecretModal(false)}
-                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleVerifyPassword}
-                  disabled={fetchingSecret || !passwordInput}
-                  className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-colors ${
-                    fetchingSecret || !passwordInput
-                      ? 'bg-indigo-400 cursor-not-allowed'
-                      : 'bg-indigo-600 hover:bg-indigo-700'
-                  }`}
-                >
-                  {fetchingSecret ? 'Verifying...' : 'Verify'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
