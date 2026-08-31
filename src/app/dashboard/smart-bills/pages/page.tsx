@@ -37,6 +37,7 @@ interface PageItem {
   page_type: 'bill' | 'product';  // ✅ NEW: Distinguish between bill and product
   file_url?: string;              // ✅ For products
   file_name?: string;             // ✅ For products
+  link_type?: string;             // ✅ For payment links
 }
 
 export default function SmartBillPages() {
@@ -66,14 +67,10 @@ export default function SmartBillPages() {
           ...b,
           page_type: 'bill' as const,
           page_id: b.bill_id,
+          link_type: b.link_type || 'payment',
         }));
 
       // ─── Fetch Products ────────────────────────────────────────────
-      // Option 1: If you have a separate API endpoint
-      // const productsRes = await fetch(`/api/products/merchant?merchantId=${merchantId}`);
-      // const productsData = await productsRes.json();
-
-      // Option 2: Filter from bills where bill_id starts with 'PROD-'
       const allBillsRes = await fetch(`/api/bills/merchant?merchantId=${merchantId}`);
       const allBillsData = await allBillsRes.json();
       const products = (allBillsData.data || [])
@@ -82,6 +79,7 @@ export default function SmartBillPages() {
           ...b,
           page_type: 'product' as const,
           page_id: b.bill_id,
+          link_type: b.link_type || 'product',
         }));
 
       // ─── Combine and sort ─────────────────────────────────────────
@@ -151,14 +149,14 @@ export default function SmartBillPages() {
     }
   };
 
-  // ─── Get the correct preview URL ──────────────────────────────────
+  // ─── ✅ FIXED: Get the correct preview URL ──────────────────────
   const getPreviewUrl = (page: PageItem) => {
-    if (page.page_type === 'product') {
-      // Products use /p/ with the slug (description field)
-      return `/p/${page.description || page.page_id}`;
+    // Products use /product-links/ with the slug (description field)
+    if (page.page_type === 'product' || page.link_type === 'product') {
+      return `/product-links/${page.description || page.page_id}`;
     }
-    // Bills use /bill/ with bill_id
-    return `/bill/${page.page_id}`;
+    // ✅ Payment links (bills) use /pay/ with the slug (description field)
+    return `/pay/${page.description || page.page_id}`;
   };
 
   if (loading) {
@@ -274,7 +272,7 @@ export default function SmartBillPages() {
                       {formatDate(page.created_at)}
                     </td>
 
-                    {/* Link */}
+                    {/* ─── ✅ FIXED: Link Preview ────────────────── */}
                     <td className="px-6 py-4">
                       <Link 
                         href={getPreviewUrl(page)} 
