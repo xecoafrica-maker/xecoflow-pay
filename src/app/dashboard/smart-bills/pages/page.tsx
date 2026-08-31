@@ -151,9 +151,9 @@ export default function SmartBillPages() {
 
   // ─── ✅ FIXED: Get the correct preview URL ──────────────────────
   const getPreviewUrl = (page: PageItem) => {
-    // Products use /product-links/ with the slug (description field)
+    // Products use /p/ with the slug (description field)
     if (page.page_type === 'product' || page.link_type === 'product') {
-      return `/product-links/${page.description || page.page_id}`;
+      return `/p/${page.description || page.page_id}`;
     }
     // ✅ Payment links (bills) use /pay/ with the slug (description field)
     return `/pay/${page.description || page.page_id}`;
