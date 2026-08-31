@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -12,6 +12,7 @@ import {
   User,
   Shield,
   BadgeCheck,
+  XCircle,
 } from 'lucide-react';
 
 interface PaymentLinkData {
@@ -75,9 +76,16 @@ export default function PaymentLinkPage() {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<PayMethod>('mpesa');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error' | 'pending'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [brokenLogos, setBrokenLogos] = useState<Record<string, boolean>>({});
+  const [transactionId, setTransactionId] = useState<string | null>(null);
+  const [pollingCount, setPollingCount] = useState(0);
+  const [showRetry, setShowRetry] = useState(false);
+
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const MAX_POLLING_ATTEMPTS = 30;
+  const POLLING_INTERVAL = 3000;
 
   useEffect(() => {
     if (!slug) return;
@@ -96,6 +104,58 @@ export default function PaymentLinkPage() {
       }
     })();
   }, [slug]);
+
+  // ─── Poll Payment Status ────────────────────────────────────────
+  const pollPaymentStatus = (txId: string) => {
+    setPollingCount(0);
+    setShowRetry(false);
+    
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    pollingIntervalRef.current = setInterval(async () => {
+      setPollingCount((prev) => {
+        const newCount = prev + 1;
+        
+        if (newCount >= MAX_POLLING_ATTEMPTS) {
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+          }
+          setPaymentStatus('error');
+          setErrorMessage('Payment is taking longer than expected. Please check your M-PESA app.');
+          setShowRetry(true);
+          return newCount;
+        }
+        return newCount;
+      });
+
+      try {
+        const res = await fetch(`/v1/product-links/status/${txId}`);
+        const data = await res.json();
+
+        if (data.success && data.data) {
+          const status = data.data;
+          
+          if (status.status === 'SETTLED' || status.status === 'COMPLETED') {
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+            }
+            setPaymentStatus('success');
+          } else if (status.status === 'FAILED' || status.status === 'DECLINED' || status.status === 'TERMINATED_BY_TIMEOUT') {
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+            }
+            setPaymentStatus('error');
+            setErrorMessage(status.resultDesc || 'Payment failed. Please try again.');
+            setShowRetry(true);
+          }
+        }
+      } catch (error) {
+        console.error('Status polling error:', error);
+      }
+    }, POLLING_INTERVAL);
+  };
 
   const formatPrice = (value: number, currency: string) =>
     `${currency} ${Number(value).toLocaleString('en-KE', {
@@ -137,14 +197,14 @@ export default function PaymentLinkPage() {
     setIsProcessing(true);
     setPaymentStatus('processing');
     setErrorMessage('');
+    setShowRetry(false);
 
     try {
-      // ✅ FIXED: Use /v1/product-links/pay for payment initiation
       const res = await fetch('/v1/product-links/pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          productId: paymentLink?.billId,  // billId is the product ID
+          productId: paymentLink?.billId,
           phone: phoneNumber,
           email: email || undefined,
           customerName: customerName || 'Customer',
@@ -154,22 +214,111 @@ export default function PaymentLinkPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        setPaymentStatus('success');
-        if (paymentLink?.returnUrl) {
-          setTimeout(() => {
-            window.location.href = paymentLink.returnUrl!;
-          }, 3000);
+        const txId = data.data?.transactionId;
+        if (txId) {
+          setTransactionId(txId);
+          setPaymentStatus('pending');
+          pollPaymentStatus(txId);
+        } else {
+          setPaymentStatus('error');
+          setErrorMessage('No transaction ID received. Please try again.');
         }
       } else {
         setPaymentStatus('error');
         setErrorMessage(data.error || 'Payment failed. Please try again.');
+        setShowRetry(true);
       }
     } catch (err: any) {
       setPaymentStatus('error');
       setErrorMessage(err.message || 'Something went wrong.');
+      setShowRetry(true);
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const retryPayment = () => {
+    setPaymentStatus('idle');
+    setErrorMessage('');
+    setShowRetry(false);
+    setTransactionId(null);
+    setPollingCount(0);
+  };
+
+  // ─── Cleanup polling on unmount ─────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // ─── Payment Status Rendering ────────────────────────────────────
+  const renderPaymentStatus = () => {
+    if (paymentStatus === 'processing') {
+      return (
+        <div className="flex items-start gap-3 text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+          <Loader2 className="w-4 h-4 animate-spin shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-[13px]">Initiating payment...</p>
+            <p className="text-blue-600 text-[12px] mt-0.5">Please wait while we connect to M-PESA</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (paymentStatus === 'pending') {
+      return (
+        <div className="flex flex-col items-start gap-2.5 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-3">
+          <div className="flex items-center gap-2.5 w-full">
+            <Loader2 className="w-4 h-4 animate-spin shrink-0 text-amber-600" />
+            <div className="flex-1">
+              <p className="font-medium text-[13px]">Waiting for payment confirmation</p>
+              <p className="text-amber-600 text-[12px] mt-0.5">
+                Please check your phone and enter your PIN
+              </p>
+            </div>
+          </div>
+          <div className="w-full mt-1">
+            <div className="flex justify-between text-[10px] text-amber-600">
+              <span>Processing...</span>
+              <span>{Math.min(Math.round(pollingCount * 3 / 60), 2)}m {pollingCount * 3 % 60}s</span>
+            </div>
+            <div className="w-full h-1 bg-amber-200 rounded-full mt-1 overflow-hidden">
+              <div 
+                className="h-full bg-amber-500 rounded-full transition-all duration-1000"
+                style={{ width: `${Math.min((pollingCount / MAX_POLLING_ATTEMPTS) * 100, 95)}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (paymentStatus === 'error') {
+      return (
+        <div className="flex flex-col gap-2.5 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3.5 py-3">
+          <div className="flex items-start gap-2.5">
+            <XCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+            <div>
+              <p className="font-medium text-[13px]">Payment Failed</p>
+              <p className="text-red-600 text-[12px] mt-0.5">{errorMessage}</p>
+            </div>
+          </div>
+          {showRetry && (
+            <button
+              onClick={retryPayment}
+              className="mt-1 px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors self-start"
+            >
+              Try Again
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    return null;
   };
 
   if (loading) {
@@ -367,172 +516,157 @@ export default function PaymentLinkPage() {
                   </div>
                 </div>
 
-                {paymentStatus === 'processing' && (
-                  <div className="flex items-start gap-3 text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-                    <Loader2 className="w-4 h-4 animate-spin shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-[13px]">
-                        {isMobileMoney ? 'Waiting for confirmation' : 'Processing payment'}
-                      </p>
-                      <p className="text-blue-600 text-[12px] mt-0.5">
-                        {isMobileMoney ? 'Enter your PIN on your phone' : 'Please wait…'}
-                      </p>
-                    </div>
-                  </div>
-                )}
+                {renderPaymentStatus()}
 
-                {paymentStatus === 'error' && (
-                  <div className="flex items-start gap-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <p className="text-[13px]">{errorMessage}</p>
-                  </div>
-                )}
+                {(paymentStatus === 'idle' || paymentStatus === 'error') && (
+                  <>
+                    {!isFixedAmount && (
+                      <div>
+                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                          Amount
+                        </label>
+                        <input
+                          type="number"
+                          value={amount}
+                          onChange={(e) => setAmount(e.target.value)}
+                          placeholder="0.00"
+                          min={1}
+                          step="0.01"
+                          required
+                          disabled={isProcessing}
+                          className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                        />
+                      </div>
+                    )}
 
-                {!isFixedAmount && (
-                  <div>
-                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                      Amount
-                    </label>
-                    <input
-                      type="number"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      placeholder="0.00"
-                      min={1}
-                      step="0.01"
-                      required
-                      disabled={isProcessing}
-                      className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                    />
-                  </div>
-                )}
+                    {isMobileMoney && (
+                      <div>
+                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                          {method === 'mpesa'
+                            ? 'M-PESA number'
+                            : method === 'airtel'
+                            ? 'Airtel Money number'
+                            : 'T-Kash number'}
+                        </label>
+                        <div className="flex h-11 rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
+                          <span className="flex items-center gap-1.5 px-3 bg-gray-50 border-r border-gray-200 text-[13px] text-gray-500 shrink-0">
+                            <Smartphone className="w-4 h-4" />
+                            +254
+                          </span>
+                          <input
+                            type="tel"
+                            inputMode="numeric"
+                            value={phoneNumber}
+                            onChange={(e) => setPhoneNumber(e.target.value)}
+                            placeholder="712071385"
+                            disabled={isProcessing}
+                            className="flex-1 min-w-0 px-3 text-sm outline-none disabled:opacity-60"
+                          />
+                        </div>
+                      </div>
+                    )}
 
-                {isMobileMoney && (
-                  <div>
-                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                      {method === 'mpesa'
-                        ? 'M-PESA number'
-                        : method === 'airtel'
-                        ? 'Airtel Money number'
-                        : 'T-Kash number'}
-                    </label>
-                    <div className="flex h-11 rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
-                      <span className="flex items-center gap-1.5 px-3 bg-gray-50 border-r border-gray-200 text-[13px] text-gray-500 shrink-0">
-                        <Smartphone className="w-4 h-4" />
-                        +254
-                      </span>
-                      <input
-                        type="tel"
-                        inputMode="numeric"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                        placeholder="712071385"
-                        disabled={isProcessing}
-                        className="flex-1 min-w-0 px-3 text-sm outline-none disabled:opacity-60"
-                      />
-                    </div>
-                  </div>
-                )}
+                    {method === 'card' && (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                            Card number
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="4242 4242 4242 4242"
+                            disabled={isProcessing}
+                            className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                              Expiry
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="MM / YY"
+                              disabled={isProcessing}
+                              className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                              CVC
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="123"
+                              disabled={isProcessing}
+                              className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-                {method === 'card' && (
-                  <div className="space-y-3">
+                    {method === 'paypal' && (
+                      <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-[13px] text-blue-800">
+                        You’ll be redirected to PayPal to complete payment securely.
+                      </div>
+                    )}
+
                     <div>
                       <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                        Card number
+                        Email
                       </label>
-                      <input
-                        type="text"
-                        placeholder="4242 4242 4242 4242"
-                        disabled={isProcessing}
-                        className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                          Expiry
-                        </label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
-                          type="text"
-                          placeholder="MM / YY"
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="you@example.com"
                           disabled={isProcessing}
-                          className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                          CVC
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="123"
-                          disabled={isProcessing}
-                          className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                          className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
                         />
                       </div>
                     </div>
-                  </div>
-                )}
 
-                {method === 'paypal' && (
-                  <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-[13px] text-blue-800">
-                    You’ll be redirected to PayPal to complete payment securely.
-                  </div>
-                )}
+                    <div>
+                      <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                        Name <span className="text-gray-400 font-normal">(optional)</span>
+                      </label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          placeholder="Full name"
+                          disabled={isProcessing}
+                          className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                        />
+                      </div>
+                    </div>
 
-                <div>
-                  <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                    Email
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
+                    <button
+                      type="submit"
                       disabled={isProcessing}
-                      className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                    />
-                  </div>
-                </div>
+                      className="w-full h-11 bg-[#0a2540] hover:bg-[#152a45] text-white rounded-lg font-semibold text-[15px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Processing…
+                        </>
+                      ) : (
+                        <>Pay {formatPrice(displayAmount, paymentLink.currency)}</>
+                      )}
+                    </button>
 
-                <div>
-                  <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                    Name <span className="text-gray-400 font-normal">(optional)</span>
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder="Full name"
-                      disabled={isProcessing}
-                      className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isProcessing}
-                  className="w-full h-11 bg-[#0a2540] hover:bg-[#152a45] text-white rounded-lg font-semibold text-[15px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Processing…
-                    </>
-                  ) : (
-                    <>Pay {formatPrice(displayAmount, paymentLink.currency)}</>
-                  )}
-                </button>
-
-                <p className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
-                  <Shield className="w-3 h-3 text-emerald-500" />
-                  Secure payment
-                </p>
+                    <p className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
+                      <Shield className="w-3 h-3 text-emerald-500" />
+                      Secure payment
+                    </p>
+                  </>
+                )}
               </form>
             )}
           </div>
