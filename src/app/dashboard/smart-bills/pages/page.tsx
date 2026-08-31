@@ -34,10 +34,10 @@ interface PageItem {
   description: string;
   status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'PROCESSING';
   created_at: string;
-  page_type: 'bill' | 'product';  // ✅ NEW: Distinguish between bill and product
-  file_url?: string;              // ✅ For products
-  file_name?: string;             // ✅ For products
-  link_type?: string;             // ✅ For payment links
+  page_type: 'bill' | 'product';
+  file_url?: string;
+  file_name?: string;
+  link_type?: string;
 }
 
 export default function SmartBillPages() {
@@ -62,7 +62,7 @@ export default function SmartBillPages() {
       const billsRes = await fetch(`/api/bills/merchant?merchantId=${merchantId}`);
       const billsData = await billsRes.json();
       const bills = (billsData.data || [])
-        .filter((b: any) => !b.bill_id?.startsWith('PROD-')) // Exclude products from bills
+        .filter((b: any) => !b.bill_id?.startsWith('PROD-'))
         .map((b: any) => ({
           ...b,
           page_type: 'bill' as const,
@@ -155,7 +155,7 @@ export default function SmartBillPages() {
     if (page.page_type === 'product' || page.link_type === 'product') {
       return `/p/${page.description || page.page_id}`;
     }
-    // ✅ Payment links (bills) use /pay/ with the slug (description field)
+    // Payment links (bills) use /pay/ with the slug (description field)
     return `/pay/${page.description || page.page_id}`;
   };
 
