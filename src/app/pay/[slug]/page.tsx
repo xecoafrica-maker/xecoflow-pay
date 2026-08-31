@@ -139,18 +139,15 @@ export default function PaymentLinkPage() {
     setErrorMessage('');
 
     try {
-      const res = await fetch('/api/payments/initiate', {
+      // ✅ FIXED: Use /v1/product-links/pay for payment initiation
+      const res = await fetch('/v1/product-links/pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          billId: paymentLink?.billId,
-          merchantId: paymentLink?.merchantId,
-          amount: amountToPay,
+          productId: paymentLink?.billId,  // billId is the product ID
           phone: phoneNumber,
-          customerName: customerName || 'Customer',
           email: email || undefined,
-          currency: paymentLink?.currency || 'KES',
-          method,
+          customerName: customerName || 'Customer',
         }),
       });
 
