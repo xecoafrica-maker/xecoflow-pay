@@ -166,17 +166,35 @@ export default function PaymentLinkPage() {
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (method === 'mpesa' || method === 'airtel' || method === 'tkash') {
-      let phone = phoneNumber.replace(/\D/g, '');
-      if (phone.startsWith('0')) phone = '254' + phone.slice(1);
-      if (!phone.startsWith('254') && (phone.length === 9 || phone.length === 10)) {
+    // ─── ✅ FIXED: Normalize phone number properly ──────────────
+    let phone = phoneNumber.replace(/\D/g, '');
+    
+    // Handle different formats
+    if (phone.startsWith('0')) {
+      // 0712345678 → 254712345678
+      phone = '254' + phone.slice(1);
+    } else if (phone.startsWith('254')) {
+      // Already has 254, keep as is
+      phone = phone;
+    } else if (phone.length === 9 || phone.length === 10) {
+      // 712345678 or 0712345678
+      if (phone.length === 9) {
+        phone = '254' + phone;
+      } else {
         phone = '254' + phone.slice(-9);
       }
-      if (!phone || phone.length < 12) {
-        setErrorMessage('Enter a valid 9-digit phone number');
-        setPaymentStatus('error');
-        return;
-      }
+    } else {
+      // Fallback: add 254 prefix if missing
+      phone = '254' + phone;
+    }
+    
+    // Remove any non-digit characters
+    phone = phone.replace(/\D/g, '');
+    
+    if (!phone || phone.length < 12) {
+      setErrorMessage('Enter a valid 9-digit phone number (e.g., 712345678)');
+      setPaymentStatus('error');
+      return;
     }
 
     const amountToPay = Number(amount);
@@ -205,7 +223,7 @@ export default function PaymentLinkPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: paymentLink?.billId,
-          phone: phoneNumber,
+          phone: phone, // ✅ Use normalized phone
           email: email || undefined,
           customerName: customerName || 'Customer',
         }),
