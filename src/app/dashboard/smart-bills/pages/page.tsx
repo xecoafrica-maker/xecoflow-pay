@@ -16,6 +16,10 @@ import {
   Globe,
   File,
   Package,
+  CheckCircle,
+  Clock,
+  XCircle,
+  AlertCircle,
 } from 'lucide-react';
 import { getStoredMerchant } from '@/lib/auth';
 import CreateBillModal from '../components/CreateBillModal';
@@ -32,7 +36,7 @@ interface PageItem {
   amount: number;
   currency: string;
   description: string;
-  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'PROCESSING';
+  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'PROCESSING' | 'SETTLED' | 'COMPLETED' | 'FAILED';
   created_at: string;
   page_type: 'bill' | 'product';
   file_url?: string;
@@ -120,13 +124,69 @@ export default function SmartBillPages() {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const getStatusDot = (status: string) => {
-    switch (status) {
-      case 'PAID': return <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />;
-      case 'PROCESSING': return <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />;
-      case 'EXPIRED': return <span className="w-2.5 h-2.5 rounded-full bg-red-500" />;
-      default: return <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />;
+  // ─── ✅ Status Helper ─────────────────────────────────────────────
+  const getStatusDisplay = (status: string) => {
+    const s = status?.toUpperCase() || '';
+    
+    // Successful statuses
+    if (s === 'PAID' || s === 'COMPLETED' || s === 'SETTLED' || s === 'SUCCESS') {
+      return {
+        label: 'Paid',
+        color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        icon: <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />,
+      };
     }
+    
+    // Processing/Pending statuses
+    if (s === 'PROCESSING' || s === 'PENDING' || s === 'AWAITING_CUSTOMER_PIN') {
+      return {
+        label: 'Pending',
+        color: 'bg-amber-50 text-amber-700 border-amber-200',
+        icon: <Clock className="w-3.5 h-3.5 text-amber-500" />,
+      };
+    }
+    
+    // Failed statuses
+    if (s === 'FAILED' || s === 'DECLINED' || s === 'ERROR' || s === 'CANCELLED') {
+      return {
+        label: 'Failed',
+        color: 'bg-red-50 text-red-700 border-red-200',
+        icon: <XCircle className="w-3.5 h-3.5 text-red-500" />,
+      };
+    }
+    
+    // Expired
+    if (s === 'EXPIRED') {
+      return {
+        label: 'Expired',
+        color: 'bg-gray-50 text-gray-600 border-gray-200',
+        icon: <AlertCircle className="w-3.5 h-3.5 text-gray-400" />,
+      };
+    }
+    
+    // Default
+    return {
+      label: status || 'Unknown',
+      color: 'bg-gray-50 text-gray-600 border-gray-200',
+      icon: <AlertCircle className="w-3.5 h-3.5 text-gray-400" />,
+    };
+  };
+
+  const getStatusDot = (status: string) => {
+    const s = status?.toUpperCase() || '';
+    if (s === 'PAID' || s === 'COMPLETED' || s === 'SETTLED' || s === 'SUCCESS') {
+      return <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />;
+    }
+    if (s === 'PROCESSING' || s === 'PENDING' || s === 'AWAITING_CUSTOMER_PIN') {
+      return <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />;
+    }
+    if (s === 'FAILED' || s === 'DECLINED' || s === 'ERROR' || s === 'CANCELLED') {
+      return <span className="w-2.5 h-2.5 rounded-full bg-red-500" />;
+    }
+    if (s === 'EXPIRED') {
+      return <span className="w-2.5 h-2.5 rounded-full bg-gray-400" />;
+    }
+    return <span className="w-2.5 h-2.5 rounded-full bg-gray-300" />;
   };
 
   const getTypeIcon = (type: string) => {
@@ -217,13 +277,14 @@ export default function SmartBillPages() {
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Link</th>
               </tr>
             </thead>
             <tbody>
               {filteredPages.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
+                  <td colSpan={7} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <Globe className="w-10 h-10 text-gray-300" />
                       <p className="text-gray-500 font-medium">No pages created yet</p>
@@ -232,59 +293,70 @@ export default function SmartBillPages() {
                   </td>
                 </tr>
               ) : (
-                filteredPages.map((page) => (
-                  <tr key={page.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors group">
-                    
-                    {/* Status Dot */}
-                    <td className="px-6 py-4">
-                      {getStatusDot(page.status)}
-                    </td>
+                filteredPages.map((page) => {
+                  const statusInfo = getStatusDisplay(page.status);
+                  return (
+                    <tr key={page.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors group">
+                      
+                      {/* Status Dot */}
+                      <td className="px-6 py-4">
+                        {getStatusDot(page.status)}
+                      </td>
 
-                    {/* Name */}
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-gray-900">
-                          {page.page_type === 'product' ? page.description || page.customer_name : page.customer_name}
+                      {/* Name */}
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-gray-900">
+                            {page.page_type === 'product' ? page.description || page.customer_name : page.customer_name}
+                          </span>
+                          <span className="text-xs text-gray-400">{page.page_id}</span>
+                        </div>
+                      </td>
+
+                      {/* Type */}
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                          page.page_type === 'product' 
+                            ? 'border-purple-200 text-purple-700 bg-purple-50' 
+                            : 'border-gray-200 text-gray-600 bg-white'
+                        }`}>
+                          {getTypeIcon(page.page_type)}
+                          {getTypeLabel(page.page_type)}
                         </span>
-                        <span className="text-xs text-gray-400">{page.page_id}</span>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Type */}
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                        page.page_type === 'product' 
-                          ? 'border-purple-200 text-purple-700 bg-purple-50' 
-                          : 'border-gray-200 text-gray-600 bg-white'
-                      }`}>
-                        {getTypeIcon(page.page_type)}
-                        {getTypeLabel(page.page_type)}
-                      </span>
-                    </td>
+                      {/* Amount */}
+                      <td className="px-6 py-4 text-gray-900">
+                        {formatCurrency(Number(page.amount))}
+                      </td>
 
-                    {/* Amount */}
-                    <td className="px-6 py-4 text-gray-900">
-                      {formatCurrency(Number(page.amount))}
-                    </td>
+                      {/* Created */}
+                      <td className="px-6 py-4 text-gray-500">
+                        {formatDate(page.created_at)}
+                      </td>
 
-                    {/* Created */}
-                    <td className="px-6 py-4 text-gray-500">
-                      {formatDate(page.created_at)}
-                    </td>
+                      {/* ─── ✅ Status ────────────────────────────────── */}
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusInfo.color}`}>
+                          {statusInfo.icon}
+                          {statusInfo.label}
+                        </span>
+                      </td>
 
-                    {/* ─── ✅ FIXED: Link Preview ────────────────── */}
-                    <td className="px-6 py-4">
-                      <Link 
-                        href={getPreviewUrl(page)} 
-                        target="_blank"
-                        className="text-indigo-600 hover:text-indigo-700 hover:underline text-sm font-medium flex items-center gap-1 w-fit"
-                      >
-                        Preview <ExternalLink className="w-3 h-3" />
-                      </Link>
-                    </td>
+                      {/* ─── ✅ Link Preview ────────────────────────── */}
+                      <td className="px-6 py-4">
+                        <Link 
+                          href={getPreviewUrl(page)} 
+                          target="_blank"
+                          className="text-indigo-600 hover:text-indigo-700 hover:underline text-sm font-medium flex items-center gap-1 w-fit"
+                        >
+                          Preview <ExternalLink className="w-3 h-3" />
+                        </Link>
+                      </td>
 
-                  </tr>
-                ))
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
