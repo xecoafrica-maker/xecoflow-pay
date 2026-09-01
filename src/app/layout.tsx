@@ -10,21 +10,14 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'XecoFlow',
   description: 'Payment Gateway for Africa',
-  // ✅ ADD CSP HERE
   other: {
     'Content-Security-Policy': [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https:",
-      "connect-src 'self'",
-      "https://*.supabase.co",
-      "https://*.onrender.com",
-      "wss://*.onrender.com",
-      "ws://*.onrender.com",
-      "https://api.ipify.org",
-      "https://api.my-ip.io",
-      "https://ipapi.co"
+      "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;",
+      "script-src * 'unsafe-inline' 'unsafe-eval';",
+      "style-src * 'unsafe-inline';",
+      "img-src * data: blob:;",
+      "font-src * data:;",
+      "connect-src * ws: wss:;"   // ✅ THIS ALLOWS EVERYTHING
     ].join(' ')
   }
 };
