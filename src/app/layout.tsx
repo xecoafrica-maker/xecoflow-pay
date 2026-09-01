@@ -3,13 +3,30 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { Suspense } from 'react';
 import { PreferencesProvider } from '@/context/PreferencesContext';
-import { SessionProvider } from '@/context/SessionContext'; // ← ADD THIS
+import { SessionProvider } from '@/context/SessionContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'XecoFlow',
   description: 'Payment Gateway for Africa',
+  // ✅ ADD CSP HERE
+  other: {
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      "connect-src 'self'",
+      "https://*.supabase.co",
+      "https://*.onrender.com",
+      "wss://*.onrender.com",
+      "ws://*.onrender.com",
+      "https://api.ipify.org",
+      "https://api.my-ip.io",
+      "https://ipapi.co"
+    ].join(' ')
+  }
 };
 
 export default function RootLayout({
@@ -20,11 +37,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        {/* ✅ WRAP WITH SESSION PROVIDER */}
         <SessionProvider>
-          {/* ✅ WRAP WITH PREFERENCES PROVIDER */}
           <PreferencesProvider>
-            {/* ✅ WRAP CHILDREN IN SUSPENSE */}
             <Suspense
               fallback={
                 <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0a2540]">
