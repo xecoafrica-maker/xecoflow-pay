@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { io, Socket } from 'socket.io-client';
 import {
   Smartphone,
   CheckCircle,
@@ -89,72 +88,108 @@ export default function PaymentLinkPage() {
 
   // ─── WebSocket State ──────────────────────────────────────────────
   const [isSocketConnected, setIsSocketConnected] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
+  const [isWebSocketAvailable, setIsWebSocketAvailable] = useState(true);
+  const socketRef = useRef<any>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const MAX_POLLING_ATTEMPTS = 30;
   const POLLING_INTERVAL = 3000;
 
-  // ─── WebSocket Connection ─────────────────────────────────────────
+  // ─── ✅ FIXED: Safe WebSocket Connection (non-blocking) ──────────
   useEffect(() => {
-    const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 
-                   (typeof window !== 'undefined' && window.location.origin) ||
-                   'https://xecoflow-2gen.onrender.com';
+    // Only run on client side
+    if (typeof window === 'undefined') return;
 
-    console.log('🔌 [WS] Connecting to:', WS_URL);
+    let isMounted = true;
+    let socketInstance: any = null;
 
-    const socketInstance = io(WS_URL, {
-      transports: ['websocket', 'polling'],
-      withCredentials: true,
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      timeout: 10000,
-    });
+    const initWebSocket = async () => {
+      try {
+        const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 
+                       (typeof window !== 'undefined' && window.location.origin) ||
+                       'https://xecoflow-2gen.onrender.com';
 
-    socketInstance.on('connect', () => {
-      console.log('✅ [WS] Connected:', socketInstance.id);
-      setIsSocketConnected(true);
-    });
+        console.log('🔌 [WS] Connecting to:', WS_URL);
 
-    socketInstance.on('disconnect', () => {
-      console.log('❌ [WS] Disconnected');
-      setIsSocketConnected(false);
-    });
+        // ✅ Dynamic import to avoid build issues
+        const { io } = await import('socket.io-client');
 
-    socketInstance.on('connect_error', (error) => {
-      console.error('⚠️ [WS] Connection error:', error.message);
-      setIsSocketConnected(false);
-    });
+        socketInstance = io(WS_URL, {
+          transports: ['websocket', 'polling'],
+          withCredentials: true,
+          reconnection: true,
+          reconnectionAttempts: 3,
+          reconnectionDelay: 1000,
+          timeout: 5000,
+        });
 
-    socketInstance.on('payment:status', (data) => {
-      console.log('📡 [WS] Payment status update:', data);
-      
-      if (data.status === 'COMPLETED' || data.status === 'SETTLED') {
-        setPaymentStatus('success');
-        // Stop polling
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
-        }
-        // Show receipt if available
-        if (data.mpesaReceipt) {
-          console.log('📋 Receipt:', data.mpesaReceipt);
-        }
-      } else if (data.status === 'FAILED' || data.status === 'DECLINED') {
-        setPaymentStatus('error');
-        setErrorMessage(data.resultDesc || 'Payment failed. Please try again.');
-        setShowRetry(true);
-        // Stop polling
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
-        }
+        socketInstance.on('connect', () => {
+          if (isMounted) {
+            console.log('✅ [WS] Connected:', socketInstance.id);
+            setIsSocketConnected(true);
+          }
+        });
+
+        socketInstance.on('disconnect', () => {
+          if (isMounted) {
+            console.log('❌ [WS] Disconnected');
+            setIsSocketConnected(false);
+          }
+        });
+
+        socketInstance.on('connect_error', (error: any) => {
+          console.warn('⚠️ [WS] Connection error (non-blocking):', error?.message);
+          if (isMounted) {
+            setIsSocketConnected(false);
+          }
+        });
+
+        socketInstance.on('payment:status', (data: any) => {
+          console.log('📡 [WS] Payment status update:', data);
+          
+          if (isMounted) {
+            if (data.status === 'COMPLETED' || data.status === 'SETTLED') {
+              setPaymentStatus('success');
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+              }
+              if (data.mpesaReceipt) {
+                console.log('📋 Receipt:', data.mpesaReceipt);
+              }
+            } else if (data.status === 'FAILED' || data.status === 'DECLINED') {
+              setPaymentStatus('error');
+              setErrorMessage(data.resultDesc || 'Payment failed. Please try again.');
+              setShowRetry(true);
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+              }
+            }
+          }
+        });
+
+        socketRef.current = socketInstance;
+
+      } catch (error) {
+        // ✅ WebSocket is OPTIONAL - page still works without it
+        console.warn('⚠️ [WS] WebSocket not available, using polling fallback only');
+        setIsWebSocketAvailable(false);
+        setIsSocketConnected(false);
       }
-    });
+    };
 
-    socketRef.current = socketInstance;
+    // ✅ Wait for page to load before connecting WebSocket
+    const timeoutId = setTimeout(() => {
+      initWebSocket();
+    }, 500);
 
     return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+      if (socketInstance) {
+        socketInstance.disconnect();
+        socketInstance = null;
+      }
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
@@ -164,17 +199,20 @@ export default function PaymentLinkPage() {
 
   // ─── Register for Payment Updates ────────────────────────────────
   const registerForPaymentUpdates = (checkoutId: string, transactionId: string) => {
-    if (socketRef.current && socketRef.current.connected) {
-      socketRef.current.emit('register:payment', {
-        checkoutId: checkoutId,
-        transactionId: transactionId,
-      });
-      console.log(`📡 [WS] Registered for checkout: ${checkoutId}, transaction: ${transactionId}`);
-      return true;
-    } else {
-      console.warn('⚠️ [WS] Socket not connected, using polling fallback');
-      return false;
+    try {
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('register:payment', {
+          checkoutId: checkoutId,
+          transactionId: transactionId,
+        });
+        console.log(`📡 [WS] Registered for checkout: ${checkoutId}, transaction: ${transactionId}`);
+        return true;
+      }
+    } catch (error) {
+      console.warn('⚠️ [WS] Registration failed (non-blocking):', error);
     }
+    console.warn('⚠️ [WS] Socket not connected, using polling fallback');
+    return false;
   };
 
   // ─── Poll Payment Status (Fallback) ──────────────────────────────
@@ -307,16 +345,20 @@ export default function PaymentLinkPage() {
           setCheckoutId(ckId || null);
           setPaymentStatus('pending');
           
-          // ─── 🔥 TRY WEBSOCKET FIRST ────────────────────────────────
-          const wsRegistered = ckId ? registerForPaymentUpdates(ckId, txId) : false;
+          // ─── 🔥 TRY WEBSOCKET (non-blocking) ─────────────────────
+          if (ckId && isWebSocketAvailable) {
+            try {
+              registerForPaymentUpdates(ckId, txId);
+            } catch (wsError) {
+              // WebSocket failed - polling will handle it
+              console.warn('WebSocket registration failed, using polling');
+            }
+          }
           
-          // ─── START POLLING AS FALLBACK ─────────────────────────────
-          // Always start polling - WebSocket will cancel it if it receives update first
+          // ─── START POLLING (always) ─────────────────────────────
           pollPaymentStatus(txId);
           
-          // If WebSocket is connected, polling will be stopped by the WS event
-          // If WebSocket fails, polling will complete the flow
-          console.log(`📡 Payment initiated. WebSocket: ${wsRegistered ? '✅' : '❌'}, Polling: ✅`);
+          console.log(`📡 Payment initiated. WebSocket: ${isSocketConnected ? '✅' : '❌'}, Polling: ✅`);
         } else {
           setPaymentStatus('error');
           setErrorMessage('No transaction ID received. Please try again.');
@@ -379,7 +421,6 @@ export default function PaymentLinkPage() {
                 Please check your phone and enter your PIN
               </p>
             </div>
-            {/* WebSocket Status Indicator */}
             {isSocketConnected ? (
               <Wifi className="w-4 h-4 text-emerald-500 shrink-0" />
             ) : (
