@@ -15,9 +15,6 @@ import {
   XCircle,
   Wifi,
   WifiOff,
-  Check,
-  Phone,
-  Lock,
 } from 'lucide-react';
 
 interface PaymentLinkData {
@@ -585,359 +582,319 @@ export default function PaymentLinkPage() {
     </p>
   );
 
-  // ─── Mobile layout ─────────────────────────────────────────────────
-  const isMobile = true; // Will be handled by responsive classes
-
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      {/* ─── Mobile-first layout ────────────────────────────────────── */}
-      <div className="flex-1 max-w-[440px] mx-auto w-full px-4 py-6 md:py-8 lg:max-w-full lg:px-0">
-        <div className="lg:grid lg:grid-cols-2 lg:gap-0 lg:min-h-screen">
-          {/* ── LEFT: Merchant + summary ── */}
-          <div className="bg-[#f6f9fc] px-5 py-6 sm:px-8 lg:px-12 lg:py-10 flex flex-col rounded-t-2xl lg:rounded-none lg:rounded-l-2xl">
-            {/* Mobile back button */}
-            <button 
-              onClick={() => router.back()}
-              className="lg:hidden text-gray-400 hover:text-gray-600 mb-4 w-fit"
-            >
-              ← Back
-            </button>
-
-            <div className="flex flex-col items-center lg:items-start">
-              <div className="flex items-center gap-3 mb-1">
-                <div className="w-12 h-12 rounded-full bg-[#0a2540] flex items-center justify-center shrink-0 overflow-hidden shadow-sm ring-2 ring-white">
-                  {paymentLink.logoUrl ? (
-                    <img
-                      src={paymentLink.logoUrl}
-                      alt={merchantName}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-sm font-bold text-white">
-                      {merchantName.slice(0, 2).toUpperCase()}
-                    </span>
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[15px] font-semibold text-gray-900 truncate">
-                    {merchantName}
-                  </p>
-                  {isVerified ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 mt-0.5">
-                      <BadgeCheck className="w-3.5 h-3.5" />
-                      Verified merchant
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-gray-400 mt-0.5 block">Merchant</span>
-                  )}
-                </div>
-              </div>
-
-              <p className="text-sm text-gray-500 mt-4 mb-1 lg:mt-6">Payment request</p>
-              
-              {/* ── Hero Amount ── */}
-              <p className="text-[44px] sm:text-[48px] font-semibold text-gray-900 tracking-tight leading-none">
-                {formatPrice(displayAmount, paymentLink.currency)}
-              </p>
-            </div>
-
-            {/* ── Order Summary ── */}
-            <div className="mt-6 space-y-3 flex-1 w-full">
-              <div className="flex justify-between text-[14px] py-2 border-b border-gray-200/60">
-                <span className="text-gray-500">{paymentLink.name || 'Payment'}</span>
-                <span className="text-gray-900 font-medium tabular-nums">
-                  {formatPrice(displayAmount, paymentLink.currency)}
-                </span>
-              </div>
-
-              <div className="space-y-2 pt-1">
-                <div className="flex justify-between text-[14px]">
-                  <span className="text-gray-400">Subtotal</span>
-                  <span className="text-gray-600 tabular-nums">
-                    {formatPrice(displayAmount, paymentLink.currency)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-[16px] font-semibold pt-1 border-t border-gray-200/60">
-                  <span className="text-gray-800">Total due</span>
-                  <span className="text-gray-900 tabular-nums">
-                    {formatPrice(displayAmount, paymentLink.currency)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Secure badge */}
-              <div className="flex items-center gap-2 mt-3 text-[12px] text-gray-400">
-                <Lock className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Secure payment</span>
-              </div>
-            </div>
-
-            <div className="mt-6 hidden lg:block">{poweredBy}</div>
-          </div>
-
-          {/* ── RIGHT: Pay form ── */}
-          <div className="px-5 py-6 sm:px-8 lg:px-10 lg:py-10 flex flex-col">
-            <div className="w-full max-w-[400px] mx-auto lg:max-w-none">
-              {/* WebSocket Connection Status */}
-              <div className="flex items-center justify-end gap-2 mb-4">
-                {isSocketConnected ? (
-                  <span className="flex items-center gap-1.5 text-[10px] text-emerald-600">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Live
-                  </span>
+      <div className="flex-1 grid lg:grid-cols-2">
+        {/* ── LEFT: Merchant + summary ── */}
+        <div className="bg-[#f6f9fc] px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col">
+          <div className="mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-[#0a2540] flex items-center justify-center shrink-0 overflow-hidden shadow-sm ring-2 ring-white">
+                {paymentLink.logoUrl ? (
+                  <img
+                    src={paymentLink.logoUrl}
+                    alt={merchantName}
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
-                  <span className="flex items-center gap-1.5 text-[10px] text-amber-600">
-                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    Polling
+                  <span className="text-sm font-bold text-white">
+                    {merchantName.slice(0, 2).toUpperCase()}
                   </span>
                 )}
               </div>
+              <div className="min-w-0">
+                <p className="text-[15px] font-semibold text-gray-900 truncate">
+                  {merchantName}
+                </p>
+                {isVerified ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 mt-0.5">
+                    <BadgeCheck className="w-3.5 h-3.5" />
+                    Verified merchant
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-gray-400 mt-0.5 block">Merchant</span>
+                )}
+              </div>
+            </div>
+          </div>
 
-              {isPaid ? (
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <CheckCircle className="w-8 h-8 text-emerald-500" />
-                  </div>
-                  <h2 className="text-xl font-semibold text-gray-900">Payment successful</h2>
-                  <p className="text-sm text-gray-500 mt-2">
-                    {formatPrice(displayAmount, paymentLink.currency)} paid to {merchantName}
-                  </p>
-                </div>
-              ) : isExpired ? (
-                <div className="text-center py-8">
-                  <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
-                  <h2 className="text-lg font-semibold text-gray-900">Link expired</h2>
-                  <p className="text-sm text-gray-500 mt-2">Contact the merchant for a new link.</p>
-                </div>
+          <p className="text-sm text-gray-500 mb-1">Pay {merchantName}</p>
+          <p className="text-[36px] sm:text-[40px] font-semibold text-gray-900 tracking-tight leading-none">
+            {formatPrice(displayAmount, paymentLink.currency)}
+          </p>
+
+          <div className="mt-10 space-y-4 flex-1">
+            <div className="flex justify-between text-[14px]">
+              <span className="text-gray-600">{paymentLink.name}</span>
+              <span className="text-gray-900 font-medium tabular-nums">
+                {formatPrice(displayAmount, paymentLink.currency)}
+              </span>
+            </div>
+
+            <div className="border-t border-gray-200 pt-4 space-y-3">
+              <div className="flex justify-between text-[14px]">
+                <span className="text-gray-500">Subtotal</span>
+                <span className="text-gray-900 tabular-nums">
+                  {formatPrice(displayAmount, paymentLink.currency)}
+                </span>
+              </div>
+              <div className="flex justify-between text-[15px] font-semibold">
+                <span className="text-gray-900">Total due</span>
+                <span className="text-gray-900 tabular-nums">
+                  {formatPrice(displayAmount, paymentLink.currency)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-10 hidden lg:block">{poweredBy}</div>
+        </div>
+
+        {/* ── RIGHT: Pay form ── */}
+        <div className="px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col justify-center">
+          <div className="w-full max-w-[420px] mx-auto">
+            {/* WebSocket Connection Status */}
+            <div className="flex items-center justify-end gap-2 mb-3">
+              {isSocketConnected ? (
+                <span className="flex items-center gap-1.5 text-[10px] text-emerald-600">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live
+                </span>
               ) : (
-                <form onSubmit={handlePay} className="space-y-5">
-                  {/* ── Payment Method Selector ── */}
-                  <div>
-                    <p className="text-[13px] font-medium text-gray-700 mb-2.5">Pay with</p>
-                    <div className="grid grid-cols-5 gap-2">
-                      {(Object.keys(METHOD_LOGOS) as PayMethod[]).map((id) => {
-                        const m = METHOD_LOGOS[id];
-                        const active = method === id;
-                        const broken = brokenLogos[id];
-                        return (
-                          <button
-                            key={id}
-                            type="button"
-                            onClick={() => {
-                              setMethod(id);
-                              setPaymentStatus('idle');
-                              setErrorMessage('');
-                            }}
-                            className={`relative flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl border-2 transition-all ${
-                              active
-                                ? `${m.activeBorder} bg-emerald-50/60 shadow-sm`
-                                : 'border-gray-200 hover:border-gray-300 bg-white'
+                <span className="flex items-center gap-1.5 text-[10px] text-amber-600">
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  Polling
+                </span>
+              )}
+            </div>
+
+            {isPaid ? (
+              <div className="text-center py-6">
+                <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-7 h-7 text-emerald-500" />
+                </div>
+                <h2 className="text-xl font-semibold text-gray-900">Payment successful</h2>
+                <p className="text-sm text-gray-500 mt-2">
+                  {formatPrice(displayAmount, paymentLink.currency)} paid to {merchantName}
+                </p>
+              </div>
+            ) : isExpired ? (
+              <div className="text-center py-6">
+                <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+                <h2 className="text-lg font-semibold text-gray-900">Link expired</h2>
+                <p className="text-sm text-gray-500 mt-2">Contact the merchant for a new link.</p>
+              </div>
+            ) : (
+              <form onSubmit={handlePay} className="space-y-5">
+                <div>
+                  <p className="text-[13px] font-medium text-gray-700 mb-2.5">Pay with</p>
+                  <div className="grid grid-cols-5 gap-2">
+                    {(Object.keys(METHOD_LOGOS) as PayMethod[]).map((id) => {
+                      const m = METHOD_LOGOS[id];
+                      const active = method === id;
+                      const broken = brokenLogos[id];
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => {
+                            setMethod(id);
+                            setPaymentStatus('idle');
+                            setErrorMessage('');
+                          }}
+                          className={`flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl border-2 transition-all ${
+                            active
+                              ? `${m.activeBorder} bg-white shadow-sm`
+                              : 'border-gray-200 hover:border-gray-300 bg-white'
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center overflow-hidden">
+                            {!broken ? (
+                              <img
+                                src={m.src}
+                                alt={m.label}
+                                className="w-7 h-7 object-contain"
+                                onError={() =>
+                                  setBrokenLogos((prev) => ({ ...prev, [id]: true }))
+                                }
+                              />
+                            ) : (
+                              <span className="text-[10px] font-bold text-gray-600">
+                                {m.label.slice(0, 2)}
+                              </span>
+                            )}
+                          </div>
+                          <span
+                            className={`text-[10px] font-semibold ${
+                              active ? 'text-gray-900' : 'text-gray-500'
                             }`}
                           >
-                            {active && (
-                              <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center shadow-sm">
-                                <Check className="w-2.5 h-2.5 text-white" />
-                              </div>
-                            )}
-                            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center overflow-hidden">
-                              {!broken ? (
-                                <img
-                                  src={m.src}
-                                  alt={m.label}
-                                  className="w-7 h-7 object-contain"
-                                  onError={() =>
-                                    setBrokenLogos((prev) => ({ ...prev, [id]: true }))
-                                  }
-                                />
-                              ) : (
-                                <span className="text-[10px] font-bold text-gray-600">
-                                  {m.label.slice(0, 2)}
-                                </span>
-                              )}
-                            </div>
-                            <span
-                              className={`text-[10px] font-semibold ${
-                                active ? 'text-gray-900' : 'text-gray-500'
-                              }`}
-                            >
-                              {m.label}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                            {m.label}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
+                </div>
 
-                  {renderPaymentStatus()}
+                {renderPaymentStatus()}
 
-                  {(paymentStatus === 'idle' || paymentStatus === 'error') && (
-                    <>
-                      {!isFixedAmount && (
+                {(paymentStatus === 'idle' || paymentStatus === 'error') && (
+                  <>
+                    {!isFixedAmount && (
+                      <div>
+                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                          Amount
+                        </label>
+                        <input
+                          type="number"
+                          value={amount}
+                          onChange={(e) => setAmount(e.target.value)}
+                          placeholder="0.00"
+                          min={1}
+                          step="0.01"
+                          required
+                          disabled={isProcessing}
+                          className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                        />
+                      </div>
+                    )}
+
+                    {isMobileMoney && (
+                      <div>
+                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                          {method === 'mpesa'
+                            ? 'M-PESA number'
+                            : method === 'airtel'
+                            ? 'Airtel Money number'
+                            : 'T-Kash number'}
+                        </label>
+                        <div className="flex h-11 rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
+                          <span className="flex items-center gap-1.5 px-3 bg-gray-50 border-r border-gray-200 text-[13px] text-gray-500 shrink-0">
+                            <Smartphone className="w-4 h-4" />
+                            +254
+                          </span>
+                          <input
+                            type="tel"
+                            inputMode="numeric"
+                            value={phoneNumber}
+                            onChange={(e) => setPhoneNumber(e.target.value)}
+                            placeholder="712071385"
+                            disabled={isProcessing}
+                            className="flex-1 min-w-0 px-3 text-sm outline-none disabled:opacity-60"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {method === 'card' && (
+                      <div className="space-y-3">
                         <div>
                           <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                            Amount
+                            Card number
                           </label>
                           <input
-                            type="number"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            placeholder="0.00"
-                            min={1}
-                            step="0.01"
-                            required
+                            type="text"
+                            placeholder="4242 4242 4242 4242"
                             disabled={isProcessing}
                             className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
                           />
                         </div>
-                      )}
-
-                      {isMobileMoney && (
-                        <div>
-                          <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                            {method === 'mpesa'
-                              ? 'M-PESA number'
-                              : method === 'airtel'
-                              ? 'Airtel Money number'
-                              : 'T-Kash number'}
-                          </label>
-                          <div className="flex h-11 rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
-                            <span className="flex items-center gap-1.5 px-3 bg-gray-50 border-r border-gray-200 text-[13px] text-gray-500 shrink-0">
-                              <Phone className="w-4 h-4" />
-                              +254
-                            </span>
-                            <input
-                              type="tel"
-                              inputMode="numeric"
-                              value={phoneNumber}
-                              onChange={(e) => setPhoneNumber(e.target.value)}
-                              placeholder="712 071 385"
-                              disabled={isProcessing}
-                              className="flex-1 min-w-0 px-3 text-sm outline-none disabled:opacity-60"
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {method === 'card' && (
-                        <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                              Card number
+                              Expiry
                             </label>
                             <input
                               type="text"
-                              placeholder="4242 4242 4242 4242"
+                              placeholder="MM / YY"
                               disabled={isProcessing}
                               className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
                             />
                           </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                                Expiry
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="MM / YY"
-                                disabled={isProcessing}
-                                className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                                CVC
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="123"
-                                disabled={isProcessing}
-                                className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                              />
-                            </div>
+                          <div>
+                            <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                              CVC
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="123"
+                              disabled={isProcessing}
+                              className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                            />
                           </div>
                         </div>
-                      )}
-
-                      {method === 'paypal' && (
-                        <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-[13px] text-blue-800">
-                          You'll be redirected to PayPal to complete payment securely.
-                        </div>
-                      )}
-
-                      {/* ── Email (optional) ── */}
-                      <div>
-                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                          Email <span className="text-gray-400 font-normal">(optional)</span>
-                        </label>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="you@example.com"
-                            disabled={isProcessing}
-                            className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                          />
-                        </div>
                       </div>
+                    )}
 
-                      {/* ── Name (optional) ── */}
-                      <div>
-                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                          Name <span className="text-gray-400 font-normal">(optional)</span>
-                        </label>
-                        <div className="relative">
-                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <input
-                            type="text"
-                            value={customerName}
-                            onChange={(e) => setCustomerName(e.target.value)}
-                            placeholder="Full name"
-                            disabled={isProcessing}
-                            className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                          />
-                        </div>
+                    {method === 'paypal' && (
+                      <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-[13px] text-blue-800">
+                        You'll be redirected to PayPal to complete payment securely.
                       </div>
+                    )}
 
-                      {/* ── CTA Button ── */}
-                      <button
-                        type="submit"
-                        disabled={isProcessing}
-                        className="w-full h-12 bg-[#0a2540] hover:bg-[#1a2f4a] text-white rounded-xl font-semibold text-[15px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50 shadow-sm"
-                      >
-                        {isProcessing ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Processing…
-                          </>
-                        ) : (
-                          <>Pay {formatPrice(displayAmount, paymentLink.currency)}</>
-                        )}
-                      </button>
+                    <div>
+                      <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                        Email
+                      </label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="you@example.com"
+                          disabled={isProcessing}
+                          className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                        />
+                      </div>
+                    </div>
 
-                      {/* ── What happens next ── */}
-                      {isMobileMoney && (
-                        <p className="text-center text-[12px] text-gray-400 -mt-1">
-                          You'll receive an M-PESA prompt on your phone
-                        </p>
+                    <div>
+                      <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                        Name <span className="text-gray-400 font-normal">(optional)</span>
+                      </label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          placeholder="Full name"
+                          disabled={isProcessing}
+                          className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isProcessing}
+                      className="w-full h-11 bg-[#0a2540] hover:bg-[#152a45] text-white rounded-lg font-semibold text-[15px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Processing…
+                        </>
+                      ) : (
+                        <>Pay {formatPrice(displayAmount, paymentLink.currency)}</>
                       )}
+                    </button>
 
-                      <p className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
-                        <Shield className="w-3 h-3 text-emerald-500" />
-                        Secure payment
-                      </p>
-                    </>
-                  )}
-                </form>
-              )}
-            </div>
+                    <p className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
+                      <Shield className="w-3 h-3 text-emerald-500" />
+                      Secure payment
+                    </p>
+                  </>
+                )}
+              </form>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ── Footer ── */}
-      <footer className="border-t border-gray-100 px-6 py-4 lg:hidden">
+      <footer className="lg:hidden border-t border-gray-100 px-6 py-5">
         {poweredBy}
       </footer>
     </div>
