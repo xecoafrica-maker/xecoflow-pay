@@ -1,9 +1,10 @@
 ﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import crypto from 'crypto';
+import { io, Socket } from 'socket.io-client';
 import {
   Lock,
   Smartphone,
@@ -16,6 +17,8 @@ import {
   XCircle,
   Loader2,
   AlertCircle,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { getToken, getStoredMerchant } from '@/lib/auth';
 import { getMerchantProfile } from '@/lib/auth-api';
@@ -48,10 +51,22 @@ export default function HostedCheckoutIntegration() {
   const [method, setMethod] = useState('mpesa');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error' | 'pending'>('idle');
   const [paymentResponse, setPaymentResponse] = useState<PaymentResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [userAmount, setUserAmount] = useState<string>('');
+  const [transactionId, setTransactionId] = useState<string | null>(null);
+  const [checkoutId, setCheckoutId] = useState<string | null>(null);
+  const [pollingCount, setPollingCount] = useState(0);
+  const [showRetry, setShowRetry] = useState(false);
+
+  // ─── WebSocket State ──────────────────────────────────────────────
+  const [isSocketConnected, setIsSocketConnected] = useState(false);
+  const [isWebSocketAvailable, setIsWebSocketAvailable] = useState(true);
+  const socketRef = useRef<Socket | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const MAX_POLLING_ATTEMPTS = 30;
+  const POLLING_INTERVAL = 3000;
 
   const amount = Number(searchParams.get('amount')) || Number(userAmount) || 10;
   const currency = searchParams.get('currency') || 'KES';
@@ -61,6 +76,178 @@ export default function HostedCheckoutIntegration() {
   const customerPhone = searchParams.get('phone') || '254708050827';
   const customerRef = searchParams.get('reference') || ('REF-' + Date.now());
   const returnUrl = searchParams.get('return_url') || '/dashboard/transactions';
+
+  // ─── WebSocket Connection ─────────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let isMounted = true;
+    let socketInstance: any = null;
+
+    const initWebSocket = async () => {
+      try {
+        const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 
+                       (typeof window !== 'undefined' && window.location.origin) ||
+                       'https://xecoflow-2gen.onrender.com';
+
+        console.log('🔌 [WS] Connecting to:', WS_URL);
+
+        const { io } = await import('socket.io-client');
+
+        socketInstance = io(WS_URL, {
+          transports: ['websocket', 'polling'],
+          withCredentials: true,
+          reconnection: true,
+          reconnectionAttempts: 3,
+          reconnectionDelay: 1000,
+          timeout: 5000,
+        });
+
+        socketInstance.on('connect', () => {
+          if (isMounted) {
+            console.log('✅ [WS] Connected:', socketInstance.id);
+            setIsSocketConnected(true);
+          }
+        });
+
+        socketInstance.on('disconnect', () => {
+          if (isMounted) {
+            console.log('❌ [WS] Disconnected');
+            setIsSocketConnected(false);
+          }
+        });
+
+        socketInstance.on('connect_error', (error: any) => {
+          console.warn('⚠️ [WS] Connection error (non-blocking):', error?.message);
+          if (isMounted) {
+            setIsSocketConnected(false);
+          }
+        });
+
+        socketInstance.on('payment:status', (data: any) => {
+          console.log('📡 [WS] Payment status update:', data);
+          
+          if (isMounted) {
+            if (data.status === 'COMPLETED' || data.status === 'SETTLED') {
+              setPaymentStatus('success');
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+              }
+              if (data.mpesaReceipt) {
+                console.log('📋 Receipt:', data.mpesaReceipt);
+              }
+            } else if (data.status === 'FAILED' || data.status === 'DECLINED') {
+              setPaymentStatus('error');
+              setErrorMessage(data.resultDesc || 'Payment failed. Please try again.');
+              setShowRetry(true);
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+              }
+            }
+          }
+        });
+
+        socketRef.current = socketInstance;
+
+      } catch (error) {
+        console.warn('⚠️ [WS] WebSocket not available, using polling fallback only');
+        setIsWebSocketAvailable(false);
+        setIsSocketConnected(false);
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+      initWebSocket();
+    }, 500);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+      if (socketInstance) {
+        socketInstance.disconnect();
+        socketInstance = null;
+      }
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
+  }, []);
+
+  // ─── Register for Payment Updates ────────────────────────────────
+  const registerForPaymentUpdates = (checkoutId: string, transactionId: string) => {
+    try {
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('register:payment', {
+          checkoutId: checkoutId,
+          transactionId: transactionId,
+        });
+        console.log(`📡 [WS] Registered for checkout: ${checkoutId}, transaction: ${transactionId}`);
+        return true;
+      }
+    } catch (error) {
+      console.warn('⚠️ [WS] Registration failed (non-blocking):', error);
+    }
+    console.warn('⚠️ [WS] Socket not connected, using polling fallback');
+    return false;
+  };
+
+  // ─── Poll Payment Status (Fallback) ──────────────────────────────
+  const pollPaymentStatus = (txId: string) => {
+    setPollingCount(0);
+    setShowRetry(false);
+    
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    pollingIntervalRef.current = setInterval(async () => {
+      setPollingCount((prev) => {
+        const newCount = prev + 1;
+        
+        if (newCount >= MAX_POLLING_ATTEMPTS) {
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          setPaymentStatus('error');
+          setErrorMessage('Payment is taking longer than expected. Please check your M-PESA app.');
+          setShowRetry(true);
+          return newCount;
+        }
+        return newCount;
+      });
+
+      try {
+        const res = await fetch(`/v1/product-links/status/${txId}`);
+        const data = await res.json();
+
+        if (data.success && data.data) {
+          const status = data.data;
+          
+          if (status.status === 'SETTLED' || status.status === 'COMPLETED') {
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
+            setPaymentStatus('success');
+          } else if (status.status === 'FAILED' || status.status === 'DECLINED' || status.status === 'TERMINATED_BY_TIMEOUT') {
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
+            }
+            setPaymentStatus('error');
+            setErrorMessage(status.resultDesc || 'Payment failed. Please try again.');
+            setShowRetry(true);
+          }
+        }
+      } catch (error) {
+        console.error('Status polling error:', error);
+      }
+    }, POLLING_INTERVAL);
+  };
 
   const formatPhoneNumber = (value: string) => {
     const cleaned = value.replace(/\D/g, '');
@@ -93,7 +280,6 @@ export default function HostedCheckoutIntegration() {
 
       if (data.success) {
         console.log('✅ Credentials fetched successfully');
-        // Handle both naming conventions
         setApiKey(data.data.apiKey || data.data.api_key || '');
         setApiSecret(data.data.apiSecret || data.data.api_secret || '');
         setMerchantId(String(data.data.merchantId || data.data.merchant_id || merchantId));
@@ -159,10 +345,18 @@ export default function HostedCheckoutIntegration() {
       });
   }, []);
 
+  // ─── Cleanup polling on unmount ─────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
+
   const handleProceed = async () => {
     console.log('🔄 Proceed clicked!');
 
-    // Validate amount
     const finalAmount = Number(userAmount) || Number(amount);
     if (finalAmount <= 0) {
       setErrorMessage('Please enter a valid amount greater than 0');
@@ -189,9 +383,9 @@ export default function HostedCheckoutIntegration() {
     setIsProcessing(true);
     setPaymentStatus('processing');
     setErrorMessage('');
+    setShowRetry(false);
 
     try {
-      // 1. Build the request body
       const body = {
         action: 'charge',
         method: 'mpesa',
@@ -201,21 +395,17 @@ export default function HostedCheckoutIntegration() {
         idempotencyKey: 'key-' + crypto.randomBytes(8).toString('hex'),
       };
 
-      // 2. Sort keys alphabetically and stringify for signature
       const sorted: Record<string, any> = {};
       Object.keys(body).sort().forEach((k) => {
         sorted[k] = body[k as keyof typeof body];
       });
       const bodyString = JSON.stringify(sorted);
 
-      // 3. Generate timestamp and nonce
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = crypto.randomBytes(16).toString('hex');
 
-      // 4. Build canonical string for signature
       const canonicalString = `${timestamp}.${nonce}.POST./.${bodyString}`;
 
-      // 5. Generate HMAC-SHA256 signature
       const signature = crypto
         .createHmac('sha256', apiSecret)
         .update(canonicalString)
@@ -224,9 +414,7 @@ export default function HostedCheckoutIntegration() {
       console.log('🔑 Request details:');
       console.log('  API Key:', apiKey);
       console.log('  Signature:', signature);
-      console.log('  Body:', bodyString);
 
-      // 6. Send the request to the Unified Gateway
       const response = await fetch('/v1/payments', {
         method: 'POST',
         headers: {
@@ -244,64 +432,157 @@ export default function HostedCheckoutIntegration() {
       console.log('📡 Response:', data);
 
       if (response.ok && data.success) {
-        setPaymentStatus('success');
-        setPaymentResponse(data);
-        setTimeout(() => {
-          if (returnUrl) router.push(returnUrl);
-        }, 3000);
+        const txId = data.data?.transactionId;
+        const ckId = data.data?.checkoutRequestId;
+        
+        if (txId) {
+          setTransactionId(txId);
+          setCheckoutId(ckId || null);
+          setPaymentStatus('pending');
+          setPaymentResponse(data);
+          
+          // ─── 🔥 TRY WEBSOCKET ─────────────────────────────────────
+          if (ckId && isWebSocketAvailable) {
+            try {
+              registerForPaymentUpdates(ckId, txId);
+            } catch (wsError) {
+              console.warn('WebSocket registration failed, using polling');
+            }
+          }
+          
+          // ─── START POLLING ────────────────────────────────────────
+          pollPaymentStatus(txId);
+          
+          console.log(`📡 Payment initiated. WebSocket: ${isSocketConnected ? '✅' : '❌'}, Polling: ✅`);
+          
+          // Auto redirect after 3 seconds if successful
+          setTimeout(() => {
+            if (paymentStatus === 'success' && returnUrl) {
+              router.push(returnUrl);
+            }
+          }, 3000);
+        } else {
+          setPaymentStatus('error');
+          setErrorMessage('No transaction ID received. Please try again.');
+        }
       } else {
         setPaymentStatus('error');
-        // Enhanced error message
         const errorMsg = data.error || data.message || 'Payment failed';
         setErrorMessage(errorMsg);
         setPaymentResponse(data);
+        setShowRetry(true);
       }
     } catch (error: any) {
       console.error('❌ Payment error:', error);
       setPaymentStatus('error');
       setErrorMessage(error.message || 'An error occurred');
+      setShowRetry(true);
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const retryPayment = () => {
+    setPaymentStatus('idle');
+    setErrorMessage('');
+    setShowRetry(false);
+    setTransactionId(null);
+    setCheckoutId(null);
+    setPollingCount(0);
+  };
+
   const renderPaymentStatus = () => {
     if (paymentStatus === 'idle') return null;
-    const configs = {
-      processing: {
-        icon: <Loader2 className="w-8 h-8 animate-spin text-blue-500" />,
-        title: 'Processing your payment...',
-        description: 'Please wait while we initiate your payment',
-        color: 'text-blue-500',
-        bg: 'bg-blue-50 border-blue-200',
-      },
-      success: {
-        icon: <CheckCircle className="w-8 h-8 text-emerald-500" />,
-        title: 'Payment Initiated!',
-        description: `Checkout ID: ${paymentResponse?.data?.checkoutRequestId || 'N/A'}`,
-        color: 'text-emerald-500',
-        bg: 'bg-emerald-50 border-emerald-200',
-      },
-      error: {
-        icon: <XCircle className="w-8 h-8 text-red-500" />,
-        title: 'Payment Failed',
-        description: errorMessage || 'Please try again',
-        color: 'text-red-500',
-        bg: 'bg-red-50 border-red-200',
-      },
-    };
-    const config = configs[paymentStatus];
-    return (
-      <div className={`border rounded-xl p-6 mb-6 ${config.bg}`}>
-        <div className="flex items-center gap-4">
-          {config.icon}
-          <div>
-            <h3 className={`font-semibold ${config.color}`}>{config.title}</h3>
-            <p className="text-sm text-gray-600">{config.description}</p>
+    
+    if (paymentStatus === 'processing') {
+      return (
+        <div className="border rounded-xl p-6 mb-6 bg-blue-50 border-blue-200">
+          <div className="flex items-center gap-4">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <div>
+              <h3 className="font-semibold text-blue-500">Processing your payment...</h3>
+              <p className="text-sm text-gray-600">Please wait while we initiate your payment</p>
+            </div>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
+
+    if (paymentStatus === 'pending') {
+      return (
+        <div className="border rounded-xl p-6 mb-6 bg-amber-50 border-amber-200">
+          <div className="flex items-center gap-4">
+            <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-amber-700">Waiting for payment confirmation</h3>
+              <p className="text-sm text-amber-600">Please check your phone and enter your PIN</p>
+            </div>
+            {isSocketConnected ? (
+              <Wifi className="w-5 h-5 text-emerald-500 shrink-0" />
+            ) : (
+              <WifiOff className="w-5 h-5 text-amber-400 shrink-0" />
+            )}
+          </div>
+          <div className="mt-3">
+            <div className="flex justify-between text-xs text-amber-600">
+              <span>Processing...</span>
+              <span>{Math.min(Math.round(pollingCount * 3 / 60), 2)}m {pollingCount * 3 % 60}s</span>
+            </div>
+            <div className="w-full h-1.5 bg-amber-200 rounded-full mt-1 overflow-hidden">
+              <div 
+                className="h-full bg-amber-500 rounded-full transition-all duration-1000"
+                style={{ width: `${Math.min((pollingCount / MAX_POLLING_ATTEMPTS) * 100, 95)}%` }}
+              />
+            </div>
+          </div>
+          {!isSocketConnected && (
+            <p className="text-xs text-amber-500 mt-2">
+              ⚡ Live updates unavailable - checking status automatically
+            </p>
+          )}
+        </div>
+      );
+    }
+
+    if (paymentStatus === 'success') {
+      return (
+        <div className="border rounded-xl p-6 mb-6 bg-emerald-50 border-emerald-200">
+          <div className="flex items-center gap-4">
+            <CheckCircle className="w-8 h-8 text-emerald-500" />
+            <div>
+              <h3 className="font-semibold text-emerald-700">Payment Initiated!</h3>
+              <p className="text-sm text-gray-600">
+                Checkout ID: {paymentResponse?.data?.checkoutRequestId || 'N/A'}
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (paymentStatus === 'error') {
+      return (
+        <div className="border rounded-xl p-6 mb-6 bg-red-50 border-red-200">
+          <div className="flex items-start gap-4">
+            <XCircle className="w-8 h-8 text-red-500 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-red-700">Payment Failed</h3>
+              <p className="text-sm text-red-600">{errorMessage}</p>
+              {showRetry && (
+                <button
+                  onClick={retryPayment}
+                  className="mt-3 px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors"
+                >
+                  Try Again
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
   };
 
   if (loading) {
@@ -459,7 +740,7 @@ export default function HostedCheckoutIntegration() {
             <div className="order-2 lg:col-span-2 px-6 md:px-8 py-6 md:py-8 pb-8">
               {renderPaymentStatus()}
 
-              {paymentStatus !== 'success' && (
+              {paymentStatus !== 'success' && paymentStatus !== 'pending' && (
                 <>
                   <h2 className="font-semibold text-gray-800 mb-4">Select Payment Method</h2>
                   <div className="flex flex-wrap gap-3 mb-5">
