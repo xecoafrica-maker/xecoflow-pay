@@ -94,9 +94,52 @@ export default function PaymentLinkPage() {
   const MAX_POLLING_ATTEMPTS = 30;
   const POLLING_INTERVAL = 3000;
 
-  // ─── ✅ FIXED: Safe WebSocket Connection (non-blocking) ──────────
+  // ─── 1. FETCH PAYMENT LINK DATA ──────────────────────────────────
   useEffect(() => {
-    // Only run on client side
+    if (!slug) return;
+
+    let isMounted = true;
+
+    const fetchPaymentLink = async () => {
+      try {
+        setLoading(true);
+        console.log('🔍 Fetching payment link for slug:', slug);
+
+        const res = await fetch(`/v1/payment-links/${slug}`);
+        console.log('📡 Response status:', res.status);
+
+        const data = await res.json();
+        console.log('📦 Response data:', data);
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Payment link not found');
+        }
+
+        if (isMounted) {
+          setPaymentLink(data.data);
+          if (data.data.price > 0) {
+            setAmount(data.data.price.toString());
+          }
+          setLoading(false);
+        }
+      } catch (err: any) {
+        console.error('❌ Error loading payment link:', err.message);
+        if (isMounted) {
+          setError(err.message || 'Failed to load payment link');
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchPaymentLink();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [slug]);
+
+  // ─── 2. WEBSOCKET CONNECTION ─────────────────────────────────────
+  useEffect(() => {
     if (typeof window === 'undefined') return;
 
     let isMounted = true;
@@ -110,7 +153,6 @@ export default function PaymentLinkPage() {
 
         console.log('🔌 [WS] Connecting to:', WS_URL);
 
-        // ✅ Dynamic import to avoid build issues
         const { io } = await import('socket.io-client');
 
         socketInstance = io(WS_URL, {
@@ -171,14 +213,12 @@ export default function PaymentLinkPage() {
         socketRef.current = socketInstance;
 
       } catch (error) {
-        // ✅ WebSocket is OPTIONAL - page still works without it
         console.warn('⚠️ [WS] WebSocket not available, using polling fallback only');
         setIsWebSocketAvailable(false);
         setIsSocketConnected(false);
       }
     };
 
-    // ✅ Wait for page to load before connecting WebSocket
     const timeoutId = setTimeout(() => {
       initWebSocket();
     }, 500);
@@ -350,7 +390,6 @@ export default function PaymentLinkPage() {
             try {
               registerForPaymentUpdates(ckId, txId);
             } catch (wsError) {
-              // WebSocket failed - polling will handle it
               console.warn('WebSocket registration failed, using polling');
             }
           }
