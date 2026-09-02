@@ -1,10 +1,10 @@
-// src/app/dashboard/transactions/inflow/page.tsx
+// src/app/dashboard/transactions/outflow/page.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowUpRight,
+  ArrowDownRight,
   CheckCircle,
   Clock,
   XCircle,
@@ -19,12 +19,17 @@ import {
   Hash,
   CreditCard,
   Phone,
-  TrendingUp,
+  Mail as MailIcon,
+  TrendingDown,
   Wallet,
-  Smartphone,
+  Zap,
+  Landmark,
+  Building,
+  ArrowUpRight,
   Coins,
-  ArrowDownRight,
+  History,
   Loader2,
+  Smartphone,
   FileSpreadsheet,
   FileText,
 } from 'lucide-react';
@@ -32,30 +37,11 @@ import { getToken, getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 // ─── Types ──────────────────────────────────────────────────────────
-interface Transaction {
+interface OutflowTransaction {
   id: string;
-  user_id: string;
-  amount: string;
-  phone_number: string;
-  business_shortcode: string;
-  status: string;
-  payment_status: string;
-  source: string;
-  request_type: string;
-  checkout_id: string;
-  mpesa_receipt: string | null;
-  result_code: string | null;
-  result_desc: string | null;
-  created_at: string;
-  completed_at: string | null;
-  updated_at: string;
-}
-
-interface InflowTransaction {
-  id: string;
-  customer: string;
-  phone: string;
+  recipient: string;
   email: string;
+  phone: string;
   amount: number;
   method: string;
   channel: string;
@@ -87,24 +73,26 @@ const statusBadgeColors = {
 };
 
 const categoryIcons: Record<string, any> = {
-  'Payment': Wallet,
-  'Utility Payment': Smartphone,
-  'Commission': Coins,
+  'Withdrawal': Wallet,
+  'Refund': ArrowUpRight,
+  'Platform Fee': Coins,
+  'Utility Cost': Zap,
+  'Payment': CreditCard,
   'M-PESA': Smartphone,
-  'Card': CreditCard,
-  'Bank Transfer': Wallet,
+  'Bank Transfer': Landmark,
 };
 
 const categoryColors: Record<string, string> = {
+  'Withdrawal': 'bg-purple-50 text-purple-600 border-purple-200',
+  'Refund': 'bg-rose-50 text-rose-600 border-rose-200',
+  'Platform Fee': 'bg-gray-50 text-gray-600 border-gray-200',
+  'Utility Cost': 'bg-amber-50 text-amber-600 border-amber-200',
   'Payment': 'bg-blue-50 text-blue-600 border-blue-200',
-  'Utility Payment': 'bg-emerald-50 text-emerald-600 border-emerald-200',
-  'Commission': 'bg-purple-50 text-purple-600 border-purple-200',
   'M-PESA': 'bg-green-50 text-green-600 border-green-200',
-  'Card': 'bg-indigo-50 text-indigo-600 border-indigo-200',
-  'Bank Transfer': 'bg-amber-50 text-amber-600 border-amber-200',
+  'Bank Transfer': 'bg-indigo-50 text-indigo-600 border-indigo-200',
 };
 
-// ─── Summary Card Component ──────────────────────────────────────
+// ─── Summary Cards ──────────────────────────────────────────────────
 const SummaryCard = ({ title, value, icon: Icon, color }: any) => (
   <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
     <div className="flex items-center justify-between">
@@ -119,66 +107,94 @@ const SummaryCard = ({ title, value, icon: Icon, color }: any) => (
   </div>
 );
 
-export default function InflowPage() {
+export default function OutflowPage() {
   const router = useRouter();
   const { log, ActivityActions } = useActivityLogger();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTransaction, setSelectedTransaction] = useState<InflowTransaction | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<OutflowTransaction | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filterCategory, setFilterCategory] = useState('All');
   const [merchantId, setMerchantId] = useState<string>('');
+  const [merchantName, setMerchantName] = useState<string>('');
+  const [outflowData, setOutflowData] = useState<OutflowTransaction[]>([]);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  
+
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
-  // ─── Fetch Real Transactions ──────────────────────────────────────
-  const fetchTransactions = async () => {
+  // ─── Fetch Outflow Data ──────────────────────────────────────────────
+  const fetchOutflowData = async () => {
     try {
-      setLoading(true);
-      
-      const cached = getStoredMerchant();
-      let id = merchantId;
-      
-      if (!id && cached) {
-        id = String(cached.merchant_id || cached.merchantId);
-        setMerchantId(id);
-      }
-      
-      if (!id) {
-        console.warn('No merchant ID available');
-        setLoading(false);
+      const token = getToken();
+      if (!token) {
+        router.push('/login');
         return;
       }
+
+      const res = await fetch('/v1/payments/withdrawals', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const json = await res.json();
       
-      const params = new URLSearchParams();
-      params.append('merchantId', id);
-      params.append('limit', '100');
-      
-      const response = await fetch(`/api/transactions?${params.toString()}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setTransactions(data.data || []);
-      } else {
-        console.error('Failed to fetch transactions:', data.message);
+      if (json.success) {
+        const mapped = (json.data || []).map((item: any) => ({
+          id: item.id || item.mpesa_receipt || 'N/A',
+          recipient: item.recipient_name || item.phone_number || 'Unknown',
+          email: item.email || '',
+          phone: item.phone_number || '',
+          amount: Number(item.amount),
+          method: item.method || 'M-PESA',
+          channel: item.channel || 'M-PESA',
+          category: item.category || 'Withdrawal',
+          status: item.status || 'Pending',
+          ref: item.reference || item.mpesa_receipt || item.id,
+          description: item.description || `Withdrawal to ${item.phone_number}`,
+          date: item.created_at || new Date().toISOString(),
+          settlementDate: item.completed_at || item.created_at || new Date().toISOString(),
+        }));
+        
+        setOutflowData(mapped);
       }
     } catch (error) {
-      console.error('Error fetching transactions:', error);
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+      console.error('Failed to fetch outflow data:', error);
+      setOutflowData([]);
     }
   };
+
+  // ─── Load Data ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const token = getToken();
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    const cached = getStoredMerchant();
+    if (cached) {
+      const id = String(cached.merchant_id || cached.merchantId);
+      if (id) {
+        setMerchantId(id);
+        setMerchantName(cached.business_name || cached.businessName || '');
+      }
+    }
+
+    fetchOutflowData();
+
+    setTimeout(() => {
+      setLoading(false);
+    }, 500);
+  }, [router]);
 
   // ─── Log View ──────────────────────────────────────────────────────
   useEffect(() => {
     const logView = async () => {
-      if (isLoggingView.current || hasLoggedView.current || transactions.length === 0) {
+      if (isLoggingView.current || hasLoggedView.current) {
         return;
       }
       
@@ -190,78 +206,28 @@ export default function InflowPage() {
         
         if (id) {
           await log(
-            ActivityActions.VIEW_INFLOW,
-            `Viewed ${transactions.length} inflow transactions`
+            ActivityActions.VIEW_OUTFLOW,
+            `Viewed outflow transactions (${outflowData.length} transactions)`
           );
           hasLoggedView.current = true;
         }
       } catch (error) {
-        console.debug('Inflow view logging skipped:', error);
+        console.debug('Outflow view logging skipped:', error);
       } finally {
         isLoggingView.current = false;
       }
     };
     
-    if (!loading && transactions.length > 0 && !hasLoggedView.current) {
+    if (!loading && !hasLoggedView.current && outflowData.length > 0) {
       logView();
     }
-  }, [loading, transactions.length, merchantId, log]);
+  }, [loading, merchantId, log, outflowData.length]);
 
-  // ─── Transform Transactions ─────────────────────────────────────
-  const transformToInflow = (tx: Transaction): InflowTransaction => {
-    let category = 'Payment';
-    const source = tx.source?.toLowerCase() || '';
-    const requestType = tx.request_type?.toLowerCase() || '';
-    
-    if (requestType.includes('utility') || requestType.includes('kplc') || requestType.includes('airtime')) {
-      category = 'Utility Payment';
-    } else if (requestType.includes('commission') || requestType.includes('fee')) {
-      category = 'Commission';
-    } else if (source.includes('mpesa')) {
-      category = 'M-PESA';
-    } else if (source.includes('card')) {
-      category = 'Card';
-    } else if (source.includes('bank')) {
-      category = 'Bank Transfer';
-    }
-    
-    let status = 'Pending';
-    const txStatus = tx.status?.toUpperCase() || tx.payment_status?.toUpperCase() || '';
-    if (txStatus.includes('COMPLETED') || txStatus.includes('SUCCESS')) {
-      status = 'Completed';
-    } else if (txStatus.includes('FAILED') || txStatus.includes('ERROR') || txStatus.includes('DECLINED')) {
-      status = 'Failed';
-    } else if (txStatus.includes('PENDING') || txStatus.includes('AWAITING')) {
-      status = 'Pending';
-    }
-    
-    const amountValue = parseFloat(tx.amount) || 0;
-    
-    return {
-      id: tx.id.slice(0, 8),
-      customer: tx.phone_number || 'Unknown Customer',
-      phone: tx.phone_number || 'N/A',
-      email: `${tx.phone_number || 'user'}@example.com`,
-      amount: amountValue,
-      method: tx.source || 'M-PESA',
-      channel: tx.request_type || 'Payment',
-      category: category,
-      status: status,
-      ref: tx.checkout_id || tx.id.slice(0, 12),
-      description: `${tx.request_type || 'Payment'} - ${tx.phone_number || ''}`,
-      date: tx.created_at,
-      settlementDate: tx.completed_at || tx.created_at,
-    };
-  };
-
-  const getInflowData = (): InflowTransaction[] => {
-    return transactions.map(transformToInflow);
-  };
-
-  const filteredData = getInflowData().filter(
+  // ─── Apply Filters ──────────────────────────────────────────────
+  const filteredData = outflowData.filter(
     (item) =>
       (filterCategory === 'All' || item.category === filterCategory) &&
-      (item.customer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.recipient?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.ref?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.method?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -269,18 +235,19 @@ export default function InflowPage() {
         item.category?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const totalInflow = filteredData.reduce((sum, t) => sum + t.amount, 0);
+  // ─── Summary Stats ────────────────────────────────────────────────
+  const totalOutflow = filteredData.reduce((sum, t) => sum + t.amount, 0);
   const completedCount = filteredData.filter(t => t.status === 'Completed').length;
   const pendingCount = filteredData.filter(t => t.status === 'Pending').length;
   const failedCount = filteredData.filter(t => t.status === 'Failed').length;
 
   // ─── Export Functions ─────────────────────────────────────────────
-  const exportToCSV = (data: InflowTransaction[]) => {
+  const exportToCSV = (data: OutflowTransaction[]) => {
     const headers = [
       'Transaction ID',
       'Date',
       'Time',
-      'Customer',
+      'Recipient',
       'Phone',
       'Amount (KES)',
       'Method',
@@ -295,7 +262,7 @@ export default function InflowPage() {
       tx.id,
       formatDate(tx.date),
       formatTime(tx.date),
-      tx.customer,
+      tx.recipient,
       tx.phone,
       tx.amount.toFixed(2),
       tx.method,
@@ -330,7 +297,7 @@ export default function InflowPage() {
       const url = URL.createObjectURL(blob);
       
       const date = new Date().toISOString().split('T')[0];
-      const filename = `inflow_transactions_${date}.${format === 'csv' ? 'csv' : 'xlsx'}`;
+      const filename = `outflow_transactions_${date}.${format === 'csv' ? 'csv' : 'xlsx'}`;
       
       link.setAttribute('href', url);
       link.setAttribute('download', filename);
@@ -339,7 +306,7 @@ export default function InflowPage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      log('Exported transactions', `Exported ${filteredData.length} inflow transactions as ${format.toUpperCase()}`);
+      log('Exported transactions', `Exported ${filteredData.length} outflow transactions as ${format.toUpperCase()}`);
     } catch (error) {
       console.error('Export failed:', error);
       alert('Failed to export transactions. Please try again.');
@@ -348,17 +315,22 @@ export default function InflowPage() {
     }
   };
 
-  const handleRefresh = async () => {
+  // ─── Handlers ──────────────────────────────────────────────────────
+  const handleRefresh = () => {
     setIsRefreshing(true);
     hasLoggedView.current = false;
-    await fetchTransactions();
+    fetchOutflowData();
+    setTimeout(() => {
+      setIsRefreshing(false);
+      setLoading(false);
+    }, 500);
   };
 
-  const handleViewDetails = async (tx: InflowTransaction) => {
+  const handleViewDetails = async (tx: OutflowTransaction) => {
     setSelectedTransaction(tx);
     setShowModal(true);
     await log(
-      'Viewed transaction details',
+      'Viewed outflow transaction details',
       `Viewed details for transaction ${tx.id} - Amount: KES ${tx.amount}`
     );
   };
@@ -410,29 +382,11 @@ export default function InflowPage() {
     );
   };
 
-  useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
-    const cached = getStoredMerchant();
-    if (cached) {
-      const id = String(cached.merchant_id || cached.merchantId);
-      if (id) {
-        setMerchantId(id);
-      }
-    }
-
-    fetchTransactions();
-  }, [router]);
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-emerald-500 mx-auto" />
+          <Loader2 className="w-12 h-12 animate-spin text-rose-500 mx-auto" />
           <p className="mt-4 text-gray-600">Loading transactions...</p>
         </div>
       </div>
@@ -445,12 +399,12 @@ export default function InflowPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl shadow-sm shadow-emerald-200">
+            <div className="p-2.5 bg-gradient-to-br from-rose-500 to-rose-600 rounded-xl shadow-sm shadow-rose-200">
               <ArrowDownRight className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Inflow Transactions</h1>
-              <p className="text-sm text-gray-500">All incoming payments received by your business</p>
+              <h1 className="text-2xl font-bold text-gray-900">Outflow Transactions</h1>
+              <p className="text-sm text-gray-500">All outgoing payments made by your business</p>
             </div>
           </div>
         </div>
@@ -469,7 +423,7 @@ export default function InflowPage() {
             <button
               onClick={() => setShowExportMenu(!showExportMenu)}
               disabled={isExporting}
-              className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-sm shadow-emerald-200 disabled:opacity-50"
+              className="px-4 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-sm shadow-rose-200 disabled:opacity-50"
             >
               {isExporting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -485,14 +439,14 @@ export default function InflowPage() {
                   onClick={() => handleExport('csv')}
                   className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors border-b border-gray-100"
                 >
-                  <FileText className="w-4 h-4 text-emerald-500" />
+                  <FileText className="w-4 h-4 text-rose-500" />
                   <span>Export as CSV</span>
                 </button>
                 <button
                   onClick={() => handleExport('excel')}
                   className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors"
                 >
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                  <FileSpreadsheet className="w-4 h-4 text-rose-500" />
                   <span>Export as Excel</span>
                 </button>
               </div>
@@ -505,10 +459,10 @@ export default function InflowPage() {
       <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm -mx-4 px-4 py-3 -mt-1 border-b border-gray-200/50">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <SummaryCard
-            title="Total Inflow"
-            value={`KES ${totalInflow.toLocaleString()}`}
-            icon={TrendingUp}
-            color="bg-emerald-50 text-emerald-500"
+            title="Total Outflow"
+            value={`KES ${totalOutflow.toLocaleString()}`}
+            icon={TrendingDown}
+            color="bg-rose-50 text-rose-500"
           />
           <SummaryCard
             title="Successful"
@@ -540,24 +494,25 @@ export default function InflowPage() {
             </div>
             <input
               type="text"
-              placeholder="Search by customer phone, transaction ID, reference, method, status, or category..."
+              placeholder="Search by recipient, transaction ID, reference, method, status, or category..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all shadow-sm"
             />
           </div>
           <div className="flex gap-2 flex-wrap">
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 appearance-none pr-10 shadow-sm"
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 appearance-none pr-10 shadow-sm"
             >
               <option value="All">All Categories</option>
+              <option value="Withdrawal">Withdrawal</option>
+              <option value="Refund">Refund</option>
+              <option value="Platform Fee">Platform Fee</option>
+              <option value="Utility Cost">Utility Cost</option>
               <option value="Payment">Payment</option>
-              <option value="Utility Payment">Utility Payment</option>
-              <option value="Commission">Commission</option>
               <option value="M-PESA">M-PESA</option>
-              <option value="Card">Card</option>
               <option value="Bank Transfer">Bank Transfer</option>
             </select>
             <button className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap">
@@ -580,7 +535,7 @@ export default function InflowPage() {
               <tr className="border-b border-gray-200 bg-gray-100">
                 <th className="w-[80px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">ID</th>
                 <th className="w-[150px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date & Time</th>
-                <th className="w-[150px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
+                <th className="w-[150px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Recipient</th>
                 <th className="w-[120px] px-3 py-3.5 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
                 <th className="w-[120px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
                 <th className="w-[100px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
@@ -591,15 +546,15 @@ export default function InflowPage() {
                 <tr>
                   <td colSpan={6} className="px-3 py-16 text-center">
                     <div className="flex flex-col items-center gap-4">
-                      <div className="p-4 bg-emerald-50 rounded-full">
-                        <ArrowDownRight className="w-14 h-14 text-emerald-400" />
+                      <div className="p-4 bg-rose-50 rounded-full">
+                        <History className="w-14 h-14 text-rose-400" />
                       </div>
                       <div>
-                        <p className="text-gray-500 font-medium text-lg">No inflow transactions</p>
+                        <p className="text-gray-500 font-medium text-lg">No outflow transactions</p>
                         <p className="text-sm text-gray-400 mt-1">
-                          {transactions.length > 0 
+                          {outflowData.length > 0 
                             ? 'No transactions match your search criteria'
-                            : 'Your incoming payments will appear here'}
+                            : 'Your outgoing payments will appear here'}
                         </p>
                       </div>
                     </div>
@@ -614,8 +569,8 @@ export default function InflowPage() {
                   >
                     {/* ID */}
                     <td className="px-3 py-3.5">
-                      <span className="font-mono text-xs text-gray-500 group-hover:text-emerald-600 transition-colors">
-                        {tx.id}
+                      <span className="font-mono text-xs text-gray-500 group-hover:text-rose-600 transition-colors">
+                        {tx.id.slice(0, 8)}
                       </span>
                     </td>
                     
@@ -627,11 +582,11 @@ export default function InflowPage() {
                       </div>
                     </td>
                     
-                    {/* Customer */}
+                    {/* Recipient */}
                     <td className="px-3 py-3.5">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center text-emerald-700 font-semibold text-xs flex-shrink-0">
-                          {getInitials(tx.customer)}
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-rose-100 to-rose-200 flex items-center justify-center text-rose-700 font-semibold text-xs flex-shrink-0">
+                          {getInitials(tx.recipient)}
                         </div>
                         <span className="text-sm text-gray-900 truncate">{tx.phone}</span>
                       </div>
@@ -639,7 +594,7 @@ export default function InflowPage() {
                     
                     {/* Amount */}
                     <td className="px-3 py-3.5 text-right">
-                      <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">
+                      <span className="text-sm font-semibold text-rose-600 whitespace-nowrap">
                         KES {tx.amount.toLocaleString()}
                       </span>
                     </td>
@@ -663,10 +618,10 @@ export default function InflowPage() {
         {filteredData.length > 0 && (
           <div className="px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-2 bg-gray-50/80">
             <span className="text-xs text-gray-500">
-              Showing {filteredData.length} of {getInflowData().length} transactions
+              Showing {filteredData.length} of {outflowData.length} transactions
             </span>
             <span className="text-xs text-gray-500 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
               Last updated: {new Date().toLocaleString()}
             </span>
           </div>
@@ -681,7 +636,7 @@ export default function InflowPage() {
               <div className="flex items-center gap-3">
                 <div className={`w-3 h-3 rounded-full ${statusBadgeColors[selectedTransaction.status as keyof typeof statusBadgeColors] || 'bg-gray-500'}`} />
                 <h3 className="text-lg font-bold text-gray-900">Transaction Details</h3>
-                <span className="text-xs text-gray-400 font-mono ml-2">#{selectedTransaction.id}</span>
+                <span className="text-xs text-gray-400 font-mono ml-2">#{selectedTransaction.id.slice(0, 8)}</span>
               </div>
               <button
                 onClick={() => setShowModal(false)}
@@ -695,13 +650,13 @@ export default function InflowPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Customer</p>
+                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Recipient</p>
                     <div className="flex items-center gap-3 mt-2">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center text-emerald-700 font-semibold text-sm flex-shrink-0">
-                        {getInitials(selectedTransaction.customer)}
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-100 to-rose-200 flex items-center justify-center text-rose-700 font-semibold text-sm flex-shrink-0">
+                        {getInitials(selectedTransaction.recipient)}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium text-gray-900 truncate">{selectedTransaction.customer}</p>
+                        <p className="font-medium text-gray-900 truncate">{selectedTransaction.recipient}</p>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <Phone className="w-3 h-3 flex-shrink-0" />
                           <span className="truncate">{selectedTransaction.phone}</span>
@@ -729,9 +684,9 @@ export default function InflowPage() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-4 border border-emerald-200/50">
+                  <div className="bg-gradient-to-br from-rose-50 to-rose-100/50 rounded-xl p-4 border border-rose-200/50">
                     <p className="text-xs text-gray-500 uppercase font-medium tracking-wider">Amount</p>
-                    <p className="text-3xl font-bold text-emerald-700 mt-1 break-words">
+                    <p className="text-3xl font-bold text-rose-700 mt-1 break-words">
                       KES {selectedTransaction.amount.toLocaleString()}
                     </p>
                     <div className="mt-2">
