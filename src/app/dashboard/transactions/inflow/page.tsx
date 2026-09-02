@@ -23,10 +23,11 @@ import {
   TrendingUp,
   Wallet,
   Smartphone,
-  Zap,
   Coins,
   ArrowDownRight,
   Loader2,
+  FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
 import { getToken, getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
@@ -130,8 +131,9 @@ export default function InflowPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filterCategory, setFilterCategory] = useState('All');
   const [merchantId, setMerchantId] = useState<string>('');
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   
-  // ✅ Prevent duplicate logging ONLY during the same page load
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
@@ -154,16 +156,12 @@ export default function InflowPage() {
         return;
       }
       
-      console.log('🔍 Fetching inflow transactions for merchant:', id);
-      
       const params = new URLSearchParams();
       params.append('merchantId', id);
       params.append('limit', '100');
       
       const response = await fetch(`/api/transactions?${params.toString()}`);
       const data = await response.json();
-      
-      console.log('📊 Inflow transactions response:', data);
       
       if (data.success) {
         setTransactions(data.data || []);
@@ -178,10 +176,9 @@ export default function InflowPage() {
     }
   };
 
-  // ─── Log View - Only once per page visit ──────────────────────
+  // ─── Log View ──────────────────────────────────────────────────────
   useEffect(() => {
     const logView = async () => {
-      // ✅ Prevent duplicate logs during the same page load
       if (isLoggingView.current || hasLoggedView.current || transactions.length === 0) {
         return;
       }
@@ -198,7 +195,6 @@ export default function InflowPage() {
             `Viewed ${transactions.length} inflow transactions`
           );
           hasLoggedView.current = true;
-          console.log('✅ Inflow view logged');
         }
       } catch (error) {
         console.debug('Inflow view logging skipped:', error);
@@ -207,13 +203,12 @@ export default function InflowPage() {
       }
     };
     
-    // Only log when transactions are loaded and we haven't logged yet
     if (!loading && transactions.length > 0 && !hasLoggedView.current) {
       logView();
     }
   }, [loading, transactions.length, merchantId, log]);
 
-  // ─── Transform Transactions to Inflow Format ─────────────────────
+  // ─── Transform Transactions ─────────────────────────────────────
   const transformToInflow = (tx: Transaction): InflowTransaction => {
     let category = 'Payment';
     const source = tx.source?.toLowerCase() || '';
@@ -280,9 +275,83 @@ export default function InflowPage() {
   const pendingCount = filteredData.filter(t => t.status === 'Pending').length;
   const failedCount = filteredData.filter(t => t.status === 'Failed').length;
 
+  // ─── Export Functions ─────────────────────────────────────────────
+  const exportToCSV = (data: InflowTransaction[]) => {
+    const headers = [
+      'Transaction ID',
+      'Date',
+      'Time',
+      'Customer',
+      'Phone',
+      'Amount (KES)',
+      'Method',
+      'Channel',
+      'Category',
+      'Status',
+      'Reference',
+      'Description'
+    ];
+
+    const rows = data.map(tx => [
+      tx.id,
+      formatDate(tx.date),
+      formatTime(tx.date),
+      tx.customer,
+      tx.phone,
+      tx.amount.toFixed(2),
+      tx.method,
+      tx.channel,
+      tx.category,
+      tx.status,
+      tx.ref,
+      tx.description
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    return csvContent;
+  };
+
+  const handleExport = (format: 'csv' | 'excel') => {
+    if (filteredData.length === 0) {
+      alert('No transactions to export');
+      return;
+    }
+
+    setIsExporting(true);
+    setShowExportMenu(false);
+
+    try {
+      const csvData = exportToCSV(filteredData);
+      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      const date = new Date().toISOString().split('T')[0];
+      const filename = `inflow_transactions_${date}.${format === 'csv' ? 'csv' : 'xlsx'}`;
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      // Log the export
+      log('Exported transactions', `Exported ${filteredData.length} inflow transactions as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export transactions. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    // ✅ Reset the log flag so refresh can log again
     hasLoggedView.current = false;
     await fetchTransactions();
   };
@@ -325,7 +394,7 @@ export default function InflowPage() {
     const colorKey = status as keyof typeof statusColors;
     const color = statusColors[colorKey] || 'bg-gray-50 text-gray-700 border-gray-200';
     return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color}`}>
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color} whitespace-nowrap`}>
         <StatusIcon className="w-3 h-3" />
         {status}
       </span>
@@ -336,14 +405,13 @@ export default function InflowPage() {
     const Icon = categoryIcons[category] || Wallet;
     const color = categoryColors[category as keyof typeof categoryColors] || 'bg-gray-50 text-gray-600 border-gray-200';
     return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color}`}>
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color} whitespace-nowrap`}>
         <Icon className="w-3 h-3" />
         {category}
       </span>
     );
   };
 
-  // ─── Load Data ──────────────────────────────────────────────────────
   useEffect(() => {
     const token = getToken();
     if (!token) {
@@ -374,7 +442,7 @@ export default function InflowPage() {
   }
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-6">
+    <div className="max-w-[1400px] mx-auto space-y-6 px-4 sm:px-6">
       {/* ─── Page Header ────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -397,10 +465,41 @@ export default function InflowPage() {
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </button>
-          <button className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-sm shadow-emerald-200">
-            <Download className="w-4 h-4" />
-            Export
-          </button>
+          
+          {/* Export Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              disabled={isExporting}
+              className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-sm shadow-emerald-200 disabled:opacity-50"
+            >
+              {isExporting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              {isExporting ? 'Exporting...' : 'Export'}
+            </button>
+            
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
+                <button
+                  onClick={() => handleExport('csv')}
+                  className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors border-b border-gray-100"
+                >
+                  <FileText className="w-4 h-4 text-emerald-500" />
+                  <span>Export as CSV</span>
+                </button>
+                <button
+                  onClick={() => handleExport('excel')}
+                  className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                  <span>Export as Excel</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -446,50 +545,50 @@ export default function InflowPage() {
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <select
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
             className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 appearance-none pr-10 shadow-sm"
           >
             <option value="All">All Categories</option>
-            <option value="Payment">💳 Payment</option>
-            <option value="Utility Payment">📱 Utility Payment</option>
-            <option value="Commission">💰 Commission</option>
-            <option value="M-PESA">📲 M-PESA</option>
-            <option value="Card">💳 Card</option>
-            <option value="Bank Transfer">🏦 Bank Transfer</option>
+            <option value="Payment">Payment</option>
+            <option value="Utility Payment">Utility Payment</option>
+            <option value="Commission">Commission</option>
+            <option value="M-PESA">M-PESA</option>
+            <option value="Card">Card</option>
+            <option value="Bank Transfer">Bank Transfer</option>
           </select>
           <button className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap">
             <Filter className="w-4 h-4" />
             Filter
           </button>
-          <div className="flex items-center px-4 py-2 bg-gray-50 rounded-xl text-sm text-gray-500 border border-gray-200">
+          <div className="flex items-center px-4 py-2 bg-gray-50 rounded-xl text-sm text-gray-500 border border-gray-200 whitespace-nowrap">
             <span className="font-medium text-gray-700">{filteredData.length}</span>
             <span className="ml-1">transactions</span>
           </div>
         </div>
       </div>
 
-      {/* ─── Table ───────────────────────────────────────────────────── */}
+      {/* ─── Table with Fixed Layout ─────────────────────────────────── */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed min-w-[900px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80">
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Transaction</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date & Time</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                <th className="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Method</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="w-[100px] px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Transaction</th>
+                <th className="w-[160px] px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date & Time</th>
+                <th className="w-[160px] px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
+                <th className="w-[120px] px-4 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                <th className="w-[120px] px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Method</th>
+                <th className="w-[130px] px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+                <th className="w-[110px] px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody>
               {filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-16 text-center">
+                  <td colSpan={7} className="px-4 py-16 text-center">
                     <div className="flex flex-col items-center gap-4">
                       <div className="p-4 bg-emerald-50 rounded-full">
                         <ArrowDownRight className="w-14 h-14 text-emerald-400" />
@@ -512,47 +611,47 @@ export default function InflowPage() {
                     onClick={() => handleViewDetails(tx)}
                     className="border-b border-gray-50 hover:bg-gray-50/70 transition-colors cursor-pointer group"
                   >
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
                           <Hash className="w-3.5 h-3.5 text-emerald-500" />
                         </div>
-                        <span className="font-mono text-xs text-gray-500 group-hover:text-emerald-600 transition-colors">
+                        <span className="font-mono text-xs text-gray-500 group-hover:text-emerald-600 transition-colors truncate">
                           {tx.id}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3.5">
                       <div className="flex flex-col">
-                        <span className="text-sm text-gray-700">{formatDate(tx.date)}</span>
+                        <span className="text-sm text-gray-700 truncate">{formatDate(tx.date)}</span>
                         <span className="text-xs text-gray-400">{formatTime(tx.date)}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center text-emerald-700 font-semibold text-xs">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center text-emerald-700 font-semibold text-xs flex-shrink-0">
                           {getInitials(tx.customer)}
                         </div>
-                        <span className="text-sm font-medium text-gray-900">{tx.customer}</span>
+                        <span className="text-sm font-medium text-gray-900 truncate">{tx.customer}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="text-sm font-semibold text-gray-900">
+                    <td className="px-4 py-3.5 text-right">
+                      <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">
                         KES {tx.amount.toLocaleString()}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center">
+                        <div className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0">
                           <CreditCard className="w-3.5 h-3.5 text-gray-400" />
                         </div>
-                        <span className="text-sm text-gray-600">{tx.method}</span>
+                        <span className="text-sm text-gray-600 truncate">{tx.method}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3.5">
                       <CategoryBadge category={tx.category} />
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3.5">
                       <StatusBadge status={tx.status} />
                     </td>
                   </tr>
@@ -563,7 +662,7 @@ export default function InflowPage() {
         </div>
 
         {filteredData.length > 0 && (
-          <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
+          <div className="px-4 py-3 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-2 bg-gray-50/50">
             <span className="text-xs text-gray-400">
               Showing {filteredData.length} of {getInflowData().length} transactions
             </span>
@@ -577,8 +676,8 @@ export default function InflowPage() {
 
       {/* ─── View Details Modal ──────────────────────────────────────── */}
       {showModal && selectedTransaction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
               <div className="flex items-center gap-3">
                 <div className={`w-3 h-3 rounded-full ${statusBadgeColors[selectedTransaction.status as keyof typeof statusBadgeColors] || 'bg-gray-500'}`} />
@@ -594,19 +693,19 @@ export default function InflowPage() {
             </div>
 
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="bg-gray-50 rounded-xl p-4">
                     <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Customer</p>
                     <div className="flex items-center gap-3 mt-2">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center text-emerald-700 font-semibold text-sm">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center text-emerald-700 font-semibold text-sm flex-shrink-0">
                         {getInitials(selectedTransaction.customer)}
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{selectedTransaction.customer}</p>
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{selectedTransaction.customer}</p>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <Phone className="w-3 h-3" />
-                          <span>{selectedTransaction.phone}</span>
+                          <Phone className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{selectedTransaction.phone}</span>
                         </div>
                       </div>
                     </div>
@@ -614,12 +713,12 @@ export default function InflowPage() {
 
                   <div className="bg-gray-50 rounded-xl p-4">
                     <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Reference</p>
-                    <p className="font-mono text-sm text-gray-900 mt-1">{selectedTransaction.ref}</p>
+                    <p className="font-mono text-sm text-gray-900 mt-1 break-all">{selectedTransaction.ref}</p>
                   </div>
 
                   <div className="bg-gray-50 rounded-xl p-4">
                     <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Description</p>
-                    <p className="text-sm text-gray-700 mt-1">{selectedTransaction.description}</p>
+                    <p className="text-sm text-gray-700 mt-1 break-words">{selectedTransaction.description}</p>
                   </div>
 
                   <div className="bg-gray-50 rounded-xl p-4">
@@ -633,7 +732,7 @@ export default function InflowPage() {
                 <div className="space-y-4">
                   <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-4 border border-emerald-200/50">
                     <p className="text-xs text-gray-500 uppercase font-medium tracking-wider">Amount</p>
-                    <p className="text-3xl font-bold text-emerald-700 mt-1">
+                    <p className="text-3xl font-bold text-emerald-700 mt-1 break-words">
                       KES {selectedTransaction.amount.toLocaleString()}
                     </p>
                     <div className="mt-2">
@@ -646,19 +745,19 @@ export default function InflowPage() {
                     <div className="mt-2 space-y-2">
                       <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                         <span className="text-sm text-gray-500">Method</span>
-                        <span className="text-sm font-medium text-gray-900">{selectedTransaction.method}</span>
+                        <span className="text-sm font-medium text-gray-900 text-right truncate ml-2">{selectedTransaction.method}</span>
                       </div>
                       <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                         <span className="text-sm text-gray-500">Channel</span>
-                        <span className="text-sm text-gray-900">{selectedTransaction.channel}</span>
+                        <span className="text-sm text-gray-900 text-right truncate ml-2">{selectedTransaction.channel}</span>
                       </div>
                       <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                         <span className="text-sm text-gray-500">Settlement Date</span>
-                        <span className="text-sm text-gray-900">{formatDate(selectedTransaction.settlementDate)}</span>
+                        <span className="text-sm text-gray-900 text-right">{formatDate(selectedTransaction.settlementDate)}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-500">Date & Time</span>
-                        <span className="text-sm text-gray-900">{formatDate(selectedTransaction.date)} {formatTime(selectedTransaction.date)}</span>
+                        <span className="text-sm text-gray-900 text-right">{formatDate(selectedTransaction.date)} {formatTime(selectedTransaction.date)}</span>
                       </div>
                     </div>
                   </div>
@@ -673,7 +772,10 @@ export default function InflowPage() {
                   <Copy className="w-4 h-4" />
                   Copy ID
                 </button>
-                <button className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2">
+                <button 
+                  onClick={() => window.print()}
+                  className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2"
+                >
                   <Printer className="w-4 h-4" />
                   Print
                 </button>
