@@ -340,7 +340,6 @@ export default function InflowPage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      // Log the export
       log('Exported transactions', `Exported ${filteredData.length} inflow transactions as ${format.toUpperCase()}`);
     } catch (error) {
       console.error('Export failed:', error);
@@ -570,25 +569,24 @@ export default function InflowPage() {
         </div>
       </div>
 
-      {/* ─── Table with Fixed Layout ─────────────────────────────────── */}
+      {/* ─── Table with 6 Columns ─────────────────────────────────────── */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm table-fixed min-w-[900px]">
+          <table className="w-full text-sm table-fixed min-w-[700px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80">
-                <th className="w-[100px] px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Transaction</th>
-                <th className="w-[160px] px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date & Time</th>
-                <th className="w-[160px] px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                <th className="w-[120px] px-4 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="w-[120px] px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Method</th>
-                <th className="w-[130px] px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
-                <th className="w-[110px] px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="w-[80px] px-3 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
+                <th className="w-[150px] px-3 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date & Time</th>
+                <th className="w-[150px] px-3 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
+                <th className="w-[120px] px-3 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                <th className="w-[120px] px-3 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+                <th className="w-[100px] px-3 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody>
               {filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-16 text-center">
+                  <td colSpan={6} className="px-3 py-16 text-center">
                     <div className="flex flex-col items-center gap-4">
                       <div className="p-4 bg-emerald-50 rounded-full">
                         <ArrowDownRight className="w-14 h-14 text-emerald-400" />
@@ -611,47 +609,45 @@ export default function InflowPage() {
                     onClick={() => handleViewDetails(tx)}
                     className="border-b border-gray-50 hover:bg-gray-50/70 transition-colors cursor-pointer group"
                   >
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                          <Hash className="w-3.5 h-3.5 text-emerald-500" />
-                        </div>
-                        <span className="font-mono text-xs text-gray-500 group-hover:text-emerald-600 transition-colors truncate">
-                          {tx.id}
-                        </span>
-                      </div>
+                    {/* ID */}
+                    <td className="px-3 py-3.5">
+                      <span className="font-mono text-xs text-gray-500 group-hover:text-emerald-600 transition-colors">
+                        {tx.id}
+                      </span>
                     </td>
-                    <td className="px-4 py-3.5">
+                    
+                    {/* Date & Time */}
+                    <td className="px-3 py-3.5">
                       <div className="flex flex-col">
-                        <span className="text-sm text-gray-700 truncate">{formatDate(tx.date)}</span>
+                        <span className="text-sm text-gray-700">{formatDate(tx.date)}</span>
                         <span className="text-xs text-gray-400">{formatTime(tx.date)}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center text-emerald-700 font-semibold text-xs flex-shrink-0">
+                    
+                    {/* Customer */}
+                    <td className="px-3 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center text-emerald-700 font-semibold text-xs flex-shrink-0">
                           {getInitials(tx.customer)}
                         </div>
-                        <span className="text-sm font-medium text-gray-900 truncate">{tx.customer}</span>
+                        <span className="text-sm text-gray-900 truncate">{tx.phone}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3.5 text-right">
+                    
+                    {/* Amount */}
+                    <td className="px-3 py-3.5 text-right">
                       <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">
                         KES {tx.amount.toLocaleString()}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0">
-                          <CreditCard className="w-3.5 h-3.5 text-gray-400" />
-                        </div>
-                        <span className="text-sm text-gray-600 truncate">{tx.method}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5">
+                    
+                    {/* Category */}
+                    <td className="px-3 py-3.5">
                       <CategoryBadge category={tx.category} />
                     </td>
-                    <td className="px-4 py-3.5">
+                    
+                    {/* Status */}
+                    <td className="px-3 py-3.5">
                       <StatusBadge status={tx.status} />
                     </td>
                   </tr>
