@@ -19,7 +19,6 @@ import {
   Hash,
   CreditCard,
   Phone,
-  Mail as MailIcon,
   TrendingUp,
   Wallet,
   Smartphone,
@@ -502,85 +501,89 @@ export default function InflowPage() {
         </div>
       </div>
 
-      {/* ─── Summary Cards ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <SummaryCard
-          title="Total Inflow"
-          value={`KES ${totalInflow.toLocaleString()}`}
-          icon={TrendingUp}
-          color="bg-emerald-50 text-emerald-500"
-        />
-        <SummaryCard
-          title="Successful"
-          value={completedCount}
-          icon={CheckCircle}
-          color="bg-green-50 text-green-500"
-        />
-        <SummaryCard
-          title="Pending"
-          value={pendingCount}
-          icon={Clock}
-          color="bg-amber-50 text-amber-500"
-        />
-        <SummaryCard
-          title="Failed"
-          value={failedCount}
-          icon={XCircle}
-          color="bg-red-50 text-red-500"
-        />
-      </div>
-
-      {/* ─── Filters & Search ───────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1 relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search by customer phone, transaction ID, reference, method, status, or category..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
+      {/* ─── Summary Cards (Sticky) ─────────────────────────────────── */}
+      <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm -mx-4 px-4 py-3 -mt-1 border-b border-gray-200/50">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <SummaryCard
+            title="Total Inflow"
+            value={`KES ${totalInflow.toLocaleString()}`}
+            icon={TrendingUp}
+            color="bg-emerald-50 text-emerald-500"
+          />
+          <SummaryCard
+            title="Successful"
+            value={completedCount}
+            icon={CheckCircle}
+            color="bg-green-50 text-green-500"
+          />
+          <SummaryCard
+            title="Pending"
+            value={pendingCount}
+            icon={Clock}
+            color="bg-amber-50 text-amber-500"
+          />
+          <SummaryCard
+            title="Failed"
+            value={failedCount}
+            icon={XCircle}
+            color="bg-red-50 text-red-500"
           />
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 appearance-none pr-10 shadow-sm"
-          >
-            <option value="All">All Categories</option>
-            <option value="Payment">Payment</option>
-            <option value="Utility Payment">Utility Payment</option>
-            <option value="Commission">Commission</option>
-            <option value="M-PESA">M-PESA</option>
-            <option value="Card">Card</option>
-            <option value="Bank Transfer">Bank Transfer</option>
-          </select>
-          <button className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap">
-            <Filter className="w-4 h-4" />
-            Filter
-          </button>
-          <div className="flex items-center px-4 py-2 bg-gray-50 rounded-xl text-sm text-gray-500 border border-gray-200 whitespace-nowrap">
-            <span className="font-medium text-gray-700">{filteredData.length}</span>
-            <span className="ml-1">transactions</span>
+      </div>
+
+      {/* ─── Filters & Search (Sticky) ──────────────────────────────── */}
+      <div className="sticky top-[88px] z-10 bg-gray-50/95 backdrop-blur-sm -mx-4 px-4 py-3 -mt-1 border-b border-gray-200/50">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1 relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search by customer phone, transaction ID, reference, method, status, or category..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
+            />
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 appearance-none pr-10 shadow-sm"
+            >
+              <option value="All">All Categories</option>
+              <option value="Payment">Payment</option>
+              <option value="Utility Payment">Utility Payment</option>
+              <option value="Commission">Commission</option>
+              <option value="M-PESA">M-PESA</option>
+              <option value="Card">Card</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+            </select>
+            <button className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap">
+              <Filter className="w-4 h-4" />
+              Filter
+            </button>
+            <div className="flex items-center px-4 py-2 bg-gray-50 rounded-xl text-sm text-gray-500 border border-gray-200 whitespace-nowrap">
+              <span className="font-medium text-gray-700">{filteredData.length}</span>
+              <span className="ml-1">transactions</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ─── Table with 6 Columns ─────────────────────────────────────── */}
+      {/* ─── Table with Fixed Header and Scrollable Body ────────────── */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="overflow-y-auto max-h-[500px]">
           <table className="w-full text-sm table-fixed min-w-[700px]">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80">
-                <th className="w-[80px] px-3 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
-                <th className="w-[150px] px-3 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date & Time</th>
-                <th className="w-[150px] px-3 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                <th className="w-[120px] px-3 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="w-[120px] px-3 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
-                <th className="w-[100px] px-3 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+            <thead className="sticky top-0 z-10">
+              <tr className="border-b border-gray-200 bg-gray-100">
+                <th className="w-[80px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">ID</th>
+                <th className="w-[150px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date & Time</th>
+                <th className="w-[150px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
+                <th className="w-[120px] px-3 py-3.5 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
+                <th className="w-[120px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
+                <th className="w-[100px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -607,7 +610,7 @@ export default function InflowPage() {
                   <tr
                     key={tx.id}
                     onClick={() => handleViewDetails(tx)}
-                    className="border-b border-gray-50 hover:bg-gray-50/70 transition-colors cursor-pointer group"
+                    className="border-b border-gray-100 hover:bg-gray-50/70 transition-colors cursor-pointer group"
                   >
                     {/* ID */}
                     <td className="px-3 py-3.5">
@@ -658,11 +661,11 @@ export default function InflowPage() {
         </div>
 
         {filteredData.length > 0 && (
-          <div className="px-4 py-3 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-2 bg-gray-50/50">
-            <span className="text-xs text-gray-400">
+          <div className="px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-2 bg-gray-50/80">
+            <span className="text-xs text-gray-500">
               Showing {filteredData.length} of {getInflowData().length} transactions
             </span>
-            <span className="text-xs text-gray-400 flex items-center gap-1">
+            <span className="text-xs text-gray-500 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               Last updated: {new Date().toLocaleString()}
             </span>
