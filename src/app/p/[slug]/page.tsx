@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { io, Socket } from 'socket.io-client';
 import {
   Smartphone,
   CheckCircle,
@@ -18,6 +19,8 @@ import {
   Shield,
   XCircle,
   Clock,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 
 interface ProductData {
@@ -73,29 +76,33 @@ export default function ProductPage() {
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error' | 'pending'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [transactionId, setTransactionId] = useState<string | null>(null);
+  const [checkoutId, setCheckoutId] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [pollingCount, setPollingCount] = useState(0);
   const [showRetry, setShowRetry] = useState(false);
 
+  // ─── WebSocket State ──────────────────────────────────────────────
+  const [isSocketConnected, setIsSocketConnected] = useState(false);
+  const [isWebSocketAvailable, setIsWebSocketAvailable] = useState(true);
+  const socketRef = useRef<Socket | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const MAX_POLLING_ATTEMPTS = 30; // 30 * 3 seconds = 90 seconds
-  const POLLING_INTERVAL = 3000; // 3 seconds
+  const MAX_POLLING_ATTEMPTS = 30;
+  const POLLING_INTERVAL = 3000;
 
+  // ─── Fetch Product ──────────────────────────────────────────────
   useEffect(() => {
     if (!slug) return;
     fetchProduct();
   }, [slug]);
 
-  // ─── Fetch Product ──────────────────────────────────────────────
   const fetchProduct = async () => {
     try {
       const res = await fetch(`/api/product-links/${slug}`);
       const data = await res.json();
       if (data.success) {
         setProduct(data.data);
-        // If product is already paid, show file
         if (data.data.status === 'PAID' || data.data.status === 'COMPLETED') {
           setPaymentStatus('success');
           setFileUrl(data.data.fileUrl);
@@ -111,7 +118,126 @@ export default function ProductPage() {
     }
   };
 
-  // ─── Poll Payment Status ────────────────────────────────────────
+  // ─── WebSocket Connection ─────────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let isMounted = true;
+    let socketInstance: any = null;
+
+    const initWebSocket = async () => {
+      try {
+        const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 
+                       (typeof window !== 'undefined' && window.location.origin) ||
+                       'https://xecoflow-2gen.onrender.com';
+
+        console.log('🔌 [WS] Connecting to:', WS_URL);
+
+        const { io } = await import('socket.io-client');
+
+        socketInstance = io(WS_URL, {
+          transports: ['websocket', 'polling'],
+          withCredentials: true,
+          reconnection: true,
+          reconnectionAttempts: 3,
+          reconnectionDelay: 1000,
+          timeout: 5000,
+        });
+
+        socketInstance.on('connect', () => {
+          if (isMounted) {
+            console.log('✅ [WS] Connected:', socketInstance.id);
+            setIsSocketConnected(true);
+          }
+        });
+
+        socketInstance.on('disconnect', () => {
+          if (isMounted) {
+            console.log('❌ [WS] Disconnected');
+            setIsSocketConnected(false);
+          }
+        });
+
+        socketInstance.on('connect_error', (error: any) => {
+          console.warn('⚠️ [WS] Connection error (non-blocking):', error?.message);
+          if (isMounted) {
+            setIsSocketConnected(false);
+          }
+        });
+
+        socketInstance.on('payment:status', (data: any) => {
+          console.log('📡 [WS] Payment status update:', data);
+          
+          if (isMounted) {
+            if (data.status === 'COMPLETED' || data.status === 'SETTLED') {
+              setPaymentStatus('success');
+              setFileUrl(data.fileUrl || product?.fileUrl || null);
+              setFileName(data.fileName || product?.fileName || null);
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+              }
+              if (data.mpesaReceipt) {
+                console.log('📋 Receipt:', data.mpesaReceipt);
+              }
+            } else if (data.status === 'FAILED' || data.status === 'DECLINED') {
+              setPaymentStatus('error');
+              setErrorMessage(data.resultDesc || 'Payment failed. Please try again.');
+              setShowRetry(true);
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+              }
+            }
+          }
+        });
+
+        socketRef.current = socketInstance;
+
+      } catch (error) {
+        console.warn('⚠️ [WS] WebSocket not available, using polling fallback only');
+        setIsWebSocketAvailable(false);
+        setIsSocketConnected(false);
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+      initWebSocket();
+    }, 500);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+      if (socketInstance) {
+        socketInstance.disconnect();
+        socketInstance = null;
+      }
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
+  }, []);
+
+  // ─── Register for Payment Updates ────────────────────────────────
+  const registerForPaymentUpdates = (checkoutId: string, transactionId: string) => {
+    try {
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('register:payment', {
+          checkoutId: checkoutId,
+          transactionId: transactionId,
+        });
+        console.log(`📡 [WS] Registered for checkout: ${checkoutId}, transaction: ${transactionId}`);
+        return true;
+      }
+    } catch (error) {
+      console.warn('⚠️ [WS] Registration failed (non-blocking):', error);
+    }
+    console.warn('⚠️ [WS] Socket not connected, using polling fallback');
+    return false;
+  };
+
+  // ─── Poll Payment Status (Fallback) ──────────────────────────────
   const pollPaymentStatus = (txId: string) => {
     setPollingCount(0);
     setShowRetry(false);
@@ -124,17 +250,16 @@ export default function ProductPage() {
       setPollingCount((prev) => {
         const newCount = prev + 1;
         
-        // Check if max attempts reached
         if (newCount >= MAX_POLLING_ATTEMPTS) {
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
           }
           setPaymentStatus('error');
-          setErrorMessage('Payment is taking longer than expected. Please check your M-PESA app or contact support.');
+          setErrorMessage('Payment is taking longer than expected. Please check your M-PESA app.');
           setShowRetry(true);
           return newCount;
         }
-        
         return newCount;
       });
 
@@ -145,36 +270,26 @@ export default function ProductPage() {
         if (data.success && data.data) {
           const status = data.data;
           
-          // Payment successful - show file
           if (status.status === 'SETTLED' || status.status === 'COMPLETED') {
             if (pollingIntervalRef.current) {
               clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
             }
             setPaymentStatus('success');
             setFileUrl(status.product?.fileUrl || null);
             setFileName(status.product?.fileName || null);
-            setProduct((prev) => prev ? { ...prev, status: 'PAID', fileUrl: status.product?.fileUrl || prev.fileUrl } : prev);
-          }
-          // Payment failed
-          else if (status.status === 'FAILED' || status.status === 'DECLINED' || status.status === 'TERMINATED_BY_TIMEOUT') {
+          } else if (status.status === 'FAILED' || status.status === 'DECLINED' || status.status === 'TERMINATED_BY_TIMEOUT') {
             if (pollingIntervalRef.current) {
               clearInterval(pollingIntervalRef.current);
+              pollingIntervalRef.current = null;
             }
             setPaymentStatus('error');
             setErrorMessage(status.resultDesc || 'Payment failed. Please try again.');
             setShowRetry(true);
           }
-          // Still pending - continue polling
-          else {
-            // Update status message for user
-            if (pollingCount % 5 === 0) {
-              // Show a subtle update every 15 seconds
-            }
-          }
         }
       } catch (error) {
         console.error('Status polling error:', error);
-        // Don't stop polling on network errors - retry
       }
     }, POLLING_INTERVAL);
   };
@@ -213,12 +328,27 @@ export default function ProductPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        // Payment initiated - start polling for status
         const txId = data.data?.transactionId;
+        const ckId = data.data?.checkoutRequestId;
+        
         if (txId) {
           setTransactionId(txId);
+          setCheckoutId(ckId || null);
           setPaymentStatus('pending');
+          
+          // ─── 🔥 TRY WEBSOCKET ─────────────────────────────────────
+          if (ckId && isWebSocketAvailable) {
+            try {
+              registerForPaymentUpdates(ckId, txId);
+            } catch (wsError) {
+              console.warn('WebSocket registration failed, using polling');
+            }
+          }
+          
+          // ─── START POLLING ────────────────────────────────────────
           pollPaymentStatus(txId);
+          
+          console.log(`📡 Payment initiated. WebSocket: ${isSocketConnected ? '✅' : '❌'}, Polling: ✅`);
         } else {
           setPaymentStatus('error');
           setErrorMessage('No transaction ID received. Please try again.');
@@ -258,9 +388,10 @@ export default function ProductPage() {
     setErrorMessage('');
     setShowRetry(false);
     setTransactionId(null);
+    setCheckoutId(null);
   };
 
-  // ─── Cleanup polling on unmount ─────────────────────────────────
+  // ─── Cleanup ──────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       if (pollingIntervalRef.current) {
@@ -344,6 +475,11 @@ export default function ProductPage() {
                 Please check your phone and enter your PIN
               </p>
             </div>
+            {isSocketConnected ? (
+              <Wifi className="w-4 h-4 text-emerald-500 shrink-0" />
+            ) : (
+              <WifiOff className="w-4 h-4 text-amber-400 shrink-0" />
+            )}
           </div>
           <div className="w-full mt-1">
             <div className="flex justify-between text-[10px] text-amber-600">
@@ -357,11 +493,11 @@ export default function ProductPage() {
               />
             </div>
           </div>
-          <p className="text-[10px] text-amber-500 mt-1">
-            {pollingCount > 5 && pollingCount < 10 && "⏳ Still waiting for M-PESA..."}
-            {pollingCount >= 10 && pollingCount < 20 && "📱 Did you receive the STK push on your phone?"}
-            {pollingCount >= 20 && "⏰ This is taking longer than usual. Please check your M-PESA app."}
-          </p>
+          {!isSocketConnected && (
+            <p className="text-[10px] text-amber-500 mt-0.5">
+              ⚡ Live updates unavailable - checking status automatically
+            </p>
+          )}
         </div>
       );
     }
@@ -543,6 +679,20 @@ export default function ProductPage() {
               </div>
             ) : (
               <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-6 md:p-8">
+                <div className="flex items-center justify-end gap-2 mb-3">
+                  {isSocketConnected ? (
+                    <span className="flex items-center gap-1.5 text-[10px] text-emerald-600">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Live
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-[10px] text-amber-600">
+                      <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                      Polling
+                    </span>
+                  )}
+                </div>
+
                 <div className="pb-4 sm:pb-6 border-b border-gray-100">
                   <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
                     Amount due
