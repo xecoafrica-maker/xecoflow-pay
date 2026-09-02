@@ -15,6 +15,9 @@ import {
   XCircle,
   Wifi,
   WifiOff,
+  CreditCard,
+  Lock,
+  Sparkles,
 } from 'lucide-react';
 
 interface PaymentLinkData {
@@ -71,6 +74,8 @@ export default function PaymentLinkPage() {
 
   const [paymentLink, setPaymentLink] = useState<PaymentLinkData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingStage, setLoadingStage] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -93,6 +98,39 @@ export default function PaymentLinkPage() {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const MAX_POLLING_ATTEMPTS = 30;
   const POLLING_INTERVAL = 3000;
+
+  // ─── Loading Stages ───────────────────────────────────────────────
+  const loadingMessages = [
+    'Connecting to secure server...',
+    'Verifying payment link...',
+    'Preparing payment details...',
+    'Almost ready...',
+  ];
+
+  // ─── Animated Loading Progress ────────────────────────────────────
+  useEffect(() => {
+    if (!loading) return;
+
+    let progress = 0;
+    let stage = 0;
+    const interval = setInterval(() => {
+      progress += Math.random() * 8 + 2;
+      if (progress > 100) progress = 100;
+      setLoadingProgress(Math.min(progress, 100));
+      
+      const newStage = Math.min(Math.floor(progress / 25), 3);
+      if (newStage !== stage) {
+        stage = newStage;
+        setLoadingStage(stage);
+      }
+      
+      if (progress >= 100) {
+        clearInterval(interval);
+      }
+    }, 200);
+
+    return () => clearInterval(interval);
+  }, [loading]);
 
   // ─── 1. FETCH PAYMENT LINK DATA ──────────────────────────────────
   useEffect(() => {
@@ -529,8 +567,79 @@ export default function PaymentLinkPage() {
   // ─── Loading State ─────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#f8fafc] to-[#e2e8f0] px-4">
+        <div className="w-full max-w-md text-center">
+          {/* Logo */}
+          <div className="mb-8">
+            <div className="inline-flex items-center gap-2 text-2xl font-bold tracking-tight">
+              <span className="text-[#0a2540]">Xeco</span>
+              <span className="text-[#10B981]">Flow</span>
+            </div>
+            <p className="text-sm text-gray-500 mt-1">Secure Payment</p>
+          </div>
+
+          {/* Animated Card */}
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 relative overflow-hidden">
+            {/* Animated background glow */}
+            <div className="absolute -top-20 -right-20 w-64 h-64 bg-emerald-100/30 rounded-full blur-3xl animate-pulse" />
+            <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-blue-100/30 rounded-full blur-3xl animate-pulse delay-1000" />
+
+            {/* Icon */}
+            <div className="relative">
+              <div className="w-16 h-16 mx-auto rounded-full bg-[#0a2540]/5 flex items-center justify-center mb-4 animate-pulse">
+                <CreditCard className="w-8 h-8 text-[#0a2540]" />
+              </div>
+            </div>
+
+            {/* Loading Message */}
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Preparing your payment
+            </h3>
+            <p className="text-sm text-gray-500 mb-6">
+              {loadingMessages[loadingStage] || 'Connecting to secure server...'}
+            </p>
+
+            {/* Progress Bar */}
+            <div className="relative">
+              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-[#0a2540] via-[#10B981] to-[#0a2540] rounded-full transition-all duration-300 ease-out"
+                  style={{ 
+                    width: `${loadingProgress}%`,
+                    backgroundSize: '200% 100%',
+                    animation: 'shimmer 2s ease-in-out infinite'
+                  }}
+                />
+              </div>
+              <div className="flex justify-between mt-2">
+                <span className="text-xs text-gray-400">Loading</span>
+                <span className="text-xs font-medium text-gray-600">{Math.round(loadingProgress)}%</span>
+              </div>
+            </div>
+
+            {/* Branded footer */}
+            <div className="mt-8 pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                <Lock className="w-3 h-3" />
+                <span>Secure &amp; encrypted</span>
+                <span className="w-1 h-1 rounded-full bg-gray-300" />
+                <span>Powered by XecoFlow</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Trust badges */}
+          <div className="mt-6 flex items-center justify-center gap-6 text-xs text-gray-400">
+            <span className="flex items-center gap-1">
+              <Shield className="w-3 h-3" />
+              PCI Compliant
+            </span>
+            <span className="w-px h-3 bg-gray-200" />
+            <span>SSL Encrypted</span>
+            <span className="w-px h-3 bg-gray-200" />
+            <span>24/7 Support</span>
+          </div>
+        </div>
       </div>
     );
   }
@@ -582,321 +691,332 @@ export default function PaymentLinkPage() {
     </p>
   );
 
+  // ─── Add shimmer animation styles ─────────────────────────────────
+  const shimmerStyles = `
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+  `;
+
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <div className="flex-1 grid lg:grid-cols-2">
-        {/* ── LEFT: Merchant + summary ── */}
-        <div className="bg-[#f6f9fc] px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col">
-          <div className="mb-8">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full bg-[#0a2540] flex items-center justify-center shrink-0 overflow-hidden shadow-sm ring-2 ring-white">
-                {paymentLink.logoUrl ? (
-                  <img
-                    src={paymentLink.logoUrl}
-                    alt={merchantName}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-sm font-bold text-white">
-                    {merchantName.slice(0, 2).toUpperCase()}
-                  </span>
-                )}
-              </div>
-              <div className="min-w-0">
-                <p className="text-[15px] font-semibold text-gray-900 truncate">
-                  {merchantName}
-                </p>
-                {isVerified ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 mt-0.5">
-                    <BadgeCheck className="w-3.5 h-3.5" />
-                    Verified merchant
-                  </span>
-                ) : (
-                  <span className="text-[11px] text-gray-400 mt-0.5 block">Merchant</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <p className="text-sm text-gray-500 mb-1">Pay {merchantName}</p>
-          <p className="text-[36px] sm:text-[40px] font-semibold text-gray-900 tracking-tight leading-none">
-            {formatPrice(displayAmount, paymentLink.currency)}
-          </p>
-
-          <div className="mt-10 space-y-4 flex-1">
-            <div className="flex justify-between text-[14px]">
-              <span className="text-gray-600">{paymentLink.name}</span>
-              <span className="text-gray-900 font-medium tabular-nums">
-                {formatPrice(displayAmount, paymentLink.currency)}
-              </span>
-            </div>
-
-            <div className="border-t border-gray-200 pt-4 space-y-3">
-              <div className="flex justify-between text-[14px]">
-                <span className="text-gray-500">Subtotal</span>
-                <span className="text-gray-900 tabular-nums">
-                  {formatPrice(displayAmount, paymentLink.currency)}
-                </span>
-              </div>
-              <div className="flex justify-between text-[15px] font-semibold">
-                <span className="text-gray-900">Total due</span>
-                <span className="text-gray-900 tabular-nums">
-                  {formatPrice(displayAmount, paymentLink.currency)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-10 hidden lg:block">{poweredBy}</div>
-        </div>
-
-        {/* ── RIGHT: Pay form ── */}
-        <div className="px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col justify-center">
-          <div className="w-full max-w-[420px] mx-auto">
-            {/* WebSocket Connection Status */}
-            <div className="flex items-center justify-end gap-2 mb-3">
-              {isSocketConnected ? (
-                <span className="flex items-center gap-1.5 text-[10px] text-emerald-600">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Live
-                </span>
-              ) : (
-                <span className="flex items-center gap-1.5 text-[10px] text-amber-600">
-                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                  Polling
-                </span>
-              )}
-            </div>
-
-            {isPaid ? (
-              <div className="text-center py-6">
-                <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle className="w-7 h-7 text-emerald-500" />
+    <>
+      <style>{shimmerStyles}</style>
+      <div className="min-h-screen bg-white flex flex-col">
+        <div className="flex-1 grid lg:grid-cols-2">
+          {/* ── LEFT: Merchant + summary ── */}
+          <div className="bg-[#f6f9fc] px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col">
+            <div className="mb-8">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-[#0a2540] flex items-center justify-center shrink-0 overflow-hidden shadow-sm ring-2 ring-white">
+                  {paymentLink.logoUrl ? (
+                    <img
+                      src={paymentLink.logoUrl}
+                      alt={merchantName}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-sm font-bold text-white">
+                      {merchantName.slice(0, 2).toUpperCase()}
+                    </span>
+                  )}
                 </div>
-                <h2 className="text-xl font-semibold text-gray-900">Payment successful</h2>
-                <p className="text-sm text-gray-500 mt-2">
-                  {formatPrice(displayAmount, paymentLink.currency)} paid to {merchantName}
-                </p>
+                <div className="min-w-0">
+                  <p className="text-[15px] font-semibold text-gray-900 truncate">
+                    {merchantName}
+                  </p>
+                  {isVerified ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 mt-0.5">
+                      <BadgeCheck className="w-3.5 h-3.5" />
+                      Verified merchant
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-gray-400 mt-0.5 block">Merchant</span>
+                  )}
+                </div>
               </div>
-            ) : isExpired ? (
-              <div className="text-center py-6">
-                <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
-                <h2 className="text-lg font-semibold text-gray-900">Link expired</h2>
-                <p className="text-sm text-gray-500 mt-2">Contact the merchant for a new link.</p>
+            </div>
+
+            <p className="text-sm text-gray-500 mb-1">Pay {merchantName}</p>
+            <p className="text-[36px] sm:text-[40px] font-semibold text-gray-900 tracking-tight leading-none">
+              {formatPrice(displayAmount, paymentLink.currency)}
+            </p>
+
+            <div className="mt-10 space-y-4 flex-1">
+              <div className="flex justify-between text-[14px]">
+                <span className="text-gray-600">{paymentLink.name}</span>
+                <span className="text-gray-900 font-medium tabular-nums">
+                  {formatPrice(displayAmount, paymentLink.currency)}
+                </span>
               </div>
-            ) : (
-              <form onSubmit={handlePay} className="space-y-5">
-                <div>
-                  <p className="text-[13px] font-medium text-gray-700 mb-2.5">Pay with</p>
-                  <div className="grid grid-cols-5 gap-2">
-                    {(Object.keys(METHOD_LOGOS) as PayMethod[]).map((id) => {
-                      const m = METHOD_LOGOS[id];
-                      const active = method === id;
-                      const broken = brokenLogos[id];
-                      return (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => {
-                            setMethod(id);
-                            setPaymentStatus('idle');
-                            setErrorMessage('');
-                          }}
-                          className={`flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl border-2 transition-all ${
-                            active
-                              ? `${m.activeBorder} bg-white shadow-sm`
-                              : 'border-gray-200 hover:border-gray-300 bg-white'
-                          }`}
-                        >
-                          <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center overflow-hidden">
-                            {!broken ? (
-                              <img
-                                src={m.src}
-                                alt={m.label}
-                                className="w-7 h-7 object-contain"
-                                onError={() =>
-                                  setBrokenLogos((prev) => ({ ...prev, [id]: true }))
-                                }
-                              />
-                            ) : (
-                              <span className="text-[10px] font-bold text-gray-600">
-                                {m.label.slice(0, 2)}
-                              </span>
-                            )}
-                          </div>
-                          <span
-                            className={`text-[10px] font-semibold ${
-                              active ? 'text-gray-900' : 'text-gray-500'
+
+              <div className="border-t border-gray-200 pt-4 space-y-3">
+                <div className="flex justify-between text-[14px]">
+                  <span className="text-gray-500">Subtotal</span>
+                  <span className="text-gray-900 tabular-nums">
+                    {formatPrice(displayAmount, paymentLink.currency)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-[15px] font-semibold">
+                  <span className="text-gray-900">Total due</span>
+                  <span className="text-gray-900 tabular-nums">
+                    {formatPrice(displayAmount, paymentLink.currency)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-10 hidden lg:block">{poweredBy}</div>
+          </div>
+
+          {/* ── RIGHT: Pay form ── */}
+          <div className="px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col justify-center">
+            <div className="w-full max-w-[420px] mx-auto">
+              {/* WebSocket Connection Status */}
+              <div className="flex items-center justify-end gap-2 mb-3">
+                {isSocketConnected ? (
+                  <span className="flex items-center gap-1.5 text-[10px] text-emerald-600">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Live
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-[10px] text-amber-600">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    Polling
+                  </span>
+                )}
+              </div>
+
+              {isPaid ? (
+                <div className="text-center py-6">
+                  <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="w-7 h-7 text-emerald-500" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-gray-900">Payment successful</h2>
+                  <p className="text-sm text-gray-500 mt-2">
+                    {formatPrice(displayAmount, paymentLink.currency)} paid to {merchantName}
+                  </p>
+                </div>
+              ) : isExpired ? (
+                <div className="text-center py-6">
+                  <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+                  <h2 className="text-lg font-semibold text-gray-900">Link expired</h2>
+                  <p className="text-sm text-gray-500 mt-2">Contact the merchant for a new link.</p>
+                </div>
+              ) : (
+                <form onSubmit={handlePay} className="space-y-5">
+                  <div>
+                    <p className="text-[13px] font-medium text-gray-700 mb-2.5">Pay with</p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {(Object.keys(METHOD_LOGOS) as PayMethod[]).map((id) => {
+                        const m = METHOD_LOGOS[id];
+                        const active = method === id;
+                        const broken = brokenLogos[id];
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => {
+                              setMethod(id);
+                              setPaymentStatus('idle');
+                              setErrorMessage('');
+                            }}
+                            className={`flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl border-2 transition-all ${
+                              active
+                                ? `${m.activeBorder} bg-white shadow-sm`
+                                : 'border-gray-200 hover:border-gray-300 bg-white'
                             }`}
                           >
-                            {m.label}
-                          </span>
-                        </button>
-                      );
-                    })}
+                            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center overflow-hidden">
+                              {!broken ? (
+                                <img
+                                  src={m.src}
+                                  alt={m.label}
+                                  className="w-7 h-7 object-contain"
+                                  onError={() =>
+                                    setBrokenLogos((prev) => ({ ...prev, [id]: true }))
+                                  }
+                                />
+                              ) : (
+                                <span className="text-[10px] font-bold text-gray-600">
+                                  {m.label.slice(0, 2)}
+                                </span>
+                              )}
+                            </div>
+                            <span
+                              className={`text-[10px] font-semibold ${
+                                active ? 'text-gray-900' : 'text-gray-500'
+                              }`}
+                            >
+                              {m.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
 
-                {renderPaymentStatus()}
+                  {renderPaymentStatus()}
 
-                {(paymentStatus === 'idle' || paymentStatus === 'error') && (
-                  <>
-                    {!isFixedAmount && (
-                      <div>
-                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                          Amount
-                        </label>
-                        <input
-                          type="number"
-                          value={amount}
-                          onChange={(e) => setAmount(e.target.value)}
-                          placeholder="0.00"
-                          min={1}
-                          step="0.01"
-                          required
-                          disabled={isProcessing}
-                          className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                        />
-                      </div>
-                    )}
-
-                    {isMobileMoney && (
-                      <div>
-                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                          {method === 'mpesa'
-                            ? 'M-PESA number'
-                            : method === 'airtel'
-                            ? 'Airtel Money number'
-                            : 'T-Kash number'}
-                        </label>
-                        <div className="flex h-11 rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
-                          <span className="flex items-center gap-1.5 px-3 bg-gray-50 border-r border-gray-200 text-[13px] text-gray-500 shrink-0">
-                            <Smartphone className="w-4 h-4" />
-                            +254
-                          </span>
-                          <input
-                            type="tel"
-                            inputMode="numeric"
-                            value={phoneNumber}
-                            onChange={(e) => setPhoneNumber(e.target.value)}
-                            placeholder="712071385"
-                            disabled={isProcessing}
-                            className="flex-1 min-w-0 px-3 text-sm outline-none disabled:opacity-60"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {method === 'card' && (
-                      <div className="space-y-3">
+                  {(paymentStatus === 'idle' || paymentStatus === 'error') && (
+                    <>
+                      {!isFixedAmount && (
                         <div>
                           <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                            Card number
+                            Amount
                           </label>
                           <input
-                            type="text"
-                            placeholder="4242 4242 4242 4242"
+                            type="number"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                            placeholder="0.00"
+                            min={1}
+                            step="0.01"
+                            required
                             disabled={isProcessing}
                             className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
                           />
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                              Expiry
-                            </label>
+                      )}
+
+                      {isMobileMoney && (
+                        <div>
+                          <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                            {method === 'mpesa'
+                              ? 'M-PESA number'
+                              : method === 'airtel'
+                              ? 'Airtel Money number'
+                              : 'T-Kash number'}
+                          </label>
+                          <div className="flex h-11 rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
+                            <span className="flex items-center gap-1.5 px-3 bg-gray-50 border-r border-gray-200 text-[13px] text-gray-500 shrink-0">
+                              <Smartphone className="w-4 h-4" />
+                              +254
+                            </span>
                             <input
-                              type="text"
-                              placeholder="MM / YY"
+                              type="tel"
+                              inputMode="numeric"
+                              value={phoneNumber}
+                              onChange={(e) => setPhoneNumber(e.target.value)}
+                              placeholder="712071385"
                               disabled={isProcessing}
-                              className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                              CVC
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="123"
-                              disabled={isProcessing}
-                              className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                              className="flex-1 min-w-0 px-3 text-sm outline-none disabled:opacity-60"
                             />
                           </div>
                         </div>
-                      </div>
-                    )}
-
-                    {method === 'paypal' && (
-                      <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-[13px] text-blue-800">
-                        You'll be redirected to PayPal to complete payment securely.
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                        Email
-                      </label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="you@example.com"
-                          disabled={isProcessing}
-                          className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                        Name <span className="text-gray-400 font-normal">(optional)</span>
-                      </label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                          type="text"
-                          value={customerName}
-                          onChange={(e) => setCustomerName(e.target.value)}
-                          placeholder="Full name"
-                          disabled={isProcessing}
-                          className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isProcessing}
-                      className="w-full h-11 bg-[#0a2540] hover:bg-[#152a45] text-white rounded-lg font-semibold text-[15px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                    >
-                      {isProcessing ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Processing…
-                        </>
-                      ) : (
-                        <>Pay {formatPrice(displayAmount, paymentLink.currency)}</>
                       )}
-                    </button>
 
-                    <p className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
-                      <Shield className="w-3 h-3 text-emerald-500" />
-                      Secure payment
-                    </p>
-                  </>
-                )}
-              </form>
-            )}
+                      {method === 'card' && (
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                              Card number
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="4242 4242 4242 4242"
+                              disabled={isProcessing}
+                              className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                                Expiry
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="MM / YY"
+                                disabled={isProcessing}
+                                className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                                CVC
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="123"
+                                disabled={isProcessing}
+                                className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {method === 'paypal' && (
+                        <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-[13px] text-blue-800">
+                          You'll be redirected to PayPal to complete payment securely.
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                          Email
+                        </label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="you@example.com"
+                            disabled={isProcessing}
+                            className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                          Name <span className="text-gray-400 font-normal">(optional)</span>
+                        </label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            value={customerName}
+                            onChange={(e) => setCustomerName(e.target.value)}
+                            placeholder="Full name"
+                            disabled={isProcessing}
+                            className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isProcessing}
+                        className="w-full h-11 bg-[#0a2540] hover:bg-[#152a45] text-white rounded-lg font-semibold text-[15px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                      >
+                        {isProcessing ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Processing…
+                          </>
+                        ) : (
+                          <>Pay {formatPrice(displayAmount, paymentLink.currency)}</>
+                        )}
+                      </button>
+
+                      <p className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
+                        <Shield className="w-3 h-3 text-emerald-500" />
+                        Secure payment
+                      </p>
+                    </>
+                  )}
+                </form>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      <footer className="lg:hidden border-t border-gray-100 px-6 py-5">
-        {poweredBy}
-      </footer>
-    </div>
+        <footer className="lg:hidden border-t border-gray-100 px-6 py-5">
+          {poweredBy}
+        </footer>
+      </div>
+    </>
   );
 }
