@@ -65,6 +65,9 @@ import {
   Layers,
   ChevronUp,
   UserCircle,
+  Store as StoreIcon,
+  Blocks,
+  Sparkles,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -91,6 +94,9 @@ const APP_ICON_MAP: Record<string, React.ComponentType<{ size?: number; classNam
   'kplc-token': Zap,
   'wallet-transactions': Wallet,
   'pos-terminal': MonitorSmartphone,
+  'kra-automation': FileText,
+  'chama-link': Users,
+  'marketplace': StoreIcon,
 };
 
 const APP_LABEL_MAP: Record<string, string> = {
@@ -101,6 +107,9 @@ const APP_LABEL_MAP: Record<string, string> = {
   'kplc-token': 'Buy KPLC Token',
   'wallet-transactions': 'Wallet Transactions',
   'pos-terminal': 'POS / Counter Pay',
+  'kra-automation': 'KRA Automation',
+  'chama-link': 'Chama Link',
+  'marketplace': 'Apps Marketplace',
 };
 
 const APP_HREF_MAP: Record<string, string> = {
@@ -111,6 +120,9 @@ const APP_HREF_MAP: Record<string, string> = {
   'kplc-token': '/dashboard/utilities/kplc',
   'wallet-transactions': '/dashboard/transactions/wallet',
   'pos-terminal': '/dashboard/pos',
+  'kra-automation': '/dashboard/ecosystem/kra-automation',
+  'chama-link': '/dashboard/ecosystem/chama-link',
+  'marketplace': '/dashboard/ecosystem/marketplace',
 };
 
 const PINNED_APPS_KEY = 'xecoflow_pinned_apps';
@@ -204,6 +216,17 @@ const sidebarSections: SidebarSection[] = [
     ],
   },
   {
+    title: 'ECOSYSTEM',
+    items: [
+      {
+        icon: StoreIcon,
+        label: 'Apps Marketplace',
+        href: '/dashboard/ecosystem/marketplace',
+        badge: 'NEW',
+      },
+    ],
+  },
+  {
     title: 'SYSTEM',
     items: [
       {
@@ -244,8 +267,9 @@ export default function Sidebar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Check if we're on the loan page
-  const isLoanPage = pathname?.startsWith('/dashboard/loans') || false;
+  // Check if we're on the loan page or ecosystem page (full page apps)
+  const isFullPageApp = pathname?.startsWith('/dashboard/loans') || 
+                         pathname?.startsWith('/dashboard/ecosystem') || false;
 
   // ─── Close menu when clicking outside ──────────────────────────────
   useEffect(() => {
@@ -351,17 +375,17 @@ export default function Sidebar() {
     return item.href !== undefined && item.href !== '';
   };
 
-  // ─── Special handler for Loan page with loading ──────────────────
-  const handleLoanClick = () => {
+  // ─── Special handler for full page apps (Loan, Ecosystem) ──────
+  const handleFullPageApp = (href: string) => {
     setShowLoading(true);
     setTimeout(() => {
-      router.push('/dashboard/loans');
+      router.push(href);
     }, 800);
   };
 
-  // Hide loading immediately when we're on the loan page
+  // Hide loading immediately when we're on the full page
   useEffect(() => {
-    if (pathname?.startsWith('/dashboard/loans')) {
+    if (pathname?.startsWith('/dashboard/loans') || pathname?.startsWith('/dashboard/ecosystem')) {
       setShowLoading(false);
     }
   }, [pathname]);
@@ -373,8 +397,8 @@ export default function Sidebar() {
     router.push('/login');
   };
 
-  // Don't render sidebar on loan page
-  if (isLoanPage) {
+  // Don't render sidebar on full page apps (loan, ecosystem)
+  if (isFullPageApp) {
     return null;
   }
 
@@ -387,14 +411,14 @@ export default function Sidebar() {
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/95 backdrop-blur-sm transition-all duration-500">
           <div className="text-center">
             <div className="flex items-center justify-center gap-3 mb-6">
-              <span className="text-3xl font-bold text-emerald-600">Imara Credit</span>
+              <span className="text-3xl font-bold text-emerald-600">XecoFlow</span>
             </div>
             
             <h2 className="text-3xl font-semibold text-gray-800 mb-3">
-              You are now redirected to Loans Products
+              Loading Application
             </h2>
             
-            <p className="text-gray-500 mb-8">Please wait while we prepare your loan options</p>
+            <p className="text-gray-500 mb-8">Please wait while we prepare your workspace</p>
             
             <div className="flex items-center justify-center gap-3">
               <div className="w-4 h-4 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
@@ -462,17 +486,17 @@ export default function Sidebar() {
                     const showExpanded = expanded[item.label] || false;
                     const isParentWithHref = !isLeaf && hasHref(item);
 
-                    // ─── Special: Loan item with collapse handler ──
+                    // ─── Special: Full page app items ──────────────────
                     if (item.label === 'Boost Biashara Loan' && item.href === '/dashboard/loans') {
                       return (
                         <button
                           key={item.label}
-                          onClick={handleLoanClick}
-                          className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${(
+                          onClick={() => handleFullPageApp(item.href!)}
+                          className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${
                             isActive
                               ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/5'
                               : 'text-slate-400 hover:bg-slate-800/50 hover:text-white border border-transparent'
-                          )}`}
+                          }`}
                         >
                           {item.icon && (
                             <item.icon
@@ -485,6 +509,36 @@ export default function Sidebar() {
                           <span className="truncate text-[13px]">{item.label}</span>
                           {item.badge && (
                             <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full">
+                              {item.badge}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    }
+
+                    // ─── Special: Apps Marketplace (full page) ──────
+                    if (item.label === 'Apps Marketplace' && item.href === '/dashboard/ecosystem/marketplace') {
+                      return (
+                        <button
+                          key={item.label}
+                          onClick={() => handleFullPageApp(item.href!)}
+                          className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${
+                            isActive
+                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/5'
+                              : 'text-slate-400 hover:bg-slate-800/50 hover:text-white border border-transparent'
+                          }`}
+                        >
+                          {item.icon && (
+                            <item.icon
+                              size={18}
+                              className={`flex-shrink-0 ${
+                                isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'
+                              }`}
+                            />
+                          )}
+                          <span className="truncate text-[13px]">{item.label}</span>
+                          {item.badge && (
+                            <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full animate-pulse">
                               {item.badge}
                             </span>
                           )}
