@@ -1,3 +1,4 @@
+// src/app/dashboard/transactions/withdraw-history/page.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -20,6 +21,8 @@ import {
   Smartphone,
   Landmark,
   CreditCard,
+  FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
 import { getToken, getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
@@ -79,8 +82,9 @@ export default function WithdrawHistoryPage() {
   const [merchantId, setMerchantId] = useState<string>('');
   const [merchantName, setMerchantName] = useState<string>('');
   const [withdrawData, setWithdrawData] = useState<WithdrawTransaction[]>([]);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
-  // ✅ Prevent duplicate logging
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
@@ -103,9 +107,9 @@ export default function WithdrawHistoryPage() {
           Ref: item.mpesa_receipt || item.id.slice(0, 8),
           Description: `Withdrawal to ${item.phone_number}`,
           Amount: Number(item.amount),
-          Balance: 0, // You can fetch this separately if needed
+          Balance: 0,
           Method: 'M-PESA',
-          status: item.status,
+          status: item.status || 'Pending',
           Posted_Time: new Date(item.created_at).toLocaleString(),
           recipient: item.phone_number,
           phoneNumber: item.phone_number,
@@ -134,7 +138,6 @@ export default function WithdrawHistoryPage() {
       }
     }
 
-    // ✅ Fetch real withdrawals
     fetchWithdrawals();
 
     setTimeout(() => {
@@ -142,7 +145,7 @@ export default function WithdrawHistoryPage() {
     }, 500);
   }, [router]);
 
-  // ─── Log View - Only once per page visit ──────────────────────
+  // ─── Log View ──────────────────────────────────────────────────────
   useEffect(() => {
     const logView = async () => {
       if (isLoggingView.current || hasLoggedView.current) {
@@ -158,7 +161,6 @@ export default function WithdrawHistoryPage() {
             `Viewed withdraw history for ${merchantName || 'business'}`
           );
           hasLoggedView.current = true;
-          console.log('✅ Withdraw history view logged');
         }
       } catch (error) {
         console.debug('Withdraw history view logging skipped:', error);
@@ -187,11 +189,77 @@ export default function WithdrawHistoryPage() {
   const pendingCount = filteredData.filter(t => t.status === 'Pending').length;
   const failedCount = filteredData.filter(t => t.status === 'Failed').length;
 
+  // ─── Export Functions ─────────────────────────────────────────────
+  const exportToCSV = (data: WithdrawTransaction[]) => {
+    const headers = [
+      'Posted Time',
+      'Reference',
+      'Description',
+      'Amount (KES)',
+      'Balance (KES)',
+      'Method',
+      'Status',
+      'Recipient'
+    ];
+
+    const rows = data.map(tx => [
+      tx.Posted_Time,
+      tx.Ref,
+      tx.Description,
+      tx.Amount.toFixed(2),
+      tx.Balance.toFixed(2),
+      tx.Method,
+      tx.status,
+      tx.recipient
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    return csvContent;
+  };
+
+  const handleExport = (format: 'csv' | 'excel') => {
+    if (filteredData.length === 0) {
+      alert('No transactions to export');
+      return;
+    }
+
+    setIsExporting(true);
+    setShowExportMenu(false);
+
+    try {
+      const csvData = exportToCSV(filteredData);
+      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      const date = new Date().toISOString().split('T')[0];
+      const filename = `withdraw_history_${date}.${format === 'csv' ? 'csv' : 'xlsx'}`;
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      log('Exported transactions', `Exported ${filteredData.length} withdrawal transactions as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export transactions. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // ─── Handlers ──────────────────────────────────────────────────────
   const handleRefresh = () => {
     setIsRefreshing(true);
     hasLoggedView.current = false;
-    fetchWithdrawals(); // ✅ Refresh data
+    fetchWithdrawals();
     setTimeout(() => {
       setIsRefreshing(false);
       setLoading(false);
@@ -219,32 +287,29 @@ export default function WithdrawHistoryPage() {
     }).format(amount);
   };
 
-  // ─── Status Badge ──────────────────────────────────────────────────
   const StatusBadge = ({ status }: { status: string }) => {
     const StatusIcon = statusIcons[status as keyof typeof statusIcons] || Clock;
     const colorKey = status as keyof typeof statusColors;
     const color = statusColors[colorKey] || 'bg-gray-50 text-gray-700 border-gray-200';
     return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color}`}>
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color} whitespace-nowrap`}>
         <StatusIcon className="w-3 h-3" />
         {status}
       </span>
     );
   };
 
-  // ─── Method Badge ──────────────────────────────────────────────────
   const MethodBadge = ({ method }: { method: string }) => {
     const Icon = methodIcons[method as keyof typeof methodIcons] || CreditCard;
     const color = methodColors[method as keyof typeof methodColors] || 'bg-gray-50 text-gray-600 border-gray-200';
     return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color}`}>
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color} whitespace-nowrap`}>
         <Icon className="w-3 h-3" />
         {method}
       </span>
     );
   };
 
-  // ─── Loading State ────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -257,7 +322,7 @@ export default function WithdrawHistoryPage() {
   }
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-6">
+    <div className="max-w-[1400px] mx-auto space-y-6 px-4 sm:px-6">
       {/* ─── Page Header ────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -280,94 +345,132 @@ export default function WithdrawHistoryPage() {
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </button>
-          <button className="px-4 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-sm shadow-rose-200">
-            <Download className="w-4 h-4" />
-            Export
-          </button>
-        </div>
-      </div>
-
-      {/* ─── Summary Cards ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Total Withdrawn</p>
-          <p className="text-xl font-bold text-rose-600 mt-1">{formatCurrency(totalWithdrawn)}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Successful</p>
-          <p className="text-xl font-bold text-emerald-600 mt-1">{completedCount}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Pending</p>
-          <p className="text-xl font-bold text-amber-600 mt-1">{pendingCount}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Failed</p>
-          <p className="text-xl font-bold text-red-600 mt-1">{failedCount}</p>
-        </div>
-      </div>
-
-      {/* ─── Filters & Search ───────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1 relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search by description, reference, or recipient..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all shadow-sm"
-          />
-        </div>
-        <div className="flex gap-2">
-          <select
-            value={filterMethod}
-            onChange={(e) => setFilterMethod(e.target.value)}
-            className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 appearance-none pr-10 shadow-sm"
-          >
-            <option value="All">All Methods</option>
-            <option value="M-PESA">📱 M-PESA</option>
-            <option value="Bank Transfer">🏦 Bank Transfer</option>
-          </select>
-          <button className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap">
-            <Filter className="w-4 h-4" />
-            Filter
-          </button>
-          <div className="flex items-center px-4 py-2 bg-gray-50 rounded-xl text-sm text-gray-500 border border-gray-200">
-            <span className="font-medium text-gray-700">{filteredData.length}</span>
-            <span className="ml-1">transactions</span>
+          
+          {/* Export Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              disabled={isExporting}
+              className="px-4 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-sm shadow-rose-200 disabled:opacity-50"
+            >
+              {isExporting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              {isExporting ? 'Exporting...' : 'Export'}
+            </button>
+            
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
+                <button
+                  onClick={() => handleExport('csv')}
+                  className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors border-b border-gray-100"
+                >
+                  <FileText className="w-4 h-4 text-rose-500" />
+                  <span>Export as CSV</span>
+                </button>
+                <button
+                  onClick={() => handleExport('excel')}
+                  className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-rose-500" />
+                  <span>Export as Excel</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ─── Table ───────────────────────────────────────────────────── */}
+      {/* ─── Summary Cards (Sticky) ─────────────────────────────────── */}
+      <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm -mx-4 px-4 py-3 -mt-1 border-b border-gray-200/50">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+            <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Total Withdrawn</p>
+            <p className="text-xl font-bold text-rose-600 mt-1">{formatCurrency(totalWithdrawn)}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+            <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Successful</p>
+            <p className="text-xl font-bold text-emerald-600 mt-1">{completedCount}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+            <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Pending</p>
+            <p className="text-xl font-bold text-amber-600 mt-1">{pendingCount}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+            <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Failed</p>
+            <p className="text-xl font-bold text-red-600 mt-1">{failedCount}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Filters & Search (Sticky) ──────────────────────────────── */}
+      <div className="sticky top-[88px] z-10 bg-gray-50/95 backdrop-blur-sm -mx-4 px-4 py-3 -mt-1 border-b border-gray-200/50">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1 relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search by description, reference, or recipient..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all shadow-sm"
+            />
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <select
+              value={filterMethod}
+              onChange={(e) => setFilterMethod(e.target.value)}
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 appearance-none pr-10 shadow-sm"
+            >
+              <option value="All">All Methods</option>
+              <option value="M-PESA">M-PESA</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+            </select>
+            <button className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap">
+              <Filter className="w-4 h-4" />
+              Filter
+            </button>
+            <div className="flex items-center px-4 py-2 bg-gray-50 rounded-xl text-sm text-gray-500 border border-gray-200 whitespace-nowrap">
+              <span className="font-medium text-gray-700">{filteredData.length}</span>
+              <span className="ml-1">transactions</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Table with Fixed Header and Scrollable Body ────────────── */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/80">
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Posted Time</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Reference</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Method</th>
-                <th className="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Balance</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+        <div className="overflow-y-auto max-h-[500px]">
+          <table className="w-full text-sm table-fixed min-w-[700px]">
+            <thead className="sticky top-0 z-10">
+              <tr className="border-b border-gray-200 bg-gray-100">
+                <th className="w-[140px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Posted Time</th>
+                <th className="w-[100px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Reference</th>
+                <th className="w-[130px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Description</th>
+                <th className="w-[100px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Method</th>
+                <th className="w-[100px] px-3 py-3.5 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
+                <th className="w-[100px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody>
               {filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-16 text-center">
+                  <td colSpan={6} className="px-3 py-16 text-center">
                     <div className="flex flex-col items-center gap-4">
                       <div className="p-4 bg-rose-50 rounded-full">
                         <History className="w-14 h-14 text-rose-400" />
                       </div>
                       <div>
                         <p className="text-gray-500 font-medium text-lg">No withdrawal history</p>
-                        <p className="text-sm text-gray-400 mt-1">Your withdrawal transactions will appear here</p>
+                        <p className="text-sm text-gray-400 mt-1">
+                          {withdrawData.length > 0 
+                            ? 'No transactions match your search criteria'
+                            : 'Your withdrawal transactions will appear here'}
+                        </p>
                       </div>
                     </div>
                   </td>
@@ -378,31 +481,26 @@ export default function WithdrawHistoryPage() {
                     <tr
                       key={index}
                       onClick={() => handleViewDetails(tx)}
-                      className="border-b border-gray-50 hover:bg-gray-50/70 transition-colors cursor-pointer group"
+                      className="border-b border-gray-100 hover:bg-gray-50/70 transition-colors cursor-pointer group"
                     >
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-3 py-3.5">
                         <span className="text-sm text-gray-700">{tx.Posted_Time}</span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-gray-500 group-hover:text-rose-600 transition-colors">
-                            {tx.Ref}
-                          </span>
-                        </div>
+                      <td className="px-3 py-3.5">
+                        <span className="font-mono text-xs text-gray-500 group-hover:text-rose-600 transition-colors">
+                          {tx.Ref}
+                        </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-700">{tx.Description}</span>
+                      <td className="px-3 py-3.5">
+                        <span className="text-sm text-gray-700 truncate block">{tx.Description}</span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-3 py-3.5">
                         <MethodBadge method={tx.Method} />
                       </td>
-                      <td className="px-6 py-4 text-right font-semibold text-rose-600">
+                      <td className="px-3 py-3.5 text-right font-semibold text-rose-600">
                         - {formatCurrency(tx.Amount)}
                       </td>
-                      <td className="px-6 py-4 text-right font-medium text-gray-900">
-                        {formatCurrency(tx.Balance)}
-                      </td>
-                      <td className="px-6 py-4">
+                      <td className="px-3 py-3.5">
                         <StatusBadge status={tx.status} />
                       </td>
                     </tr>
@@ -413,13 +511,12 @@ export default function WithdrawHistoryPage() {
           </table>
         </div>
 
-        {/* ─── Footer ────────────────────────────────────────────────── */}
         {filteredData.length > 0 && (
-          <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
-            <span className="text-xs text-gray-400">
-              Showing all {filteredData.length} withdrawals
+          <div className="px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-2 bg-gray-50/80">
+            <span className="text-xs text-gray-500">
+              Showing {filteredData.length} of {withdrawData.length} transactions
             </span>
-            <span className="text-xs text-gray-400 flex items-center gap-1">
+            <span className="text-xs text-gray-500 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
               Last updated: {new Date().toLocaleString()}
             </span>
@@ -429,13 +526,13 @@ export default function WithdrawHistoryPage() {
 
       {/* ─── View Details Modal ──────────────────────────────────────── */}
       {showModal && selectedTransaction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
               <div className="flex items-center gap-3">
                 <div className="w-3 h-3 rounded-full bg-rose-500" />
                 <h3 className="text-lg font-bold text-gray-900">Withdrawal Details</h3>
-                <span className="text-xs text-gray-400 font-mono ml-2">#{selectedTransaction.id}</span>
+                <span className="text-xs text-gray-400 font-mono ml-2">#{selectedTransaction.id.slice(0, 8)}</span>
               </div>
               <button
                 onClick={() => setShowModal(false)}
@@ -446,11 +543,11 @@ export default function WithdrawHistoryPage() {
             </div>
 
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="bg-gray-50 rounded-xl p-4">
                     <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Reference</p>
-                    <p className="font-mono text-sm text-gray-900 mt-1">{selectedTransaction.Ref}</p>
+                    <p className="font-mono text-sm text-gray-900 mt-1 break-all">{selectedTransaction.Ref}</p>
                     <button
                       onClick={() => handleCopy(selectedTransaction.Ref)}
                       className="mt-1 text-xs text-rose-600 hover:text-rose-700 flex items-center gap-1"
@@ -462,7 +559,7 @@ export default function WithdrawHistoryPage() {
 
                   <div className="bg-gray-50 rounded-xl p-4">
                     <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Description</p>
-                    <p className="text-sm text-gray-900 mt-1">{selectedTransaction.Description}</p>
+                    <p className="text-sm text-gray-900 mt-1 break-words">{selectedTransaction.Description}</p>
                   </div>
 
                   <div className="bg-gray-50 rounded-xl p-4">
@@ -472,17 +569,17 @@ export default function WithdrawHistoryPage() {
 
                   <div className="bg-gray-50 rounded-xl p-4">
                     <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Recipient</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{selectedTransaction.recipient}</p>
+                    <p className="text-sm font-medium text-gray-900 mt-1 break-words">{selectedTransaction.recipient}</p>
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   <div className="bg-gradient-to-br from-rose-50 to-rose-100/50 rounded-xl p-4 border border-rose-200/50">
                     <p className="text-xs text-gray-500 uppercase font-medium tracking-wider">Amount</p>
-                    <p className="text-3xl font-bold text-rose-700 mt-1">
+                    <p className="text-3xl font-bold text-rose-700 mt-1 break-words">
                       - {formatCurrency(selectedTransaction.Amount)}
                     </p>
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border bg-rose-50 text-rose-700 border-rose-200">
                         <ArrowUpRight className="w-3 h-3" />
                         Debit
@@ -514,7 +611,6 @@ export default function WithdrawHistoryPage() {
                 </div>
               </div>
 
-              {/* ─── Actions ────────────────────────────────────────── */}
               <div className="mt-6 pt-4 border-t border-gray-100 flex flex-wrap gap-3">
                 <button
                   onClick={() => handleCopy(selectedTransaction.Ref)}
@@ -523,7 +619,10 @@ export default function WithdrawHistoryPage() {
                   <Copy className="w-4 h-4" />
                   Copy Reference
                 </button>
-                <button className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2">
+                <button 
+                  onClick={() => window.print()}
+                  className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2"
+                >
                   <Printer className="w-4 h-4" />
                   Print
                 </button>
