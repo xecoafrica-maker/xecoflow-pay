@@ -206,16 +206,6 @@ const sidebarSections: SidebarSection[] = [
     ],
   },
   {
-    title: 'FINANCE',
-    items: [
-      {
-        icon: TrendingUp,
-        label: 'Boost Biashara Loan',
-        href: '/dashboard/loans',
-      },
-    ],
-  },
-  {
     title: 'ECOSYSTEM',
     items: [
       {
@@ -223,6 +213,12 @@ const sidebarSections: SidebarSection[] = [
         label: 'Apps Marketplace',
         href: '/dashboard/ecosystem/marketplace',
         badge: 'NEW',
+      },
+      // Finance items moved here
+      {
+        icon: TrendingUp,
+        label: 'Boost Biashara Loan',
+        href: '/dashboard/loans',
       },
     ],
   },
@@ -486,38 +482,12 @@ export default function Sidebar() {
                     const showExpanded = expanded[item.label] || false;
                     const isParentWithHref = !isLeaf && hasHref(item);
 
-                    // ─── Special: Full page app items ──────────────────
-                    if (item.label === 'Boost Biashara Loan' && item.href === '/dashboard/loans') {
-                      return (
-                        <button
-                          key={item.label}
-                          onClick={() => handleFullPageApp(item.href!)}
-                          className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${
-                            isActive
-                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/5'
-                              : 'text-slate-400 hover:bg-slate-800/50 hover:text-white border border-transparent'
-                          }`}
-                        >
-                          {item.icon && (
-                            <item.icon
-                              size={18}
-                              className={`flex-shrink-0 ${
-                                isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'
-                              }`}
-                            />
-                          )}
-                          <span className="truncate text-[13px]">{item.label}</span>
-                          {item.badge && (
-                            <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full">
-                              {item.badge}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    }
+                    // ─── Full page app items (Loan, Marketplace) ──
+                    const isFullPageItem = 
+                      (item.label === 'Boost Biashara Loan' && item.href === '/dashboard/loans') ||
+                      (item.label === 'Apps Marketplace' && item.href === '/dashboard/ecosystem/marketplace');
 
-                    // ─── Special: Apps Marketplace (full page) ──────
-                    if (item.label === 'Apps Marketplace' && item.href === '/dashboard/ecosystem/marketplace') {
+                    if (isFullPageItem) {
                       return (
                         <button
                           key={item.label}
@@ -538,7 +508,9 @@ export default function Sidebar() {
                           )}
                           <span className="truncate text-[13px]">{item.label}</span>
                           {item.badge && (
-                            <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full animate-pulse">
+                            <span className={`ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full ${
+                              item.label === 'Apps Marketplace' ? 'animate-pulse' : ''
+                            }`}>
                               {item.badge}
                             </span>
                           )}
