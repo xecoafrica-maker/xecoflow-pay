@@ -3,16 +3,17 @@ import type { NextRequest } from 'next/server';
 
 // ─── SECURE CONFIGURATION ──────────────────────────────────────────
 const CONFIG = {
-  // Token expiry checks - 5 minutes session
-  TOKEN_EXPIRY_BUFFER: 30, // ← Changed from 5*60 (5 minutes) to 30 seconds
-  MAX_TOKEN_AGE: 5 * 60, // ← Changed from 7 days to 5 minutes in seconds
+  // Token expiry checks
+  TOKEN_EXPIRY_BUFFER: 30, // 30 seconds buffer
+  MAX_TOKEN_AGE: 5 * 60, // 5 minutes
   
   // Security headers - ✅ FIXED: Added WebSocket URLs
   CSP: "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://*.onrender.com wss://*.onrender.com ws://*.onrender.com https://api.ipify.org https://api.my-ip.io https://ipapi.co; frame-ancestors 'none';",
   
-  // Rate limiting
+  // Rate limiting - ✅ RELAXED for better UX
   RATE_LIMIT_WINDOW: 60, // 1 minute
-  RATE_LIMIT_MAX: 100, // 100 requests per minute
+  RATE_LIMIT_MAX: 500, // ✅ Increased from 100 to 500 requests per minute
+  AUTH_RATE_LIMIT_MAX: 20, // ✅ Separate limit for auth endpoints (password verification)
 };
 
 // ─── PUBLIC ROUTES (No auth required) ─────────────────────────────
@@ -41,6 +42,7 @@ const publicPaths = [
   '/api/webhooks/',
   '/api/auth/verify-email',
   '/api/auth/reset-password',
+  '/api/auth/verify-password', // ✅ Added to bypass rate limiting
   '/api/product-links/',
   '/api/payment-links/',
 ];
@@ -61,11 +63,23 @@ const protectedApiRoutes = [
 // ─── RATE LIMITER (In-memory - for Edge) ──────────────────────────
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
-function isRateLimited(ip: string): boolean {
+function isRateLimited(ip: string, pathname: string): boolean {
+  // ✅ Skip rate limiting for verify-password endpoint
+  if (pathname === '/api/auth/verify-password' || pathname.startsWith('/api/auth/verify-password')) {
+    return false;
+  }
+  
+  // ✅ Lower limit for auth endpoints
+  let maxRequests = CONFIG.RATE_LIMIT_MAX;
+  if (pathname.includes('/api/auth/')) {
+    maxRequests = CONFIG.AUTH_RATE_LIMIT_MAX;
+  }
+  
   const now = Date.now();
   const record = rateLimitStore.get(ip);
   
   if (!record || now > record.resetAt) {
+    // Reset the counter
     rateLimitStore.set(ip, {
       count: 1,
       resetAt: now + CONFIG.RATE_LIMIT_WINDOW * 1000,
@@ -73,7 +87,7 @@ function isRateLimited(ip: string): boolean {
     return false;
   }
   
-  if (record.count >= CONFIG.RATE_LIMIT_MAX) {
+  if (record.count >= maxRequests) {
     return true;
   }
   
@@ -162,6 +176,12 @@ function getClientIp(request: NextRequest): string {
     return realIp;
   }
   
+  // Try Cloudflare
+  const cfConnectingIp = request.headers.get('cf-connecting-ip');
+  if (cfConnectingIp) {
+    return cfConnectingIp;
+  }
+  
   // Fallback to a default
   return 'unknown';
 }
@@ -209,7 +229,9 @@ export async function middleware(request: NextRequest) {
 
   // ─── 1. RATE LIMITING (Protect against DDoS) ─────────────────────
   const ip = getClientIp(request);
-  if (isRateLimited(ip)) {
+  
+  // ✅ Pass pathname to rate limiter
+  if (isRateLimited(ip, pathname)) {
     return new NextResponse('Too Many Requests', {
       status: 429,
       headers: {
