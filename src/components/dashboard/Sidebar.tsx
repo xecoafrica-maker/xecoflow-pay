@@ -88,7 +88,6 @@ interface SidebarSection {
 // ─── Pinned Apps Mapping ──────────────────────────────────────────
 const APP_ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
   'pamojafund': Handshake,
-  'boost-loan': TrendingUp,
   'airtime-retail': Smartphone,
   'airtime-bulk': Box,
   'kplc-token': Zap,
@@ -101,7 +100,6 @@ const APP_ICON_MAP: Record<string, React.ComponentType<{ size?: number; classNam
 
 const APP_LABEL_MAP: Record<string, string> = {
   'pamojafund': 'PamojaFund',
-  'boost-loan': 'Boost Biashara Loan',
   'airtime-retail': 'Retail Quick Top-Up',
   'airtime-bulk': 'Bulk Airtime',
   'kplc-token': 'Buy KPLC Token',
@@ -114,7 +112,6 @@ const APP_LABEL_MAP: Record<string, string> = {
 
 const APP_HREF_MAP: Record<string, string> = {
   'pamojafund': '/dashboard/pamojafund',
-  'boost-loan': '/dashboard/loans',
   'airtime-retail': '/dashboard/utilities/airtime/retail',
   'airtime-bulk': '/dashboard/utilities/airtime/bulk',
   'kplc-token': '/dashboard/utilities/kplc',
@@ -214,12 +211,6 @@ const sidebarSections: SidebarSection[] = [
         href: '/dashboard/ecosystem/marketplace',
         badge: 'NEW',
       },
-      // Finance items moved here
-      {
-        icon: TrendingUp,
-        label: 'Boost Biashara Loan',
-        href: '/dashboard/loans',
-      },
     ],
   },
   {
@@ -263,9 +254,8 @@ export default function Sidebar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Check if we're on the loan page or ecosystem page (full page apps)
-  const isFullPageApp = pathname?.startsWith('/dashboard/loans') || 
-                         pathname?.startsWith('/dashboard/ecosystem') || false;
+  // Check if we're on ecosystem page (full page apps)
+  const isFullPageApp = pathname?.startsWith('/dashboard/ecosystem') || false;
 
   // ─── Close menu when clicking outside ──────────────────────────────
   useEffect(() => {
@@ -371,7 +361,7 @@ export default function Sidebar() {
     return item.href !== undefined && item.href !== '';
   };
 
-  // ─── Special handler for full page apps (Loan, Ecosystem) ──────
+  // ─── Special handler for full page apps (Ecosystem) ──────────────
   const handleFullPageApp = (href: string) => {
     setShowLoading(true);
     setTimeout(() => {
@@ -381,7 +371,7 @@ export default function Sidebar() {
 
   // Hide loading immediately when we're on the full page
   useEffect(() => {
-    if (pathname?.startsWith('/dashboard/loans') || pathname?.startsWith('/dashboard/ecosystem')) {
+    if (pathname?.startsWith('/dashboard/ecosystem')) {
       setShowLoading(false);
     }
   }, [pathname]);
@@ -393,7 +383,7 @@ export default function Sidebar() {
     router.push('/login');
   };
 
-  // Don't render sidebar on full page apps (loan, ecosystem)
+  // Don't render sidebar on full page apps (ecosystem)
   if (isFullPageApp) {
     return null;
   }
@@ -482,12 +472,8 @@ export default function Sidebar() {
                     const showExpanded = expanded[item.label] || false;
                     const isParentWithHref = !isLeaf && hasHref(item);
 
-                    // ─── Full page app items (Loan, Marketplace) ──
-                    const isFullPageItem = 
-                      (item.label === 'Boost Biashara Loan' && item.href === '/dashboard/loans') ||
-                      (item.label === 'Apps Marketplace' && item.href === '/dashboard/ecosystem/marketplace');
-
-                    if (isFullPageItem) {
+                    // ─── Full page app: Apps Marketplace ──────────────
+                    if (item.label === 'Apps Marketplace' && item.href === '/dashboard/ecosystem/marketplace') {
                       return (
                         <button
                           key={item.label}
@@ -508,9 +494,7 @@ export default function Sidebar() {
                           )}
                           <span className="truncate text-[13px]">{item.label}</span>
                           {item.badge && (
-                            <span className={`ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full ${
-                              item.label === 'Apps Marketplace' ? 'animate-pulse' : ''
-                            }`}>
+                            <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full animate-pulse">
                               {item.badge}
                             </span>
                           )}
