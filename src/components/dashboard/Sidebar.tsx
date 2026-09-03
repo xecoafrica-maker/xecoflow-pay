@@ -265,6 +265,7 @@ export default function Sidebar() {
   const [passwordError, setPasswordError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [verificationSuccess, setVerificationSuccess] = useState(false);
 
   // Check if we're on ecosystem page (full page apps)
   const isFullPageApp = pathname?.startsWith('/dashboard/ecosystem') || false;
@@ -376,26 +377,43 @@ export default function Sidebar() {
     return item.href !== undefined && item.href !== '';
   };
 
-  // ─── Password Verification ─────────────────────────────────────────
+  // ─── Password Verification (FIXED) ──────────────────────────────────
   const verifyPassword = async (enteredPassword: string) => {
     try {
-      const token = localStorage.getItem('auth_token');
+      // 🔥 FIX: Try multiple token keys
+      const token = 
+        localStorage.getItem('auth_token') ||
+        localStorage.getItem('token') ||
+        localStorage.getItem('accessToken') ||
+        localStorage.getItem('xecoflow_token') ||
+        sessionStorage.getItem('auth_token') ||
+        sessionStorage.getItem('token');
+
+      console.log('🔍 [verifyPassword] Token found:', token ? '✅ Yes' : '❌ No');
+      
       if (!token) {
         setPasswordError('Please login again');
         return false;
       }
+
+      // Get merchant ID from stored merchant data
+      const storedMerchant = getStoredMerchant();
+      const merchantId = storedMerchant?.merchantId || storedMerchant?.merchant_id || '';
 
       const response = await fetch('/api/auth/verify-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
+          'X-Merchant-ID': merchantId,
         },
         body: JSON.stringify({ password: enteredPassword }),
       });
 
       const data = await response.json();
       
+      console.log('🔍 [verifyPassword] Response:', data);
+
       if (response.ok && data.success) {
         return true;
       } else {
@@ -403,6 +421,7 @@ export default function Sidebar() {
         return false;
       }
     } catch (error) {
+      console.error('Password verification error:', error);
       setPasswordError('Network error. Please try again.');
       return false;
     }
@@ -413,6 +432,7 @@ export default function Sidebar() {
     setPendingHref(href);
     setPassword('');
     setPasswordError('');
+    setVerificationSuccess(false);
     setShowPasswordModal(true);
   };
 
@@ -432,10 +452,13 @@ export default function Sidebar() {
     setIsVerifying(false);
 
     if (isValid && pendingHref) {
-      setShowPasswordModal(false);
-      setPassword('');
-      // Navigate to the app
-      handleFullPageApp(pendingHref);
+      setVerificationSuccess(true);
+      setTimeout(() => {
+        setShowPasswordModal(false);
+        setPassword('');
+        setVerificationSuccess(false);
+        handleFullPageApp(pendingHref);
+      }, 800);
     }
   };
 
@@ -457,6 +480,9 @@ export default function Sidebar() {
   // ─── Handle Sign Out ──────────────────────────────────────────────
   const handleSignOut = () => {
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('token');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('xecoflow_token');
     localStorage.removeItem('xecoflow_merchant');
     router.push('/login');
   };
@@ -543,6 +569,14 @@ export default function Sidebar() {
                     )}
                   </div>
 
+                  {/* Success Message */}
+                  {verificationSuccess && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-sm text-emerald-700">
+                      <CheckCircle className="w-4 h-4 text-emerald-500" />
+                      Password verified! Redirecting...
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div className="flex gap-3 pt-2">
                     <button
@@ -552,6 +586,7 @@ export default function Sidebar() {
                         setPassword('');
                         setPasswordError('');
                         setPendingHref(null);
+                        setVerificationSuccess(false);
                       }}
                       className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all"
                     >
@@ -559,7 +594,7 @@ export default function Sidebar() {
                     </button>
                     <button
                       type="submit"
-                      disabled={isVerifying || !password}
+                      disabled={isVerifying || !password || verificationSuccess}
                       className="flex-1 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isVerifying ? (
