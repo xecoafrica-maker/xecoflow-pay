@@ -18,6 +18,7 @@ import {
   Copy,
   Printer,
   Mail,
+  Eye,
   History,
   Loader2,
   Zap,
@@ -272,7 +273,8 @@ export default function WalletPage() {
       'Reference',
       'Description',
       'Amount (KES)',
-      'Balance (KES)',
+      'Balance Before (KES)',
+      'Balance After (KES)',
       'Type',
       'Status'
     ];
@@ -282,6 +284,7 @@ export default function WalletPage() {
       tx.Ref,
       tx.Description,
       tx.Amount.toFixed(2),
+      tx.BalanceBefore.toFixed(2),
       tx.BalanceAfter.toFixed(2),
       tx.Type,
       tx.status
@@ -528,13 +531,13 @@ export default function WalletPage() {
           <table className="w-full text-sm table-fixed min-w-[700px]">
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-gray-200 bg-gray-100">
-                <th className="w-[130px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Posted Time</th>
+                <th className="w-[140px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Posted Time</th>
                 <th className="w-[100px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Reference</th>
-                <th className="w-[140px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Description</th>
+                <th className="w-[130px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Description</th>
                 <th className="w-[100px] px-3 py-3.5 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
-                <th className="w-[100px] px-3 py-3.5 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Balance</th>
-                <th className="w-[90px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
-                <th className="w-[90px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                <th className="w-[120px] px-3 py-3.5 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Balance</th>
+                <th className="w-[100px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
+                <th className="w-[100px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -575,10 +578,10 @@ export default function WalletPage() {
                       className="border-b border-gray-100 hover:bg-gray-50/70 transition-colors cursor-pointer group"
                     >
                       <td className="px-3 py-3.5">
-                        <span className="text-sm text-gray-700 whitespace-nowrap">{tx.Posted_Time}</span>
+                        <span className="text-sm text-gray-700">{tx.Posted_Time}</span>
                       </td>
                       <td className="px-3 py-3.5">
-                        <span className="font-mono text-xs text-gray-500 group-hover:text-indigo-600 transition-colors truncate block">
+                        <span className="font-mono text-xs text-gray-500 group-hover:text-indigo-600 transition-colors">
                           {tx.Ref}
                         </span>
                       </td>
@@ -588,7 +591,7 @@ export default function WalletPage() {
                       <td className={`px-3 py-3.5 text-right font-semibold ${isCredit ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {isCredit ? '+' : '-'} {formatCurrency(tx.Amount)}
                       </td>
-                      <td className="px-3 py-3.5 text-right font-medium text-gray-900 whitespace-nowrap">
+                      <td className="px-3 py-3.5 text-right font-medium text-gray-900">
                         {formatCurrency(tx.BalanceAfter)}
                       </td>
                       <td className="px-3 py-3.5">
