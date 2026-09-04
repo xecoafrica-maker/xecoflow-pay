@@ -93,6 +93,7 @@ export default function PaymentLinkPage() {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const MAX_POLLING_ATTEMPTS = 30;
   const POLLING_INTERVAL = 3000;
+  const isConnectingRef = useRef(false);
 
   // ─── 1. FETCH PAYMENT LINK DATA ──────────────────────────────────
   useEffect(() => {
@@ -146,10 +147,19 @@ export default function PaymentLinkPage() {
     let socketInstance: any = null;
 
     const initWebSocket = async () => {
+      // Prevent multiple connection attempts
+      if (isConnectingRef.current) {
+        console.log('⏳ WebSocket connection already in progress');
+        return;
+      }
+
+      isConnectingRef.current = true;
+
       try {
+        // Use the same origin for WebSocket connection
         const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 
                        (typeof window !== 'undefined' && window.location.origin) ||
-                       'https://xecoflow-2gen.onrender.com';
+                       'wss://xecoflow-2gen.onrender.com';
 
         console.log('🔌 [WS] Connecting to:', WS_URL);
 
@@ -159,32 +169,46 @@ export default function PaymentLinkPage() {
           transports: ['websocket', 'polling'],
           withCredentials: true,
           reconnection: true,
-          reconnectionAttempts: 3,
+          reconnectionAttempts: 5,
           reconnectionDelay: 1000,
-          timeout: 5000,
+          reconnectionDelayMax: 5000,
+          timeout: 10000,
+          autoConnect: true
         });
 
+        // ─── Connection Events ──────────────────────────────────────
         socketInstance.on('connect', () => {
           if (isMounted) {
             console.log('✅ [WS] Connected:', socketInstance.id);
             setIsSocketConnected(true);
+            setIsWebSocketAvailable(true);
+            isConnectingRef.current = false;
           }
         });
 
-        socketInstance.on('disconnect', () => {
+        socketInstance.on('disconnect', (reason: string) => {
           if (isMounted) {
-            console.log('❌ [WS] Disconnected');
+            console.log('❌ [WS] Disconnected:', reason);
             setIsSocketConnected(false);
           }
         });
 
         socketInstance.on('connect_error', (error: any) => {
-          console.warn('⚠️ [WS] Connection error (non-blocking):', error?.message);
+          console.warn('⚠️ [WS] Connection error:', error?.message);
+          if (isMounted) {
+            setIsSocketConnected(false);
+            // Don't mark as unavailable on first error, let it retry
+          }
+        });
+
+        socketInstance.on('connect_timeout', () => {
+          console.warn('⏰ [WS] Connection timeout');
           if (isMounted) {
             setIsSocketConnected(false);
           }
         });
 
+        // ─── Payment Status Events ──────────────────────────────────
         socketInstance.on('payment:status', (data: any) => {
           console.log('📡 [WS] Payment status update:', data);
           
@@ -210,22 +234,32 @@ export default function PaymentLinkPage() {
           }
         });
 
+        // ─── Error Events ────────────────────────────────────────────
+        socketInstance.on('error', (error: any) => {
+          console.error('❌ [WS] Socket error:', error);
+        });
+
         socketRef.current = socketInstance;
 
       } catch (error) {
         console.warn('⚠️ [WS] WebSocket not available, using polling fallback only');
-        setIsWebSocketAvailable(false);
-        setIsSocketConnected(false);
+        if (isMounted) {
+          setIsWebSocketAvailable(false);
+          setIsSocketConnected(false);
+          isConnectingRef.current = false;
+        }
       }
     };
 
+    // Delay connection to allow page to load
     const timeoutId = setTimeout(() => {
       initWebSocket();
-    }, 500);
+    }, 1000);
 
     return () => {
       isMounted = false;
       clearTimeout(timeoutId);
+      isConnectingRef.current = false;
       if (socketInstance) {
         socketInstance.disconnect();
         socketInstance = null;
@@ -240,6 +274,7 @@ export default function PaymentLinkPage() {
   // ─── Register for Payment Updates ────────────────────────────────
   const registerForPaymentUpdates = (checkoutId: string, transactionId: string) => {
     try {
+      // Check if socket exists and is connected
       if (socketRef.current && socketRef.current.connected) {
         socketRef.current.emit('register:payment', {
           checkoutId: checkoutId,
@@ -247,11 +282,16 @@ export default function PaymentLinkPage() {
         });
         console.log(`📡 [WS] Registered for checkout: ${checkoutId}, transaction: ${transactionId}`);
         return true;
+      } else {
+        console.warn('⚠️ [WS] Socket not connected, state:', {
+          hasSocket: !!socketRef.current,
+          connected: socketRef.current?.connected || false
+        });
       }
     } catch (error) {
       console.warn('⚠️ [WS] Registration failed (non-blocking):', error);
     }
-    console.warn('⚠️ [WS] Socket not connected, using polling fallback');
+    console.warn('⚠️ [WS] Using polling fallback');
     return false;
   };
 
@@ -386,9 +426,10 @@ export default function PaymentLinkPage() {
           setPaymentStatus('pending');
           
           // ─── 🔥 TRY WEBSOCKET (non-blocking) ─────────────────────
+          let wsRegistered = false;
           if (ckId && isWebSocketAvailable) {
             try {
-              registerForPaymentUpdates(ckId, txId);
+              wsRegistered = registerForPaymentUpdates(ckId, txId);
             } catch (wsError) {
               console.warn('WebSocket registration failed, using polling');
             }
@@ -397,7 +438,7 @@ export default function PaymentLinkPage() {
           // ─── START POLLING (always) ─────────────────────────────
           pollPaymentStatus(txId);
           
-          console.log(`📡 Payment initiated. WebSocket: ${isSocketConnected ? '✅' : '❌'}, Polling: ✅`);
+          console.log(`📡 Payment initiated. WebSocket: ${wsRegistered ? '✅' : '❌'}, Polling: ✅`);
         } else {
           setPaymentStatus('error');
           setErrorMessage('No transaction ID received. Please try again.');
