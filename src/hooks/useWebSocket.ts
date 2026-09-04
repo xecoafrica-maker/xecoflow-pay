@@ -8,6 +8,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 
+export interface WebSocketState {
+  isConnected: boolean;
+  isAvailable: boolean;
+  socketId: string | null;
+  error: string | null;
+  reconnectAttempts: number;
+}
+
 export interface WebSocketOptions {
   merchantId?: string;
   userId?: string;
@@ -22,14 +30,6 @@ export interface WebSocketOptions {
   onWithdrawalUpdate?: (data: any) => void;
   onNotification?: (data: any) => void;
   onStatsUpdate?: (data: any) => void;
-}
-
-interface WebSocketState {
-  isConnected: boolean;
-  isAvailable: boolean;
-  socketId: string | null;
-  error: string | null;
-  reconnectAttempts: number;
 }
 
 export function useWebSocket(options: WebSocketOptions = {}) {
@@ -62,12 +62,69 @@ export function useWebSocket(options: WebSocketOptions = {}) {
   const isRegisteredRef = useRef(false);
   const maxReconnectAttempts = 5;
   const reconnectDelay = 2000;
+  const registrationAttempts = useRef(0);
+  const maxRegistrationAttempts = 10;
 
-  // ─── Connect to WebSocket ──────────────────────────────────────
+  // ─── Register Merchant with retry ──────────────────────────────────
+  const registerMerchant = useCallback((socket?: Socket) => {
+    const sock = socket || socketRef.current;
+    
+    if (!sock) {
+      console.warn('Cannot register: socket not initialized');
+      return false;
+    }
+
+    if (!sock.connected) {
+      console.warn('Cannot register: socket not connected. Current state:', sock.connected);
+      // Schedule retry
+      if (registrationAttempts.current < maxRegistrationAttempts) {
+        registrationAttempts.current += 1;
+        setTimeout(() => {
+          console.log(`🔄 Retrying registration (attempt ${registrationAttempts.current}/${maxRegistrationAttempts})...`);
+          registerMerchant(sock);
+        }, 1000 * registrationAttempts.current);
+      } else {
+        console.error('❌ Max registration attempts reached');
+        setState(prev => ({
+          ...prev,
+          isAvailable: false,
+          error: 'Failed to register after multiple attempts'
+        }));
+      }
+      return false;
+    }
+
+    if (!merchantId) {
+      console.warn('Cannot register: merchantId not provided');
+      return false;
+    }
+
+    // Reset registration attempts on success
+    registrationAttempts.current = 0;
+
+    const registrationData = {
+      merchantId,
+      userId: userId || merchantId,
+      businessName: businessName || 'Merchant',
+      subscriptions
+    };
+
+    console.log('📡 Registering merchant:', merchantId, 'with data:', registrationData);
+    sock.emit('register:merchant', registrationData);
+    isRegisteredRef.current = true;
+    return true;
+  }, [merchantId, userId, businessName, subscriptions]);
+
+  // ─── Connect to WebSocket ──────────────────────────────────────────
   const connect = useCallback(() => {
     try {
+      // Close existing connection if any
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+
       const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 
-                     (typeof window !== 'undefined' && window.location.origin) ||
                      'wss://xecoflow-2gen.onrender.com';
 
       console.log('🔌 Connecting to WebSocket:', WS_URL);
@@ -76,14 +133,14 @@ export function useWebSocket(options: WebSocketOptions = {}) {
         transports: ['websocket', 'polling'],
         withCredentials: true,
         reconnection: true,
-        reconnectionAttempts: 3,
+        reconnectionAttempts: 5,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         timeout: 10000,
         autoConnect: true
       });
 
-      // ─── Connection Events ──────────────────────────────────
+      // ─── Connection Events ──────────────────────────────────────
       socket.on('connect', () => {
         console.log('✅ WebSocket connected:', socket.id);
         setState(prev => ({
@@ -95,9 +152,15 @@ export function useWebSocket(options: WebSocketOptions = {}) {
           reconnectAttempts: 0
         }));
 
-        // Register merchant if we have an ID
-        if (merchantId && !isRegisteredRef.current) {
-          registerMerchant(socket);
+        // Reset registration attempts on successful connection
+        registrationAttempts.current = 0;
+
+        // Register merchant immediately after connection
+        if (merchantId) {
+          // Small delay to ensure connection is fully established
+          setTimeout(() => {
+            registerMerchant(socket);
+          }, 100);
         }
 
         onConnect?.();
@@ -133,12 +196,17 @@ export function useWebSocket(options: WebSocketOptions = {}) {
         onError?.(error);
       });
 
-      // ─── Merchant Events ──────────────────────────────────────
+      // ─── Merchant Events ──────────────────────────────────────────
       
       // Registration confirmation
       socket.on('merchant:registered', (data) => {
-        console.log('📊 Merchant registered:', data);
+        console.log('✅ Merchant registered successfully:', data);
         isRegisteredRef.current = true;
+        setState(prev => ({
+          ...prev,
+          isConnected: true,
+          error: null
+        }));
       });
 
       // Balance updates
@@ -195,6 +263,16 @@ export function useWebSocket(options: WebSocketOptions = {}) {
         }));
       });
 
+      // Handle connection timeout for registration
+      socket.on('connect_timeout', () => {
+        console.warn('⚠️ Connection timeout');
+        setState(prev => ({
+          ...prev,
+          isAvailable: false,
+          error: 'Connection timeout'
+        }));
+      });
+
       socketRef.current = socket;
 
     } catch (error) {
@@ -206,69 +284,48 @@ export function useWebSocket(options: WebSocketOptions = {}) {
       }));
       onError?.(error);
     }
-  }, [merchantId, onConnect, onDisconnect, onError, onBalanceUpdate, onPaymentUpdate, onTransactionUpdate, onWithdrawalUpdate, onNotification, onStatsUpdate]);
-
-  // ─── Register Merchant ──────────────────────────────────────────
-  const registerMerchant = useCallback((socket?: Socket) => {
-    const sock = socket || socketRef.current;
-    if (!sock || !sock.connected) {
-      console.warn('Cannot register: socket not connected');
-      return;
-    }
-
-    if (!merchantId) {
-      console.warn('Cannot register: merchantId not provided');
-      return;
-    }
-
-    const registrationData = {
-      merchantId,
-      userId: userId || merchantId,
-      businessName: businessName || 'Merchant',
-      subscriptions
-    };
-
-    sock.emit('register:merchant', registrationData);
-    console.log('📡 Registering merchant:', merchantId);
-  }, [merchantId, userId, businessName, subscriptions]);
+  }, [merchantId, onConnect, onDisconnect, onError, onBalanceUpdate, onPaymentUpdate, onTransactionUpdate, onWithdrawalUpdate, onNotification, onStatsUpdate, registerMerchant, state.reconnectAttempts]);
 
   // ─── Subscribe to Analytics ──────────────────────────────────────
   const subscribeToAnalytics = useCallback((metrics?: string[]) => {
     if (!socketRef.current || !socketRef.current.connected) {
       console.warn('Cannot subscribe: socket not connected');
-      return;
+      return false;
     }
 
     socketRef.current.emit('subscribe:analytics', {
       merchantId,
       metrics: metrics || ['transactions', 'balance', 'payments']
     });
+    return true;
   }, [merchantId]);
 
-  // ─── Subscribe to Transactions ───────────────────────────────────
+  // ─── Subscribe to Transactions ────────────────────────────────────
   const subscribeToTransactions = useCallback((limit?: number) => {
     if (!socketRef.current || !socketRef.current.connected) {
       console.warn('Cannot subscribe: socket not connected');
-      return;
+      return false;
     }
 
     socketRef.current.emit('subscribe:transactions', {
       merchantId,
       limit: limit || 10
     });
+    return true;
   }, [merchantId]);
 
-  // ─── Request Stats ──────────────────────────────────────────────
+  // ─── Request Stats ───────────────────────────────────────────────
   const requestStats = useCallback(() => {
     if (!socketRef.current || !socketRef.current.connected) {
       console.warn('Cannot request stats: socket not connected');
-      return;
+      return false;
     }
 
     socketRef.current.emit('request:stats', { merchantId });
+    return true;
   }, [merchantId]);
 
-  // ─── Disconnect ──────────────────────────────────────────────────
+  // ─── Disconnect ───────────────────────────────────────────────────
   const disconnect = useCallback(() => {
     if (socketRef.current) {
       socketRef.current.disconnect();
@@ -280,9 +337,10 @@ export function useWebSocket(options: WebSocketOptions = {}) {
       socketId: null
     }));
     isRegisteredRef.current = false;
+    registrationAttempts.current = 0;
   }, []);
 
-  // ─── Reconnect ──────────────────────────────────────────────────
+  // ─── Reconnect ───────────────────────────────────────────────────
   const reconnect = useCallback(() => {
     if (socketRef.current) {
       socketRef.current.connect();
@@ -291,7 +349,7 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     }
   }, [connect]);
 
-  // ─── Effect: Connect on mount ──────────────────────────────────
+  // ─── Effect: Connect on mount ───────────────────────────────────
   useEffect(() => {
     if (merchantId) {
       connect();
@@ -305,14 +363,33 @@ export function useWebSocket(options: WebSocketOptions = {}) {
     };
   }, [merchantId, connect, disconnect]);
 
-  // ─── Effect: Reconnect on merchantId change ────────────────────
+  // ─── Effect: Reconnect on merchantId change ─────────────────────
   useEffect(() => {
     if (merchantId && socketRef.current) {
       // Re-register with new merchant ID
       isRegisteredRef.current = false;
-      registerMerchant();
+      setTimeout(() => {
+        registerMerchant();
+      }, 500);
     }
   }, [merchantId, registerMerchant]);
+
+  // ─── Effect: Check connection status periodically ───────────────
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (socketRef.current) {
+        const isConnected = socketRef.current.connected;
+        if (isConnected !== state.isConnected) {
+          setState(prev => ({
+            ...prev,
+            isConnected: isConnected
+          }));
+        }
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [state.isConnected]);
 
   return {
     ...state,

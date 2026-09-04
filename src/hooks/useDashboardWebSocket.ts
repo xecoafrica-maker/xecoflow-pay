@@ -27,6 +27,7 @@ export function useDashboardWebSocket({
 }: DashboardWebSocketProps) {
   const { log, ActivityActions } = useActivityLogger();
   const [lastNotification, setLastNotification] = useState<any>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // ─── Handle Balance Update ──────────────────────────────────────
   const handleBalanceUpdate = useCallback((data: any) => {
@@ -35,7 +36,7 @@ export function useDashboardWebSocket({
       onBalanceChange(data.balance);
     }
 
-    // Log significant balance changes using VIEW_TRANSACTIONS action
+    // Log significant balance changes
     if (data.change && Math.abs(data.change) > 0) {
       log(
         ActivityActions.VIEW_TRANSACTIONS,
@@ -48,27 +49,29 @@ export function useDashboardWebSocket({
   const handlePaymentUpdate = useCallback((data: any) => {
     console.log('💳 Payment received:', data);
     
-    // Play notification sound if payment completed
-    if (data.payment?.status === 'COMPLETED' || data.payment?.status === 'SETTLED') {
-      // Optional: Play sound
-      // playNotificationSound();
-      
+    // Check if payment is completed
+    const isCompleted = data.payment?.status === 'COMPLETED' || 
+                        data.payment?.status === 'SETTLED' ||
+                        data.status === 'COMPLETED' ||
+                        data.status === 'SETTLED';
+    
+    if (isCompleted) {
       // Set notification for toast
       setLastNotification({
         type: 'payment',
-        title: 'New Payment Received! 🎉',
-        message: `KES ${data.payment?.amount?.toLocaleString()} received from ${data.payment?.phoneNumber || 'customer'}`,
-        data: data.payment
+        title: '💰 New Payment Received!',
+        message: `KES ${(data.payment?.amount || data.amount)?.toLocaleString()} received from ${data.payment?.phoneNumber || data.phoneNumber || 'customer'}`,
+        data: data.payment || data
       });
 
-      // Log the payment using VIEW_TRANSACTIONS action
+      // Log the payment
       log(
         ActivityActions.VIEW_TRANSACTIONS,
-        `Payment of KES ${data.payment?.amount?.toLocaleString()} received from ${data.payment?.phoneNumber || 'customer'}`
+        `Payment of KES ${(data.payment?.amount || data.amount)?.toLocaleString()} received`
       );
 
       if (onPaymentReceived) {
-        onPaymentReceived(data.payment);
+        onPaymentReceived(data.payment || data);
       }
     }
   }, [onPaymentReceived, log, ActivityActions]);
@@ -79,6 +82,16 @@ export function useDashboardWebSocket({
     
     if (data.transaction && onNewTransaction) {
       onNewTransaction(data.transaction);
+    }
+    
+    // Show notification for new transactions
+    if (data.transaction && data.transaction.status === 'COMPLETED') {
+      setLastNotification({
+        type: 'transaction',
+        title: '📊 New Transaction',
+        message: `KES ${data.transaction.amount?.toLocaleString()} transaction processed`,
+        data: data.transaction
+      });
     }
   }, [onNewTransaction]);
 
@@ -111,18 +124,39 @@ export function useDashboardWebSocket({
     onStatsUpdate: handleStatsUpdate,
     onConnect: () => {
       console.log('✅ Dashboard WebSocket connected');
-      // Log connection using VIEW_DASHBOARD action
+      setIsInitialized(true);
       log(
         ActivityActions.VIEW_DASHBOARD,
         `Dashboard WebSocket connected for ${merchantName}`
       );
+    },
+    onDisconnect: () => {
+      console.log('❌ Dashboard WebSocket disconnected');
+      setIsInitialized(false);
+    },
+    onError: (error) => {
+      console.warn('⚠️ Dashboard WebSocket error:', error);
+      // Don't show error to user if it's just a connection issue
+      // The UI will show the connection status
     }
   });
+
+  // ─── Retry connection if not connected after 5 seconds ──────────
+  useEffect(() => {
+    if (!ws.isConnected && !ws.isAvailable && merchantId) {
+      const timer = setTimeout(() => {
+        console.log('🔄 Retrying WebSocket connection...');
+        ws.connect();
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [ws.isConnected, ws.isAvailable, merchantId, ws.connect]);
 
   return {
     ...ws,
     lastNotification,
-    clearNotification: () => setLastNotification(null)
+    clearNotification: () => setLastNotification(null),
+    isInitialized
   };
 }
 
