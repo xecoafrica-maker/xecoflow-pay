@@ -15,10 +15,6 @@ import {
   XCircle,
   Wifi,
   WifiOff,
-  Calendar,
-  Clock,
-  Copy,
-  Receipt,
 } from 'lucide-react';
 
 interface PaymentLinkData {
@@ -89,7 +85,6 @@ export default function PaymentLinkPage() {
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
   const [pollingCount, setPollingCount] = useState(0);
   const [showRetry, setShowRetry] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   // ─── WebSocket State ──────────────────────────────────────────────
   const [isSocketConnected, setIsSocketConnected] = useState(false);
@@ -320,22 +315,6 @@ export default function PaymentLinkPage() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-KE', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 3000);
-  };
 
   // ─── Handle Payment ───────────────────────────────────────────────
   const handlePay = async (e: React.FormEvent) => {
@@ -608,8 +587,7 @@ export default function PaymentLinkPage() {
       <div className="flex-1 grid lg:grid-cols-2">
         {/* ── LEFT: Merchant + summary ── */}
         <div className="bg-[#f6f9fc] px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col">
-          {/* Merchant Info */}
-          <div className="mb-6">
+          <div className="mb-8">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-full bg-[#0a2540] flex items-center justify-center shrink-0 overflow-hidden shadow-sm ring-2 ring-white">
                 {paymentLink.logoUrl ? (
@@ -640,42 +618,12 @@ export default function PaymentLinkPage() {
             </div>
           </div>
 
-          {/* Bill Meta Info - Added in Left Panel */}
-          <div className="mb-6 space-y-1.5 text-xs text-gray-500 border-b border-gray-200 pb-4">
-            <div className="flex items-center gap-2">
-              <Receipt className="w-3.5 h-3.5 text-gray-400" />
-              <span>Bill ID:</span>
-              <span className="font-mono font-medium text-gray-700">{paymentLink.billId || paymentLink.id}</span>
-              <button
-                onClick={() => handleCopy(paymentLink.billId || paymentLink.id)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <Copy className="w-3 h-3" />
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="w-3.5 h-3.5 text-gray-400" />
-              <span>Created:</span>
-              <span className="text-gray-700">{formatDate(paymentLink.createdAt)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-gray-400" />
-              <span>Expires:</span>
-              <span className="text-gray-700">{formatDate(paymentLink.expiryDate)}</span>
-              {!isExpired && !isPaid && (
-                <span className="text-amber-500 text-[10px] ml-1">
-                  ⏰ {Math.ceil((new Date(paymentLink.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}d remaining
-                </span>
-              )}
-            </div>
-          </div>
-
           <p className="text-sm text-gray-500 mb-1">Pay {merchantName}</p>
           <p className="text-[36px] sm:text-[40px] font-semibold text-gray-900 tracking-tight leading-none">
             {formatPrice(displayAmount, paymentLink.currency)}
           </p>
 
-          <div className="mt-6 space-y-4 flex-1">
+          <div className="mt-10 space-y-4 flex-1">
             <div className="flex justify-between text-[14px]">
               <span className="text-gray-600">{paymentLink.name}</span>
               <span className="text-gray-900 font-medium tabular-nums">
