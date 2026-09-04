@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   ArrowUp,
   ArrowDown,
@@ -32,10 +32,6 @@ import {
   Users,
   Loader2,
   ArrowUpLeft,
-  Wifi,
-  WifiOff,
-  Bell,
-  BellRing,
 } from 'lucide-react';
 import {
   BarChart,
@@ -51,7 +47,6 @@ import {
 import { getToken, removeToken, getStoredMerchant } from '@/lib/auth';
 import { getMerchantProfile } from '@/lib/auth-api';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
-import { useDashboardWebSocket } from '@/hooks/useDashboardWebSocket';
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Transaction {
@@ -142,52 +137,6 @@ const SkeletonTransactionRow = () => (
   </tr>
 );
 
-// ─── Toast Notification Component ──────────────────────────────────
-const ToastNotification = ({ notification, onClose }: { notification: any; onClose: () => void }) => {
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      onClose();
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [onClose]);
-
-  if (!notification) return null;
-
-  const isPayment = notification.type === 'payment';
-  const isSuccess = notification.data?.status === 'COMPLETED' || notification.data?.status === 'SETTLED';
-
-  return (
-    <div className="fixed bottom-4 right-4 z-50 max-w-sm w-full animate-slide-up">
-      <div className={`bg-white rounded-xl shadow-2xl border-l-4 ${isSuccess ? 'border-emerald-500' : 'border-blue-500'} p-4`}>
-        <div className="flex items-start gap-3">
-          <div className={`w-10 h-10 rounded-full ${isSuccess ? 'bg-emerald-100' : 'bg-blue-100'} flex items-center justify-center flex-shrink-0`}>
-            {isPayment ? (
-              isSuccess ? <CheckCircle className="w-5 h-5 text-emerald-600" /> : <Bell className="w-5 h-5 text-blue-600" />
-            ) : (
-              <BellRing className="w-5 h-5 text-blue-600" />
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
-            <p className="text-sm text-gray-600 mt-0.5">{notification.message}</p>
-            {isPayment && notification.data?.amount && (
-              <p className="text-xs text-gray-400 mt-1">
-                KES {notification.data.amount.toLocaleString()} • {notification.data.phoneNumber || 'Customer'}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 export default function DashboardOverview() {
   const router = useRouter();
   const { log, ActivityActions } = useActivityLogger();
@@ -218,78 +167,8 @@ export default function DashboardOverview() {
   const [timeRange, setTimeRange] = useState('7 Days');
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [notification, setNotification] = useState<any>(null);
 
   const tooltipFormatter = (value: any) => [`KES ${value}`, 'Amount'];
-
-  // ─── 🚀 WebSocket Integration ──────────────────────────────────────
-  const {
-    isConnected: wsConnected,
-    isAvailable: wsAvailable,
-    lastNotification,
-    clearNotification,
-    requestStats
-  } = useDashboardWebSocket({
-    merchantId,
-    merchantName,
-    onNewTransaction: (transaction) => {
-      console.log('📊 New transaction via WebSocket:', transaction);
-      // Add to transactions list
-      setTransactions(prev => [transaction, ...prev]);
-      setFilteredTransactions(prev => [transaction, ...prev]);
-      
-      // Show notification
-      setNotification({
-        type: 'transaction',
-        title: 'New Transaction',
-        message: `KES ${transaction.amount?.toLocaleString()} processed`,
-        data: transaction
-      });
-    },
-    onBalanceChange: (balance) => {
-      console.log('💰 Balance updated via WebSocket:', balance);
-      setLedgerBalance(balance);
-      // Update stats
-      if (stats) {
-        setStats({
-          ...stats,
-          totalAmount: stats.totalAmount || 0
-        });
-      }
-    },
-    onPaymentReceived: (payment) => {
-      console.log('💳 Payment received via WebSocket:', payment);
-      // Show notification
-      setNotification({
-        type: 'payment',
-        title: '💰 New Payment Received!',
-        message: `KES ${payment.amount?.toLocaleString()} received`,
-        data: payment
-      });
-      
-      // Refresh stats to update totals
-      if (merchantId) {
-        refreshStats(merchantId);
-      }
-    }
-  });
-
-  // ─── 🚀 Refresh Stats ──────────────────────────────────────────────
-  const refreshStats = async (merchantIdParam: string) => {
-    try {
-      const params = new URLSearchParams();
-      params.append('merchantId', merchantIdParam);
-      
-      const statsRes = await fetch(`/api/dashboard/stats?${params.toString()}`);
-      const statsData = await statsRes.json();
-      
-      if (statsData.success) {
-        setStats(statsData.stats);
-      }
-    } catch (error) {
-      console.error('Error refreshing stats:', error);
-    }
-  };
 
   // ─── 🚀 Fetch Onboarding Status from Backend ──────────────────────
   const fetchOnboarding = async () => {
@@ -793,14 +672,6 @@ export default function DashboardOverview() {
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-6">
-      {/* ─── Toast Notification ─────────────────────────────────────── */}
-      {notification && (
-        <ToastNotification 
-          notification={notification} 
-          onClose={() => setNotification(null)} 
-        />
-      )}
-
       {/* ─── Page Header ────────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -818,30 +689,6 @@ export default function DashboardOverview() {
           <p className="text-sm text-gray-500 mt-1">
             Here's what's happening with your business today.
           </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* ─── WebSocket Connection Status ───────────────────────── */}
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
-            wsConnected 
-              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-              : wsAvailable 
-                ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                : 'bg-red-50 text-red-700 border border-red-200'
-          }`}>
-            {wsConnected ? (
-              <Wifi className="w-3.5 h-3.5 text-emerald-500" />
-            ) : wsAvailable ? (
-              <WifiOff className="w-3.5 h-3.5 text-amber-500" />
-            ) : (
-              <WifiOff className="w-3.5 h-3.5 text-red-500" />
-            )}
-            <span>
-              {wsConnected ? 'Live' : wsAvailable ? 'Connecting...' : 'Offline'}
-            </span>
-            {wsConnected && (
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            )}
-          </div>
         </div>
       </div>
 
