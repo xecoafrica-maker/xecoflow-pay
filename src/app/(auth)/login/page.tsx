@@ -10,16 +10,12 @@ import {
   Eye, 
   EyeOff, 
   ArrowRight, 
-  Users, 
-  Code, 
-  Building, 
-  Key, 
-  ChevronRight,
   AlertCircle,
   Clock,
   Loader2,
   AlertTriangle,
   X,
+  Shield,
 } from 'lucide-react';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
@@ -43,7 +39,7 @@ const Toast = ({
   message, 
   onClose 
 }: { 
-  type: 'error' | 'warning' | 'info';
+  type: 'error' | 'warning' | 'info' | 'success';
   title: string;
   message: string;
   onClose: () => void;
@@ -86,6 +82,13 @@ const Toast = ({
       icon: 'text-blue-500',
       title: 'text-blue-700 dark:text-blue-400',
       message: 'text-blue-600 dark:text-blue-300',
+    },
+    success: {
+      bg: 'bg-green-50 dark:bg-green-950/30',
+      border: 'border-green-200 dark:border-green-800',
+      icon: 'text-green-500',
+      title: 'text-green-700 dark:text-green-400',
+      message: 'text-green-600 dark:text-green-300',
     },
   };
 
@@ -130,33 +133,23 @@ export default function LoginPage() {
   // ─── State ────────────────────────────────────────────────────────
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [role, setRole] = useState<'merchant' | 'developer'>('merchant');
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutTimeLeft, setLockoutTimeLeft] = useState(0);
   const [attemptsRemaining, setAttemptsRemaining] = useState(MAX_LOGIN_ATTEMPTS);
   
   // ─── Toast State ──────────────────────────────────────────────────
-  const [toasts, setToasts] = useState<Array<{ id: string; type: 'error' | 'warning' | 'info'; title: string; message: string }>>([]);
-
-  // ── XecoFlow ID Login State ──
-  const [useXecoflowId, setUseXecoflowId] = useState(false);
-  const [businessName, setBusinessName] = useState('');
-  const [merchantId, setMerchantId] = useState('');
-  const [xecoflowLoading, setXecoflowLoading] = useState(false);
-  const [xecoflowError, setXecoflowError] = useState('');
+  const [toasts, setToasts] = useState<Array<{ id: string; type: 'error' | 'warning' | 'info' | 'success'; title: string; message: string }>>([]);
 
   // ── Refs ──────────────────────────────────────────────────────────
   const lockTimerRef = useRef<NodeJS.Timeout | null>(null);
   const toastIdCounter = useRef(0);
 
   // ─── Show Toast ──────────────────────────────────────────────────
-  const showToast = (type: 'error' | 'warning' | 'info', title: string, message: string) => {
+  const showToast = (type: 'error' | 'warning' | 'info' | 'success', title: string, message: string) => {
     const id = String(toastIdCounter.current++);
-    console.log('📢 Showing toast:', { type, title, message });
     setToasts(prev => [...prev, { id, type, title, message }]);
   };
 
@@ -168,7 +161,7 @@ export default function LoginPage() {
   useEffect(() => {
     const loadAttemptData = () => {
       try {
-        const stored = localStorage.getItem(`login_attempts_${email || 'default'}`);
+        const stored = localStorage.getItem(`login_attempts_${identifier || 'default'}`);
         if (stored) {
           const data: LoginAttempt = JSON.parse(stored);
           
@@ -196,7 +189,7 @@ export default function LoginPage() {
         clearInterval(lockTimerRef.current);
       }
     };
-  }, [email]);
+  }, [identifier]);
 
   // ─── Lock Timer ──────────────────────────────────────────────────
   const startLockTimer = (lockedUntil: number) => {
@@ -219,7 +212,7 @@ export default function LoginPage() {
 
   // ─── Reset Attempts ──────────────────────────────────────────────
   const resetAttempts = () => {
-    localStorage.removeItem(`login_attempts_${email || 'default'}`);
+    localStorage.removeItem(`login_attempts_${identifier || 'default'}`);
     setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
     setIsLocked(false);
     setLockoutTimeLeft(0);
@@ -227,7 +220,7 @@ export default function LoginPage() {
 
   // ─── Track Failed Attempt ────────────────────────────────────────
   const trackFailedAttempt = () => {
-    const key = email || 'default';
+    const key = identifier || 'default';
     const stored = localStorage.getItem(`login_attempts_${key}`);
     let data: LoginAttempt = { count: 0, timestamp: Date.now() };
     
@@ -255,7 +248,7 @@ export default function LoginPage() {
 
   // ─── Clear Attempts on Success ──────────────────────────────────
   const clearAttempts = () => {
-    localStorage.removeItem(`login_attempts_${email || 'default'}`);
+    localStorage.removeItem(`login_attempts_${identifier || 'default'}`);
     setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
     setIsLocked(false);
     setLockoutTimeLeft(0);
@@ -271,37 +264,47 @@ export default function LoginPage() {
     return `${secs}s`;
   };
 
-  // ── Email Login ──
+  // ─── MAIN LOGIN HANDLER ──────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
     
     if (isLocked) {
       showToast('error', 'Account Locked', 'Too many failed attempts. Please try again in 15 minutes.');
       return;
     }
 
-    if (!email || !password) {
-      showToast('error', 'Error', 'Please enter your email and password');
+    if (!identifier || !password) {
+      showToast('warning', 'Validation Error', 'Please enter your email and password');
       return;
     }
 
     setLoading(true);
 
     try {
+      // ─── Determine if identifier is email or merchant ID ────────────
+      const isEmail = identifier.includes('@') && identifier.includes('.');
+      const isMerchantId = /^[A-Z0-9]{8,}$/.test(identifier.toUpperCase());
+      
+      // ─── Prepare login payload ──────────────────────────────────────
+      const loginPayload = {
+        identifier,
+        password,
+      };
+
+      console.log('🔐 Login attempt for:', { identifier, isEmail, isMerchantId });
+
       // ─── Call the Next.js API route ──────────────────────────────────
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(loginPayload),
       });
 
       const data = await response.json();
 
       console.log('📤 Login response status:', response.status);
-      console.log('📤 Login response data:', data);
 
       // ─── Rate Limit Error Handling ──────────────────────────────────
       if (response.status === 429) {
@@ -313,146 +316,92 @@ export default function LoginPage() {
 
       // ─── Extract token from response ─────────────────────────────────
       let token = null;
-      let merchantData = null;
+      let userData = null;
 
       if (data.token) {
         token = data.token;
-        merchantData = data.merchant || data;
+        userData = data.user || data;
       } 
       else if (data.data && data.data.accessToken) {
         token = data.data.accessToken;
-        merchantData = data.data;
+        userData = data.data;
       }
       else if (data.accessToken) {
         token = data.accessToken;
-        merchantData = data;
+        userData = data;
       }
       
       console.log('🔑 Extracted token:', token ? token.substring(0, 30) + '...' : 'NO TOKEN');
 
       if (!token) {
-        // Check if it's a rate limit or lockout error
         if (data.error?.includes('Too many') || data.error?.includes('rate')) {
           showToast('warning', 'Too Many Attempts', data.error || 'Please wait before trying again.');
+          trackFailedAttempt();
         } else {
-          showToast('error', 'Login Failed', data.error || 'No token received from server.');
+          showToast('error', 'Login Failed', data.error || 'Invalid credentials. Please try again.');
+          trackFailedAttempt();
         }
         setLoading(false);
         return;
       }
 
-      // ─── Get merchant data ──────────────────────────────────────────
-      const merchant = {
-        merchantId: Number(merchantData?.merchantId || merchantData?.merchant_id || 0),
-        businessName: merchantData?.businessName || merchantData?.business_name || '',
-        email: merchantData?.email || email,
+      // ─── Get user data ──────────────────────────────────────────────
+      const user = {
+        userId: Number(userData?.userId || userData?.user_id || 0),
+        email: userData?.email || identifier,
+        role: userData?.role || 'merchant',
+        businessName: userData?.businessName || userData?.business_name || '',
       };
 
-      console.log('✅ Login successful, storing token and redirecting...');
+      console.log('✅ Login successful for:', user);
 
-      // ─── Store token and merchant data (5 minutes session) ──────────
+      // ─── Store token and user data (5 minutes session) ─────────────
       const expiryTime = Date.now() + SESSION_DURATION * 1000;
       
       localStorage.setItem('xecoflow_token', token);
       localStorage.setItem('token_expiry', String(expiryTime));
       localStorage.setItem('session_start', String(Date.now()));
-      localStorage.setItem('merchant', JSON.stringify(merchant));
+      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('user_role', user.role);
 
-      // ─── Set cookie for middleware (5 minutes) ──────────────────────
+      clearAttempts();
+
       document.cookie = `auth_token=${token}; path=/; max-age=${SESSION_DURATION}; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'Secure;' : ''}`;
 
-      // ─── Redirect based on role ────────────────────────────────────
-      if (role === 'developer') {
-        router.push('/developer/dashboard');
-      } else {
-        router.push('/dashboard');
-      }
+      await log(
+        ActivityActions.LOGIN,
+        `Successful login for ${user.email} (Role: ${user.role})`
+      );
+
+      showToast('success', 'Welcome Back!', `Signed in as ${user.role}`);
+
+      setTimeout(() => {
+        if (user.role === 'developer') {
+          router.push('/developer/dashboard');
+        } else {
+          router.push('/dashboard');
+        }
+      }, 500);
+
       return;
 
     } catch (err: any) {
       console.error('❌ Login error:', err);
       trackFailedAttempt();
+      
       await log(
         'Failed login attempt',
-        `Failed login attempt for ${email} - ${err.message || 'Unknown error'}`
+        `Failed login attempt for ${identifier} - ${err.message || 'Unknown error'}`
       );
       
       if (err.message?.includes('Too many') || err.message?.includes('rate')) {
         showToast('warning', 'Too Many Requests', err.message || 'Please wait before trying again.');
       } else {
-        showToast('error', 'Error', err.message || 'An unexpected error occurred');
+        showToast('error', 'Error', err.message || 'An unexpected error occurred. Please try again.');
       }
     } finally {
       setLoading(false);
     }
-  };
-
-  // ── XecoFlow ID Login ──
-  const handleXecoflowSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setXecoflowError('');
-
-    if (!businessName || !merchantId) {
-      setXecoflowError('Please enter both Business Name and Merchant ID');
-      return;
-    }
-
-    setXecoflowLoading(true);
-
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/auth/login-xecoflow`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessName, merchantId }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        await log(
-          ActivityActions.LOGIN,
-          `XecoFlow ID login successful for ${businessName} (ID: ${merchantId})`
-        );
-        
-        const expiryTime = Date.now() + SESSION_DURATION * 1000;
-        
-        localStorage.setItem('xecoflow_token', data.token);
-        localStorage.setItem('token_expiry', String(expiryTime));
-        localStorage.setItem('session_start', String(Date.now()));
-        
-        if (data.merchant) {
-          localStorage.setItem('merchant', JSON.stringify(data.merchant));
-        }
-
-        document.cookie = `auth_token=${data.token}; path=/; max-age=${SESSION_DURATION}; SameSite=Lax; ${process.env.NODE_ENV === 'production' ? 'Secure;' : ''}`;
-
-        router.push('/dashboard');
-      } else {
-        setXecoflowError(data.message || 'Login failed. Please check your credentials.');
-        await log(
-          'Failed XecoFlow ID login',
-          `Failed XecoFlow ID login for ${businessName} (ID: ${merchantId}) - ${data.message || 'Unknown error'}`
-        );
-      }
-    } catch (err: any) {
-      setXecoflowError('Failed to connect to server. Please try again.');
-    } finally {
-      setXecoflowLoading(false);
-    }
-  };
-
-  const switchToXecoflow = () => {
-    setUseXecoflowId(true);
-    setXecoflowError('');
-    setBusinessName('');
-    setMerchantId('');
-  };
-
-  const switchToEmail = () => {
-    setUseXecoflowId(false);
-    setXecoflowError('');
-    setBusinessName('');
-    setMerchantId('');
   };
 
   return (
@@ -468,7 +417,7 @@ export default function LoginPage() {
         />
       ))}
 
-      <div className="w-full max-w-6xl flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
+      <div className="w-full max-w-4xl flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
         
         {/* ── LEFT PANEL – Brand ── */}
         <div className="lg:w-1/2 bg-[#0a2540] p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden min-h-[500px]">
@@ -487,38 +436,26 @@ export default function LoginPage() {
 
             <div className="space-y-4 py-8">
               <h2 className="text-4xl lg:text-5xl font-bold text-white leading-tight">
-                {role === 'merchant' ? (
-                  <>
-                    Modern payments
-                    <br />
-                    for African
-                    <br />
-                    <span className="text-emerald-400">businesses.</span>
-                  </>
-                ) : (
-                  <>
-                    Build, test, and
-                    <br />
-                    integrate payments
-                    <br />
-                    <span className="text-emerald-400">with ease.</span>
-                  </>
-                )}
+                Modern payments
+                <br />
+                for African
+                <br />
+                <span className="text-emerald-400">businesses.</span>
               </h2>
               <p className="text-slate-400 text-base max-w-sm">
-                {role === 'merchant' 
-                  ? 'Accept M-PESA, Airtel Money, cards, and bank transfers through a single API.'
-                  : 'Access powerful APIs, webhooks, and developer tools to build payment solutions.'}
+                Accept M-PESA, Airtel Money, cards, and bank transfers through a single API.
               </p>
             </div>
 
+            {/* ─── Updated: Accepted Channels ─────────────────────────── */}
             <div className="flex items-center gap-4 flex-wrap pt-4 border-t border-white/10">
-              <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Accepted</span>
+              <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Accepted Channels</span>
               <div className="flex items-center gap-3 text-sm text-slate-300">
                 <span className="bg-white/5 px-3 py-1 rounded-full text-xs">M-PESA</span>
-                <span className="bg-white/5 px-3 py-1 rounded-full text-xs">Airtel</span>
+                <span className="bg-white/5 px-3 py-1 rounded-full text-xs">Airtel Money</span>
                 <span className="bg-white/5 px-3 py-1 rounded-full text-xs">Visa</span>
                 <span className="bg-white/5 px-3 py-1 rounded-full text-xs">Mastercard</span>
+                <span className="bg-white/5 px-3 py-1 rounded-full text-xs">Banks</span>
               </div>
             </div>
           </div>
@@ -540,256 +477,125 @@ export default function LoginPage() {
                 Welcome back
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Sign in to your account
+                Sign in to your XecoFlow account
               </p>
             </div>
 
-            {/* ── Role Selector ── */}
-            <div className="flex gap-2 p-1 bg-gray-100 dark:bg-[#1a2a4a] rounded-xl border border-gray-200 dark:border-gray-700 mb-6">
-              <button
-                type="button"
-                onClick={() => setRole('merchant')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
-                  role === 'merchant'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-[#1a2a4a]'
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                Merchant
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('developer')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
-                  role === 'developer'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-[#1a2a4a]'
-                }`}
-              >
-                <Code className="w-4 h-4" />
-                Developer
-              </button>
-            </div>
-
-            {/* ── LOGIN FORM ── */}
-            {!useXecoflowId ? (
-              /* ─── EMAIL LOGIN ─── */
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                    Email address or Merchant ID
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Enter your email or ID number"
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-[#1a2a4a] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white"
-                      required
-                      autoFocus
-                      disabled={isLocked}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Password"
-                      className="w-full pl-10 pr-11 py-3 bg-gray-50 dark:bg-[#1a2a4a] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white"
-                      required
-                      disabled={isLocked}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2"
-                      disabled={isLocked}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
-                      ) : (
-                        <Eye className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
-                      disabled={isLocked}
-                    />
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Remember for 30 days</span>
-                  </label>
-                  <Link
-                    href="/forgot-password"
-                    className="text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
-                  >
-                    Forgot Password?
-                  </Link>
-                </div>
-
-                {isLocked ? (
-                  <div className="w-full py-3.5 bg-gray-400 cursor-not-allowed text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2">
-                    <Clock className="w-4 h-4" />
-                    Too many attempts - Try again in {formatLockoutTime(lockoutTimeLeft)}
-                  </div>
-                ) : (
-                  <button
-                    type="submit"
-                    disabled={loading || !email || !password}
-                    className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 flex items-center justify-center gap-2"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Signing in...
-                      </>
-                    ) : (
-                      <>
-                        Sign In <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-                )}
-
-                {/* ── OR DIVIDER ── */}
-                <div className="relative my-4">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-200 dark:border-gray-700" />
-                  </div>
-                  <div className="relative flex justify-center text-xs">
-                    <span className="px-3 bg-white dark:bg-[#0f1f3a] text-gray-400 dark:text-gray-500">Or continue with</span>
-                  </div>
-                </div>
-
-                {/* ── XECOFLOW ID LINK ── */}
-                <button
-                  type="button"
-                  onClick={switchToXecoflow}
-                  className="w-full flex items-center justify-center gap-3 py-3.5 border-2 border-gray-200 dark:border-gray-700 hover:border-emerald-400 dark:hover:border-emerald-500 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all duration-300 group"
-                >
-                  <Building className="w-4 h-4 text-gray-400 group-hover:text-emerald-500 transition-colors" />
-                  Login with XecoFlow ID
-                  <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
-                </button>
-              </form>
-            ) : (
-              /* ─── XECOFLOW ID LOGIN ─── */
+            {/* ─── SIMPLIFIED LOGIN FORM ───────────────────────────────── */}
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* ── Identifier Field ── */}
               <div>
-                {xecoflowError && (
-                  <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-2">
-                    <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-red-700 dark:text-red-400">Error</p>
-                      <p className="text-sm text-red-600 dark:text-red-300">{xecoflowError}</p>
-                    </div>
-                  </div>
-                )}
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Email or Merchant ID
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="Enter your email or Merchant ID"
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-[#1a2a4a] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white"
+                    required
+                    autoFocus
+                    disabled={isLocked}
+                    autoComplete="username"
+                  />
+                </div>
+              </div>
 
-                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {/* ── Password Field ── */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    className="w-full pl-10 pr-11 py-3 bg-gray-50 dark:bg-[#1a2a4a] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white"
+                    required
+                    disabled={isLocked}
+                    autoComplete="current-password"
+                  />
                   <button
                     type="button"
-                    onClick={switchToEmail}
-                    className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium flex items-center gap-1"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2"
+                    disabled={isLocked}
                   >
-                    ← Back
-                  </button>
-                </div>
-
-                <form onSubmit={handleXecoflowSubmit} className="space-y-5">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Business Name</label>
-                    <div className="relative">
-                      <Building className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        value={businessName}
-                        onChange={(e) => setBusinessName(e.target.value)}
-                        placeholder="Enter your business name"
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-[#1a2a4a] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-gray-900 dark:text-white"
-                        required
-                        autoFocus
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Merchant ID</label>
-                    <div className="relative">
-                      <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        value={merchantId}
-                        onChange={(e) => setMerchantId(e.target.value)}
-                        placeholder="Enter your merchant ID"
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-[#1a2a4a] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-gray-900 dark:text-white"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={xecoflowLoading || !businessName || !merchantId}
-                    className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/20 flex items-center justify-center gap-2"
-                  >
-                    {xecoflowLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Logging in...
-                      </>
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
                     ) : (
-                      <>
-                        <Key className="w-4 h-4" />
-                        Login with XecoFlow ID
-                      </>
+                      <Eye className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
                     )}
                   </button>
-                </form>
+                </div>
               </div>
-            )}
 
-            {/* ── Footer Links ── */}
-            <div className="mt-6 space-y-3">
+              {/* ── Remember Me & Forgot Password ── */}
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
+                    disabled={isLocked}
+                  />
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Remember for 30 days</span>
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+                >
+                  Forgot Password?
+                </Link>
+              </div>
+
+              {/* ── Attempts Remaining Indicator ── */}
+              {!isLocked && attemptsRemaining < MAX_LOGIN_ATTEMPTS && attemptsRemaining > 0 && (
+                <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>{attemptsRemaining} login attempt{attemptsRemaining !== 1 ? 's' : ''} remaining</span>
+                </div>
+              )}
+
+              {/* ── Submit Button ── */}
+              {isLocked ? (
+                <div className="w-full py-3.5 bg-gray-400 cursor-not-allowed text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Too many attempts - Try again in {formatLockoutTime(lockoutTimeLeft)}
+                </div>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={loading || !identifier || !password}
+                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      Sign In <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              )}
+            </form>
+
+            {/* ─── Simplified Footer ── */}
+            <div className="mt-6">
               <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-                {role === 'merchant' ? (
-                  <>
-                    Don't have a merchant account?{' '}
-                    <Link href="/signup" className="font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300">
-                      Sign up
-                    </Link>
-                  </>
-                ) : (
-                  <>
-                    New developer?{' '}
-                    <Link href="/developer/signup" className="font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300">
-                      Create developer account
-                    </Link>
-                  </>
-                )}
+                New to XecoFlow?{' '}
+                <Link href="/signup" className="font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300">
+                  Create account
+                </Link>
               </p>
-
-              <div className="text-center text-xs text-gray-400 dark:text-gray-500">
-                {role === 'merchant' ? (
-                  <span>Merchant Portal</span>
-                ) : (
-                  <span>Developer Portal</span>
-                )}
-              </div>
             </div>
           </div>
         </div>
