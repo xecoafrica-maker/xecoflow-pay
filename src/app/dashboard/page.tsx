@@ -145,7 +145,6 @@ export default function DashboardOverview() {
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(true);
   
-  // ✅ Prevent duplicate logging ONLY during the same page load
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
@@ -157,7 +156,6 @@ export default function DashboardOverview() {
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   
-  // ✅ NEW: Real balance from Ledger Engine
   const [ledgerBalance, setLedgerBalance] = useState<number>(0);
   const [balanceLoading, setBalanceLoading] = useState<boolean>(true);
   
@@ -176,7 +174,8 @@ export default function DashboardOverview() {
     if (!token) return;
 
     try {
-      const res = await fetch(`/v1/onboarding/status`, {
+      // ✅ UPDATED: Use API route
+      const res = await fetch(`/api/onboarding/status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -261,13 +260,14 @@ export default function DashboardOverview() {
         setStats(statsData.stats);
       }
 
-      // 3. ✅ Fetch REAL Balance from Ledger Engine
+      // 3. ✅ Fetch REAL Balance from Ledger Engine - UPDATED to use API route
       if (merchantIdParam) {
         const paddedId = String(merchantIdParam).padStart(8, '0');
         const accountNumber = `1-1001-${paddedId}`;
         console.log('🔍 Fetching balance for account:', accountNumber);
         
-        const balanceRes = await fetch(`/v1/ledger/accounts/${accountNumber}/balance`, {
+        // ✅ UPDATED: Use API route
+        const balanceRes = await fetch(`/api/ledger/accounts/${accountNumber}/balance`, {
           headers: { 'Authorization': `Bearer ${getToken()}` }
         });
         const balanceData = await balanceRes.json();
@@ -382,7 +382,7 @@ export default function DashboardOverview() {
     }, 500);
   }, [router]);
 
-  // ─── Log Dashboard View - Only once per page visit ──────────────
+  // ─── Log Dashboard View ──────────────────────────────────────────
   useEffect(() => {
     const logView = async () => {
       if (isLoggingView.current || hasLoggedView.current || !merchantId) {
@@ -413,7 +413,6 @@ export default function DashboardOverview() {
   const currentMonth = getCurrentMonth();
 
   const generateStats = () => {
-    // If no data, return zeros
     if (!stats && transactions.length === 0) {
       return [
         { 
@@ -471,11 +470,8 @@ export default function DashboardOverview() {
       t.status === 'AWAITING_CUSTOMER_PIN' || t.payment_status === 'PENDING'
     ).length;
 
-    // ✅ Use REAL ledgerBalance from journal_entries
     const availableBalance = ledgerBalance;
-
-    // Total Withdrawn - this should come from withdrawals API
-    const totalWithdrawn = 0; // This will come from API
+    const totalWithdrawn = 0;
 
     return [
       { 
@@ -528,7 +524,7 @@ export default function DashboardOverview() {
     }))
     .reverse();
 
-  // ─── Recent Transactions - Only Today, Max 6 ──────────────────────
+  // ─── Recent Transactions ──────────────────────────────────────────
   const getTodayTransactions = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -539,7 +535,6 @@ export default function DashboardOverview() {
       return txDate.getTime() === today.getTime();
     });
 
-    // Sort by newest first and take only 6
     return todayTxs
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 6)
@@ -594,7 +589,6 @@ export default function DashboardOverview() {
   if (loading) {
     return (
       <div className="max-w-[1400px] mx-auto space-y-6">
-        {/* Header Skeleton */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mb-2" />
@@ -603,14 +597,12 @@ export default function DashboardOverview() {
           </div>
         </div>
 
-        {/* Stats Cards Skeleton */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <SkeletonCard key={i} />
           ))}
         </div>
 
-        {/* Chart & Quick Actions Skeleton */}
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
@@ -639,7 +631,6 @@ export default function DashboardOverview() {
           </div>
         </div>
 
-        {/* Transactions Table Skeleton */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <div className="h-6 w-40 bg-gray-200 rounded animate-pulse" />
@@ -714,7 +705,6 @@ export default function DashboardOverview() {
 
       {showOnboarding && !isFullyOnboarded && onboardingSteps.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm relative">
-          {/* ─── Header ────────────────────────────────────────────── */}
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
             <div>
               <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
@@ -733,7 +723,6 @@ export default function DashboardOverview() {
             </div>
           </div>
 
-          {/* ─── Steps Grid (5 Stages) ────────────────────────────── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
             {onboardingSteps.map((step, index) => {
               const Icon = step.icon;
@@ -778,7 +767,6 @@ export default function DashboardOverview() {
             })}
           </div>
 
-          {/* ─── Footer Action ────────────────────────────────────── */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-gray-100">
             <Link
               href={onboardingSteps.find(s => !s.completed)?.href || '/dashboard'}
@@ -821,7 +809,6 @@ export default function DashboardOverview() {
 
       {/* ─── Two‑column layout ───────────────────────────────────────── */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Transaction Analytics */}
         <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
             <div>
