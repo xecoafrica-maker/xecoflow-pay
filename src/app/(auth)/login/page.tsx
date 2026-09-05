@@ -24,8 +24,6 @@ import { useActivityLogger } from '@/hooks/useActivityLogger';
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 2 * 60 * 1000; // 2 minutes
 const TOAST_DURATION = 5000;
-const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 7; // 7 days
-const REMEMBER_ME_DURATION_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface LoginAttempt {
@@ -311,85 +309,99 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // ✅ UPDATED: Call your backend directly (or via API route)
       const response = await fetch('/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ 
+          email: email.trim(), 
+          password,
+          rememberMe: rememberMe 
+        }),
+        credentials: 'include', // ✅ Important for cookies!
       });
 
       const data = await response.json();
 
+      // ─── ERROR HANDLING ──────────────────────────────────────────
+
+      // 400: Bad Request
       if (response.status === 400) {
-        setFormError('Please enter both email and password.');
+        setFormError(data.message || 'Please enter both email and password.');
+        setLoading(false);
         return;
       }
 
+      // 401: Unauthorized
       if (response.status === 401) {
-        setFormError('Invalid email or password. Please check your credentials.');
+        // Check if it's a blacklisted token error
+        if (data.code === 'TOKEN_BLACKLISTED') {
+          setFormError('Your session has been revoked. Please login again.');
+        } else {
+          setFormError(data.message || 'Invalid email or password. Please check your credentials.');
+        }
         trackFailedAttempt();
+        setLoading(false);
         return;
       }
 
+      // 423: Locked
+      if (response.status === 423) {
+        setFormError(data.message || 'Too many failed attempts. Please try again later.');
+        setLoading(false);
+        return;
+      }
+
+      // 429: Rate Limited
       if (response.status === 429) {
         const retryAfter = data.retryAfter || 30;
         setFormError(`Too many login attempts. Please wait ${retryAfter} seconds.`);
+        setLoading(false);
         return;
       }
 
+      // 500+: Server Error
       if (response.status >= 500) {
         setFormError('We are experiencing technical difficulties. Please try again later.');
+        setLoading(false);
         return;
       }
 
-      const token =
-        data.token ||
-        data.accessToken ||
-        data.data?.accessToken ||
-        data.data?.token;
+      // ─── SUCCESS ─────────────────────────────────────────────────
 
-      if (!token) {
-        setFormError('Invalid credentials. Please try again.');
-        trackFailedAttempt();
-        return;
-      }
+      // ✅ Token is in httpOnly cookie - no need to store in localStorage!
+      // ✅ Just use the merchant data from response
 
-      const userData = data.user || data.data || data;
-      const user = {
-        userId: Number(userData.userId || userData.user_id || 0),
-        email: userData.email || email,
-        role: userData.role || 'merchant',
-        businessName: userData.businessName || userData.business_name || '',
-      };
+      const merchant = data.data || data.merchant || {};
 
-      const duration = rememberMe
-        ? REMEMBER_ME_DURATION_SECONDS
-        : SESSION_DURATION_SECONDS;
+      // Store user data (not token!)
+      localStorage.setItem('user', JSON.stringify({
+        merchantId: merchant.merchantId,
+        businessName: merchant.businessName,
+        email: merchant.email,
+        phone: merchant.phone,
+        status: merchant.status,
+        role: merchant.role || 'merchant',
+      }));
+      localStorage.setItem('user_role', merchant.role || 'merchant');
 
-      const expiryTime = Date.now() + duration * 1000;
-
-      localStorage.setItem('xecoflow_token', token);
-      localStorage.setItem('token_expiry', String(expiryTime));
-      localStorage.setItem('session_start', String(Date.now()));
-      localStorage.setItem('user', JSON.stringify(user));
-      localStorage.setItem('user_role', user.role);
-
-      const isSecure = process.env.NODE_ENV === 'production';
-      document.cookie = `auth_token=${token}; path=/; max-age=${duration}; SameSite=Lax;${isSecure ? ' Secure;' : ''}`;
-
+      // Clear failed attempts
       localStorage.removeItem(getAttemptKey(email));
       setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
       setIsLocked(false);
 
       await log(
         ActivityActions.LOGIN,
-        `Successful login for ${user.email} (Role: ${user.role})`
+        `Successful login for ${merchant.email || email} (Role: ${merchant.role || 'merchant'})`
       );
 
-      showToast('success', 'Welcome Back!', `Signed in as ${user.role}`);
+      showToast('success', 'Welcome Back!', `Signed in as ${merchant.businessName || 'merchant'}`);
 
       setTimeout(() => {
-        router.push(user.role === 'developer' ? '/developer/dashboard' : '/dashboard');
+        const role = merchant.role || 'merchant';
+        router.push(role === 'developer' ? '/developer/dashboard' : '/dashboard');
       }, 400);
+
     } catch (err: any) {
       console.error('Login error:', err);
 
@@ -443,7 +455,7 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {/* Hero Text - Increased spacing */}
+            {/* Hero Text */}
             <div className="space-y-7 py-6 lg:py-8">
               <h2 className="text-3xl sm:text-4xl xl:text-[2.75rem] font-bold text-white leading-[1.15] tracking-tight">
                 Modern payments
