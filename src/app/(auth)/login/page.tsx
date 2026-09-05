@@ -178,12 +178,7 @@ export default function LoginPage() {
   const formatLockoutTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    if (mins > 0 && secs > 0) {
-      return `${mins}m ${secs}s`;
-    } else if (mins > 0) {
-      return `${mins}m`;
-    }
-    return `${secs}s`;
+    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
   };
 
   const getAttemptKey = (emailValue: string) =>
@@ -278,17 +273,14 @@ export default function LoginPage() {
     setPasswordError('');
     setFormError('');
 
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email.trim()) {
       setEmailError('Email is required');
       valid = false;
-    } else if (!emailRegex.test(email)) {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailError('Please enter a valid email address');
       valid = false;
     }
 
-    // Password validation
     if (!password) {
       setPasswordError('Password is required');
       valid = false;
@@ -325,37 +317,29 @@ export default function LoginPage() {
 
       const data = await response.json();
 
-      // ── ERROR HANDLING: 400 Bad Request ──
       if (response.status === 400) {
-        setFormError('Please enter both email and password.');
-        setLoading(false);
+        setFormError(data.error || 'Email and password are required.');
         return;
       }
 
-      // ── ERROR HANDLING: 401 Unauthorized ──
       if (response.status === 401) {
-        setFormError('Invalid email or password. Please check your credentials.');
+        setFormError(data.error || 'Invalid email or password.');
         trackFailedAttempt();
-        setLoading(false);
         return;
       }
 
-      // ── ERROR HANDLING: 429 Too Many Requests ──
       if (response.status === 429) {
         const retryAfter = data.retryAfter || 60;
-        setFormError(`Too many login attempts. Please wait ${retryAfter} seconds before trying again.`);
-        setLoading(false);
+        setFormError(`Too many attempts. Please wait ${retryAfter} seconds.`);
         return;
       }
 
-      // ── ERROR HANDLING: 500+ Server Errors ──
       if (response.status >= 500) {
-        setFormError('We are experiencing technical difficulties. Please try again later.');
-        setLoading(false);
+        setFormError('System temporarily unavailable. Please try again later.');
         return;
       }
 
-      // ── Extract token ──
+      // Extract token (supports multiple response shapes)
       const token =
         data.token ||
         data.accessToken ||
@@ -363,9 +347,8 @@ export default function LoginPage() {
         data.data?.token;
 
       if (!token) {
-        setFormError('Invalid credentials. Please try again.');
+        setFormError(data.error || 'Invalid credentials. Please try again.');
         trackFailedAttempt();
-        setLoading(false);
         return;
       }
 
@@ -409,19 +392,10 @@ export default function LoginPage() {
       setTimeout(() => {
         router.push(user.role === 'developer' ? '/developer/dashboard' : '/dashboard');
       }, 400);
-
     } catch (err: any) {
       console.error('Login error:', err);
-      
-      // ── SPECIFIC ERROR MESSAGES ──
-      if (err.name === 'AbortError' || err.message?.includes('abort')) {
-        setFormError('Request timed out. Please check your connection and try again.');
-      } else if (err.name === 'TypeError' || err.message?.includes('fetch')) {
-        setFormError('Unable to connect to server. Please check your internet connection.');
-      } else {
-        setFormError('Something went wrong. Please try again or contact support if the issue persists.');
-      }
-      
+      // Do NOT count pure network errors as failed login attempts
+      setFormError('An unexpected error occurred. Please try again.');
       await log(
         'Failed login attempt',
         `Failed login for ${email}: ${err.message || 'Unknown error'}`
@@ -447,66 +421,56 @@ export default function LoginPage() {
 
       <div className="w-full max-w-[1000px] flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
         
-       {/* ── LEFT PANEL ── */}
-<div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex flex-col justify-between relative overflow-hidden min-h-[400px] lg:min-h-[520px]">
-  <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
-  <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
-  <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
+        {/* ── LEFT PANEL ── */}
+        <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex flex-col justify-between relative overflow-hidden min-h-[400px] lg:min-h-[520px]">
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
+          <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
 
-  <div className="relative z-10 flex flex-col h-full justify-between">
-    {/* Brand */}
-    <div>
-      <Link href="/" className="inline-block">
-        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-          Xeco<span className="text-emerald-400">Flow</span>
-        </h1>
-      </Link>
-    </div>
+          <div className="relative z-10 flex flex-col h-full justify-between">
+            <div>
+              <Link href="/" className="inline-block">
+                <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                  Xeco<span className="text-emerald-400">Flow</span>
+                </h1>
+              </Link>
+            </div>
 
-    {/* ── FIXED: Hero Text with Proper Line Breaks ── */}
-    <div className="space-y-4 py-6 lg:py-8">
-      <h2 className="text-2xl sm:text-3xl xl:text-4xl font-bold text-white leading-[1.2] tracking-tight">
-        Modern payment
-        <br />
-        <span className="text-emerald-400">automated tax compliance</span>
-        <br />
-        for African businesses.
-      </h2>
-      <p className="text-slate-400 text-sm sm:text-base max-w-sm leading-relaxed">
-        Accept M-PESA, Airtel Money, cards, and bank transfers
-        <br className="hidden sm:block" />
-        through a unified Business account—while automating
-        <br className="hidden sm:block" />
-        your cashflow and filing tax returns effortlessly.
-      </p>
-    </div>
+            <div className="space-y-4 py-6 lg:py-8">
+              <h2 className="text-3xl sm:text-4xl xl:text-5xl font-bold text-white leading-[1.1] tracking-tight">
+                Modern
+                <br />
+                payments
+                <br />
+                for African
+                <br />
+                <span className="text-emerald-400">businesses.</span>
+              </h2>
+              <p className="text-slate-400 text-sm sm:text-base max-w-sm leading-relaxed">
+                Accept M-PESA, Airtel Money, cards,
+                <br className="hidden sm:block" />
+                and bank transfers through a single API.
+              </p>
+            </div>
 
-    {/* ── Accepted Channels ── */}
-    <div className="flex flex-col gap-2.5 pt-4 border-t border-white/10">
-      <span className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-[0.15em]">
-        Accepted Channels
-      </span>
-      
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
-        <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
-          M-PESA
-        </span>
-        <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
-          Airtel Money
-        </span>
-        <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
-          Visa
-        </span>
-        <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
-          Mastercard
-        </span>
-        <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
-          Banks
-        </span>
-      </div>
-    </div>
-  </div>
-</div>
+            <div className="flex flex-col gap-2.5 pt-4 border-t border-white/10">
+              <span className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-[0.15em]">
+                Accepted Channels
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {['M-PESA', 'Airtel Money', 'Visa', 'Mastercard', 'Banks'].map((channel) => (
+                  <span
+                    key={channel}
+                    className="bg-white/5 px-3 py-1 rounded-full text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors"
+                  >
+                    {channel}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* ── RIGHT PANEL ── */}
         <div className="lg:w-1/2 p-6 sm:p-8 md:p-10 lg:p-12 bg-white dark:bg-[#0f1f3a] flex flex-col justify-center">
           <div className="max-w-sm mx-auto w-full">
@@ -528,7 +492,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* ── FORM-LEVEL ERROR ── */}
+            {/* Form-level error */}
             {formError && (
               <div className="mb-5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3.5 flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -540,7 +504,7 @@ export default function LoginPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* ── EMAIL FIELD ── */}
+              {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Email
@@ -579,7 +543,7 @@ export default function LoginPage() {
                 )}
               </div>
 
-              {/* ── PASSWORD FIELD ── */}
+              {/* Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Password
@@ -629,7 +593,7 @@ export default function LoginPage() {
                 )}
               </div>
 
-              {/* ── REMEMBER ME & FORGOT PASSWORD ── */}
+              {/* Remember + Forgot */}
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
@@ -651,7 +615,7 @@ export default function LoginPage() {
                 </Link>
               </div>
 
-              {/* ── ATTEMPTS REMAINING ── */}
+              {/* Attempts remaining */}
               {!isLocked && attemptsRemaining < MAX_LOGIN_ATTEMPTS && attemptsRemaining > 0 && (
                 <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg">
                   <AlertCircle className="w-4 h-4" />
@@ -661,7 +625,7 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* ── SUBMIT BUTTON ── */}
+              {/* Submit */}
               {isLocked ? (
                 <div className="w-full py-3.5 bg-gray-400 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 cursor-not-allowed">
                   <Clock className="w-4 h-4" />
@@ -687,7 +651,7 @@ export default function LoginPage() {
               )}
             </form>
 
-            {/* ── FOOTER ── */}
+            {/* Footer */}
             <div className="mt-6 space-y-3.5">
               <p className="text-center text-sm text-gray-500 dark:text-gray-400">
                 New to XecoFlow?{' '}
