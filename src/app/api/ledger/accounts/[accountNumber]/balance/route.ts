@@ -3,19 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.API_URL || 'https://xecoflow-2gen.onrender.com';
 
-type Params = {
-  params: Promise<{
-    accountNumber: string;
-  }>;
-};
-
 export async function GET(
   request: NextRequest,
-  context: Params
+  { params }: { params: { accountNumber: string } }
 ) {
   try {
     const authHeader = request.headers.get('authorization');
-    const { accountNumber } = await context.params;
+    const { accountNumber } = params;
     
     console.log('📤 [Balance Proxy] Fetching balance for account:', accountNumber);
     
