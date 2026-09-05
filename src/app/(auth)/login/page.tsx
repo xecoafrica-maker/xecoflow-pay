@@ -325,14 +325,12 @@ export default function LoginPage() {
 
       // ─── ERROR HANDLING ──────────────────────────────────────────
 
-      // 400: Bad Request
       if (response.status === 400) {
         setFormError(data.message || 'Please enter both email and password.');
         setLoading(false);
         return;
       }
 
-      // 401: Unauthorized
       if (response.status === 401) {
         if (data.code === 'TOKEN_BLACKLISTED') {
           setFormError('Your session has been revoked. Please login again.');
@@ -344,14 +342,12 @@ export default function LoginPage() {
         return;
       }
 
-      // 423: Locked
       if (response.status === 423) {
         setFormError(data.message || 'Too many failed attempts. Please try again later.');
         setLoading(false);
         return;
       }
 
-      // 429: Rate Limited
       if (response.status === 429) {
         const retryAfter = data.retryAfter || 30;
         setFormError(`Too many login attempts. Please wait ${retryAfter} seconds.`);
@@ -359,21 +355,17 @@ export default function LoginPage() {
         return;
       }
 
-      // 500+: Server Error
       if (response.status >= 500) {
         setFormError('We are experiencing technical difficulties. Please try again later.');
         setLoading(false);
         return;
       }
 
-      // ─── SUCCESS ─────────────────────────────────────────────────
-
-      // ✅ Token is in httpOnly cookie - no need to store in localStorage!
-      // ✅ Just use the merchant data from response
+      // ─── ✅ SUCCESS ─────────────────────────────────────────────────
 
       const merchant = data.data || data.merchant || {};
 
-      // Store user data (not token!)
+      // ✅ Store as 'user' (for your app)
       localStorage.setItem('user', JSON.stringify({
         merchantId: merchant.merchantId,
         businessName: merchant.businessName,
@@ -382,6 +374,17 @@ export default function LoginPage() {
         status: merchant.status,
         role: merchant.role || 'merchant',
       }));
+
+      // ✅ ALSO store as 'merchant' (for dashboard compatibility)
+      localStorage.setItem('merchant', JSON.stringify({
+        merchantId: merchant.merchantId,
+        businessName: merchant.businessName,
+        email: merchant.email,
+        phone: merchant.phone,
+        status: merchant.status,
+        role: merchant.role || 'merchant',
+      }));
+
       localStorage.setItem('user_role', merchant.role || 'merchant');
 
       // Clear failed attempts
