@@ -463,20 +463,19 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {/* ── FIXED: Hero Text with Proper Line Breaks ── */}
-            <div className="space-y-4 py-6 lg:py-8">
-              <h2 className="text-2xl sm:text-3xl xl:text-4xl font-bold text-white leading-[1.2] tracking-tight">
-                <span className="block">Modern payment</span>
-                <span className="block text-emerald-400">automated tax compliance</span>
-                <span className="block">for African businesses.</span>
-              </h2>
-              <div className="text-slate-400 text-sm sm:text-base max-w-sm leading-relaxed space-y-1">
-                <p>Accept M-PESA, Airtel Money, cards, and bank transfers</p>
-                <p>through a unified Business account—while automating</p>
-                <p>your cashflow and filing tax returns effortlessly.</p>
-              </div>
-            </div>
-
+            {/* ── Hero Text ── */}
+<div className="space-y-4 py-6 lg:py-8">
+  <h2 className="text-2xl sm:text-3xl xl:text-4xl font-bold text-white leading-[1.15] tracking-tight">
+    Modern payment<br />
+    <span className="text-emerald-400">automated tax compliance</span><br />
+    for African businesses.
+  </h2>
+  <p className="text-slate-400 text-sm sm:text-base max-w-sm leading-relaxed">
+    Accept M-PESA, Airtel Money, cards, and bank transfers
+    through a unified Business account—while automating
+    your cashflow and filing tax returns effortlessly.
+  </p>
+</div>
             {/* ── Accepted Channels ── */}
             <div className="flex flex-col gap-2.5 pt-4 border-t border-white/10">
               <span className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-[0.15em]">
