@@ -15,7 +15,7 @@ import {
   Loader2,
   AlertTriangle,
   X,
-  Shield,
+  ChevronRight,
 } from 'lucide-react';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
@@ -405,7 +405,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#0a2540] dark:to-[#0f1f3a] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#0a2540] dark:to-[#0f1f3a] flex items-center justify-center p-4 sm:p-6 md:p-8">
       {/* ─── TOAST NOTIFICATIONS ── */}
       {toasts.map((toast) => (
         <Toast
@@ -417,54 +417,58 @@ export default function LoginPage() {
         />
       ))}
 
-      <div className="w-full max-w-4xl flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
+      {/* ─── MAIN CONTAINER - Expanded Width ─── */}
+      <div className="w-full max-w-5xl flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
         
         {/* ── LEFT PANEL – Brand ── */}
-        <div className="lg:w-1/2 bg-[#0a2540] p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden min-h-[500px]">
+        <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden min-h-[400px] lg:min-h-[550px]">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
           <div className="absolute top-[-100px] right-[-100px] w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-3xl" />
           <div className="absolute bottom-[-100px] left-[-100px] w-[300px] h-[300px] bg-emerald-500/10 rounded-full blur-3xl" />
 
           <div className="relative z-10 flex flex-col h-full justify-between">
+            {/* ── Brand ── */}
             <div>
               <Link href="/" className="inline-block">
-                <h1 className="text-3xl font-bold text-white">
+                <h1 className="text-2xl sm:text-3xl font-bold text-white">
                   Xeco<span className="text-emerald-400">Flow</span>
                 </h1>
               </Link>
             </div>
 
-            <div className="space-y-4 py-8">
-              <h2 className="text-4xl lg:text-5xl font-bold text-white leading-tight">
+            {/* ── Hero Text ── */}
+            <div className="space-y-3 sm:space-y-4 py-6 sm:py-8">
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight">
                 Modern payments
                 <br />
                 for African
                 <br />
                 <span className="text-emerald-400">businesses.</span>
               </h2>
-              <p className="text-slate-400 text-base max-w-sm">
+              <p className="text-slate-400 text-sm sm:text-base max-w-sm">
                 Accept M-PESA, Airtel Money, cards, and bank transfers through a single API.
               </p>
             </div>
 
-            {/* ─── Updated: Accepted Channels ─────────────────────────── */}
-            <div className="flex items-center gap-4 flex-wrap pt-4 border-t border-white/10">
+            {/* ─── Accepted Channels ── */}
+            <div className="flex flex-col gap-3 pt-4 border-t border-white/10">
               <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Accepted Channels</span>
-              <div className="flex items-center gap-3 text-sm text-slate-300">
-                <span className="bg-white/5 px-3 py-1 rounded-full text-xs">M-PESA</span>
-                <span className="bg-white/5 px-3 py-1 rounded-full text-xs">Airtel Money</span>
-                <span className="bg-white/5 px-3 py-1 rounded-full text-xs">Visa</span>
-                <span className="bg-white/5 px-3 py-1 rounded-full text-xs">Mastercard</span>
-                <span className="bg-white/5 px-3 py-1 rounded-full text-xs">Banks</span>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <span className="bg-white/5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-slate-300">M-PESA</span>
+                <span className="bg-white/5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-slate-300">Airtel Money</span>
+                <span className="bg-white/5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-slate-300">Visa</span>
+                <span className="bg-white/5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-slate-300">Mastercard</span>
+                <span className="bg-white/5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-slate-300">Banks</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* ── RIGHT PANEL – Login Form ── */}
-        <div className="lg:w-1/2 p-8 lg:p-12 bg-white dark:bg-[#0f1f3a]">
+        <div className="lg:w-1/2 p-6 sm:p-8 md:p-10 lg:p-12 bg-white dark:bg-[#0f1f3a]">
           <div className="max-w-sm mx-auto w-full">
-            <div className="lg:hidden mb-8">
+            {/* ── Mobile Brand (hidden on desktop) ── */}
+            <div className="lg:hidden mb-6 sm:mb-8">
               <Link href="/" className="inline-block">
                 <h1 className="text-2xl font-bold text-[#0a2540] dark:text-white">
                   Xeco<span className="text-emerald-500">Flow</span>
@@ -472,8 +476,9 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {/* ── Header ── */}
+            <div className="mb-6 sm:mb-8">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
                 Welcome back
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -481,25 +486,25 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* ─── SIMPLIFIED LOGIN FORM ───────────────────────────────── */}
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* ── Identifier Field ── */}
+            {/* ─── LOGIN FORM ───────────────────────────────────────────── */}
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+              {/* ── Email Field ── */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Email or Merchant ID
+                  Email
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
-                    type="text"
+                    type="email"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="Enter your email or Merchant ID"
+                    placeholder="Enter your email address"
                     className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-[#1a2a4a] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white"
                     required
                     autoFocus
                     disabled={isLocked}
-                    autoComplete="username"
+                    autoComplete="email"
                   />
                 </div>
               </div>
@@ -588,12 +593,26 @@ export default function LoginPage() {
               )}
             </form>
 
-            {/* ─── Simplified Footer ── */}
-            <div className="mt-6">
+            {/* ─── Footer ── */}
+            <div className="mt-6 space-y-4">
+              {/* ── Terms & Privacy ── */}
+              <p className="text-xs text-center text-gray-400 dark:text-gray-500 leading-relaxed">
+                By signing in, you agree to our{' '}
+                <Link href="/terms" className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline">
+                  Terms of Service
+                </Link>
+                {' '}and{' '}
+                <Link href="/privacy" className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline">
+                  Privacy Policy
+                </Link>
+              </p>
+
+              {/* ── Create Account ── */}
               <p className="text-center text-sm text-gray-500 dark:text-gray-400">
                 New to XecoFlow?{' '}
-                <Link href="/signup" className="font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300">
+                <Link href="/signup" className="font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 inline-flex items-center gap-1">
                   Create account
+                  <ChevronRight className="w-4 h-4" />
                 </Link>
               </p>
             </div>
