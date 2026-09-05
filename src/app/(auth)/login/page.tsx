@@ -22,7 +22,7 @@ import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 // ─── Constants ──────────────────────────────────────────────────────
 const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const LOCKOUT_DURATION_MS = 2 * 60 * 1000; // 2 minutes
 const TOAST_DURATION = 5000;
 const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 7; // 7 days
 const REMEMBER_ME_DURATION_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -229,8 +229,8 @@ export default function LoginPage() {
       data.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
       setIsLocked(true);
       startLockTimer(data.lockedUntil);
-      setFormError('Too many failed attempts. Please try again in 15 minutes.');
-      showToast('error', 'Account Locked', 'Too many failed attempts. Please try again in 15 minutes.');
+      setFormError('Too many failed attempts. Please try again in 2 minutes.');
+      showToast('error', 'Account Locked', 'Too many failed attempts. Please try again in 2 minutes.');
     }
 
     localStorage.setItem(key, JSON.stringify(data));
@@ -331,7 +331,7 @@ export default function LoginPage() {
       }
 
       if (response.status === 429) {
-        const retryAfter = data.retryAfter || 60;
+        const retryAfter = data.retryAfter || 30;
         setFormError(`Too many login attempts. Please wait ${retryAfter} seconds.`);
         return;
       }
@@ -443,8 +443,8 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {/* Hero Text */}
-            <div className="space-y-5 py-6 lg:py-8">
+            {/* Hero Text - Increased spacing */}
+            <div className="space-y-7 py-6 lg:py-8">
               <h2 className="text-3xl sm:text-4xl xl:text-[2.75rem] font-bold text-white leading-[1.15] tracking-tight">
                 Modern payments
                 <br />
