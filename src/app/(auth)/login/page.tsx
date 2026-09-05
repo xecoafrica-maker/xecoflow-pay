@@ -16,7 +16,6 @@ import {
   AlertTriangle,
   X,
   ChevronRight,
-  Building2,
 } from 'lucide-react';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
@@ -455,13 +454,13 @@ export default function LoginPage() {
       ))}
 
       {/* ─── MAIN CONTAINER - Expanded Width ─── */}
-      <div className="w-full max-w-6xl flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
+      <div className="w-full max-w-[1400px] flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
         
         {/* ── LEFT PANEL – Brand ── */}
-        <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden min-h-[400px] lg:min-h-[580px]">
+        <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-16 xl:p-20 flex flex-col justify-between relative overflow-hidden min-h-[400px] lg:min-h-[600px]">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
-          <div className="absolute top-[-100px] right-[-100px] w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-[-100px] left-[-100px] w-[300px] h-[300px] bg-emerald-500/10 rounded-full blur-3xl" />
+          <div className="absolute top-[-150px] right-[-150px] w-[400px] h-[400px] bg-indigo-500/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-[-150px] left-[-150px] w-[400px] h-[400px] bg-emerald-500/10 rounded-full blur-3xl" />
 
           <div className="relative z-10 flex flex-col h-full justify-between">
             {/* ── Brand ── */}
@@ -475,7 +474,7 @@ export default function LoginPage() {
 
             {/* ── Hero Text ── */}
             <div className="space-y-3 sm:space-y-4 py-6 sm:py-8 lg:py-10">
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-white leading-[1.1] tracking-tight">
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl font-bold text-white leading-[1.1] tracking-tight">
                 Modern
                 <br />
                 payments
@@ -518,7 +517,7 @@ export default function LoginPage() {
         </div>
 
         {/* ── RIGHT PANEL – Login Form ── */}
-        <div className="lg:w-1/2 p-6 sm:p-8 md:p-10 lg:p-12 bg-white dark:bg-[#0f1f3a]">
+        <div className="lg:w-1/2 p-6 sm:p-8 md:p-10 lg:p-12 xl:p-16 bg-white dark:bg-[#0f1f3a]">
           <div className="max-w-sm mx-auto w-full">
             {/* ── Mobile Brand (hidden on desktop) ── */}
             <div className="lg:hidden mb-6 sm:mb-8">
