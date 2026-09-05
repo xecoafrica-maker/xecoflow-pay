@@ -327,14 +327,14 @@ export default function LoginPage() {
 
       // ── ERROR HANDLING: 400 Bad Request ──
       if (response.status === 400) {
-        setFormError(data.error || 'Email and password are required.');
+        setFormError('Please enter both email and password.');
         setLoading(false);
         return;
       }
 
       // ── ERROR HANDLING: 401 Unauthorized ──
       if (response.status === 401) {
-        setFormError(data.error || 'Invalid email or password.');
+        setFormError('Invalid email or password. Please check your credentials.');
         trackFailedAttempt();
         setLoading(false);
         return;
@@ -343,19 +343,19 @@ export default function LoginPage() {
       // ── ERROR HANDLING: 429 Too Many Requests ──
       if (response.status === 429) {
         const retryAfter = data.retryAfter || 60;
-        setFormError(`Too many attempts. Please wait ${retryAfter} seconds.`);
+        setFormError(`Too many login attempts. Please wait ${retryAfter} seconds before trying again.`);
         setLoading(false);
         return;
       }
 
       // ── ERROR HANDLING: 500+ Server Errors ──
       if (response.status >= 500) {
-        setFormError('System temporarily unavailable. Please try again later.');
+        setFormError('We are experiencing technical difficulties. Please try again later.');
         setLoading(false);
         return;
       }
 
-      // ── Extract token (supports multiple response shapes) ──
+      // ── Extract token ──
       const token =
         data.token ||
         data.accessToken ||
@@ -363,7 +363,7 @@ export default function LoginPage() {
         data.data?.token;
 
       if (!token) {
-        setFormError(data.error || 'Invalid credentials. Please try again.');
+        setFormError('Invalid credentials. Please try again.');
         trackFailedAttempt();
         setLoading(false);
         return;
@@ -412,8 +412,16 @@ export default function LoginPage() {
 
     } catch (err: any) {
       console.error('Login error:', err);
-      // Do NOT count pure network errors as failed login attempts
-      setFormError('An unexpected error occurred. Please try again.');
+      
+      // ── SPECIFIC ERROR MESSAGES ──
+      if (err.name === 'AbortError' || err.message?.includes('abort')) {
+        setFormError('Request timed out. Please check your connection and try again.');
+      } else if (err.name === 'TypeError' || err.message?.includes('fetch')) {
+        setFormError('Unable to connect to server. Please check your internet connection.');
+      } else {
+        setFormError('Something went wrong. Please try again or contact support if the issue persists.');
+      }
+      
       await log(
         'Failed login attempt',
         `Failed login for ${email}: ${err.message || 'Unknown error'}`
@@ -446,6 +454,7 @@ export default function LoginPage() {
           <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
 
           <div className="relative z-10 flex flex-col h-full justify-between">
+            {/* Brand */}
             <div>
               <Link href="/" className="inline-block">
                 <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
@@ -454,42 +463,44 @@ export default function LoginPage() {
               </Link>
             </div>
 
+            {/* ── UPDATED: Hero Text ── */}
             <div className="space-y-4 py-6 lg:py-8">
-              <h2 className="text-3xl sm:text-4xl xl:text-5xl font-bold text-white leading-[1.1] tracking-tight">
-                Modern
+              <h2 className="text-2xl sm:text-3xl xl:text-4xl font-bold text-white leading-[1.15] tracking-tight">
+                Modern payment
                 <br />
-                payments
+                <span className="text-emerald-400">automated tax compliance</span>
                 <br />
-                for African
-                <br />
-                <span className="text-emerald-400">businesses.</span>
+                for African businesses.
               </h2>
               <p className="text-slate-400 text-sm sm:text-base max-w-sm leading-relaxed">
-                Accept M-PESA, Airtel Money, cards,
+                Accept M-PESA, Airtel Money, cards, and bank transfers
                 <br className="hidden sm:block" />
-                and bank transfers through a single API.
+                through a unified Business account—while automating
+                <br className="hidden sm:block" />
+                your cashflow and filing tax returns effortlessly.
               </p>
             </div>
 
-            {/* ── ACCEPTED CHANNELS - FIXED ALIGNMENT ── */}
+            {/* ── Accepted Channels ── */}
             <div className="flex flex-col gap-2.5 pt-4 border-t border-white/10">
               <span className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-[0.15em]">
                 Accepted Channels
               </span>
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors whitespace-nowrap">
+              
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
+                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
                   M-PESA
                 </span>
-                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors whitespace-nowrap">
+                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
                   Airtel Money
                 </span>
-                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors whitespace-nowrap">
+                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
                   Visa
                 </span>
-                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors whitespace-nowrap">
+                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
                   Mastercard
                 </span>
-                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors whitespace-nowrap">
+                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
                   Banks
                 </span>
               </div>
@@ -561,7 +572,6 @@ export default function LoginPage() {
                     autoComplete="email"
                   />
                 </div>
-                {/* ── EMAIL FIELD ERROR ── */}
                 {emailError && (
                   <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
@@ -612,7 +622,6 @@ export default function LoginPage() {
                     )}
                   </button>
                 </div>
-                {/* ── PASSWORD FIELD ERROR ── */}
                 {passwordError && (
                   <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
