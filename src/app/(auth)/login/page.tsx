@@ -178,7 +178,12 @@ export default function LoginPage() {
   const formatLockoutTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    if (mins > 0 && secs > 0) {
+      return `${mins}m ${secs}s`;
+    } else if (mins > 0) {
+      return `${mins}m`;
+    }
+    return `${secs}s`;
   };
 
   const getAttemptKey = (emailValue: string) =>
@@ -273,14 +278,17 @@ export default function LoginPage() {
     setPasswordError('');
     setFormError('');
 
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email.trim()) {
       setEmailError('Email is required');
       valid = false;
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    } else if (!emailRegex.test(email)) {
       setEmailError('Please enter a valid email address');
       valid = false;
     }
 
+    // Password validation
     if (!password) {
       setPasswordError('Password is required');
       valid = false;
@@ -317,29 +325,37 @@ export default function LoginPage() {
 
       const data = await response.json();
 
+      // ── ERROR HANDLING: 400 Bad Request ──
       if (response.status === 400) {
         setFormError(data.error || 'Email and password are required.');
+        setLoading(false);
         return;
       }
 
+      // ── ERROR HANDLING: 401 Unauthorized ──
       if (response.status === 401) {
         setFormError(data.error || 'Invalid email or password.');
         trackFailedAttempt();
+        setLoading(false);
         return;
       }
 
+      // ── ERROR HANDLING: 429 Too Many Requests ──
       if (response.status === 429) {
         const retryAfter = data.retryAfter || 60;
         setFormError(`Too many attempts. Please wait ${retryAfter} seconds.`);
+        setLoading(false);
         return;
       }
 
+      // ── ERROR HANDLING: 500+ Server Errors ──
       if (response.status >= 500) {
         setFormError('System temporarily unavailable. Please try again later.');
+        setLoading(false);
         return;
       }
 
-      // Extract token (supports multiple response shapes)
+      // ── Extract token (supports multiple response shapes) ──
       const token =
         data.token ||
         data.accessToken ||
@@ -349,6 +365,7 @@ export default function LoginPage() {
       if (!token) {
         setFormError(data.error || 'Invalid credentials. Please try again.');
         trackFailedAttempt();
+        setLoading(false);
         return;
       }
 
@@ -392,6 +409,7 @@ export default function LoginPage() {
       setTimeout(() => {
         router.push(user.role === 'developer' ? '/developer/dashboard' : '/dashboard');
       }, 400);
+
     } catch (err: any) {
       console.error('Login error:', err);
       // Do NOT count pure network errors as failed login attempts
@@ -453,19 +471,27 @@ export default function LoginPage() {
               </p>
             </div>
 
+            {/* ── ACCEPTED CHANNELS - FIXED ALIGNMENT ── */}
             <div className="flex flex-col gap-2.5 pt-4 border-t border-white/10">
               <span className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-[0.15em]">
                 Accepted Channels
               </span>
-              <div className="flex flex-wrap gap-2">
-                {['M-PESA', 'Airtel Money', 'Visa', 'Mastercard', 'Banks'].map((channel) => (
-                  <span
-                    key={channel}
-                    className="bg-white/5 px-3 py-1 rounded-full text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors"
-                  >
-                    {channel}
-                  </span>
-                ))}
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors whitespace-nowrap">
+                  M-PESA
+                </span>
+                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors whitespace-nowrap">
+                  Airtel Money
+                </span>
+                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors whitespace-nowrap">
+                  Visa
+                </span>
+                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors whitespace-nowrap">
+                  Mastercard
+                </span>
+                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors whitespace-nowrap">
+                  Banks
+                </span>
               </div>
             </div>
           </div>
@@ -492,7 +518,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Form-level error */}
+            {/* ── FORM-LEVEL ERROR ── */}
             {formError && (
               <div className="mb-5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3.5 flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -504,7 +530,7 @@ export default function LoginPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Email */}
+              {/* ── EMAIL FIELD ── */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Email
@@ -535,6 +561,7 @@ export default function LoginPage() {
                     autoComplete="email"
                   />
                 </div>
+                {/* ── EMAIL FIELD ERROR ── */}
                 {emailError && (
                   <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
@@ -543,7 +570,7 @@ export default function LoginPage() {
                 )}
               </div>
 
-              {/* Password */}
+              {/* ── PASSWORD FIELD ── */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Password
@@ -585,6 +612,7 @@ export default function LoginPage() {
                     )}
                   </button>
                 </div>
+                {/* ── PASSWORD FIELD ERROR ── */}
                 {passwordError && (
                   <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
@@ -593,7 +621,7 @@ export default function LoginPage() {
                 )}
               </div>
 
-              {/* Remember + Forgot */}
+              {/* ── REMEMBER ME & FORGOT PASSWORD ── */}
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
@@ -615,7 +643,7 @@ export default function LoginPage() {
                 </Link>
               </div>
 
-              {/* Attempts remaining */}
+              {/* ── ATTEMPTS REMAINING ── */}
               {!isLocked && attemptsRemaining < MAX_LOGIN_ATTEMPTS && attemptsRemaining > 0 && (
                 <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg">
                   <AlertCircle className="w-4 h-4" />
@@ -625,7 +653,7 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* Submit */}
+              {/* ── SUBMIT BUTTON ── */}
               {isLocked ? (
                 <div className="w-full py-3.5 bg-gray-400 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 cursor-not-allowed">
                   <Clock className="w-4 h-4" />
@@ -651,7 +679,7 @@ export default function LoginPage() {
               )}
             </form>
 
-            {/* Footer */}
+            {/* ── FOOTER ── */}
             <div className="mt-6 space-y-3.5">
               <p className="text-center text-sm text-gray-500 dark:text-gray-400">
                 New to XecoFlow?{' '}
