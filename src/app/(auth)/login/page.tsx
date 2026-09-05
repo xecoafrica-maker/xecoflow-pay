@@ -310,7 +310,7 @@ export default function LoginPage() {
 
     try {
       // ✅ CORRECT: Call the API route (same domain)
-      const response = await fetch('/v1/auth/login', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
