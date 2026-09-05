@@ -309,7 +309,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // ✅ CORRECT: Call the API route (same domain)
+      // ✅ Call the API route (same domain)
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -365,27 +365,34 @@ export default function LoginPage() {
 
       const merchant = data.data || data.merchant || {};
 
-      // ✅ Store as 'user' (for your app)
-      localStorage.setItem('user', JSON.stringify({
-        merchantId: merchant.merchantId,
-        businessName: merchant.businessName,
+      console.log('✅ Login successful, merchant data:', merchant);
+
+      // ✅ Create merchant data with both camelCase and snake_case
+      const merchantData = {
+        // CamelCase (for modern code)
+        merchantId: merchant.merchantId || merchant.merchant_id,
+        businessName: merchant.businessName || merchant.business_name,
         email: merchant.email,
         phone: merchant.phone,
         status: merchant.status,
         role: merchant.role || 'merchant',
-      }));
+        // Snake_case (for dashboard compatibility)
+        merchant_id: merchant.merchantId || merchant.merchant_id,
+        business_name: merchant.businessName || merchant.business_name,
+      };
 
-      // ✅ ALSO store as 'merchant' (for dashboard compatibility)
-      localStorage.setItem('merchant', JSON.stringify({
-        merchantId: merchant.merchantId,
-        businessName: merchant.businessName,
-        email: merchant.email,
-        phone: merchant.phone,
-        status: merchant.status,
-        role: merchant.role || 'merchant',
-      }));
+      // ✅ Store in multiple localStorage keys for compatibility
+      localStorage.setItem('user', JSON.stringify(merchantData));
+      localStorage.setItem('merchant', JSON.stringify(merchantData));
+      localStorage.setItem('merchantData', JSON.stringify(merchantData));
+      
+      // ✅ Store individual values for dashboard
+      localStorage.setItem('merchant_id', String(merchantData.merchantId));
+      localStorage.setItem('user_role', merchantData.role);
+      localStorage.setItem('businessName', merchantData.businessName);
+      localStorage.setItem('email', merchantData.email);
 
-      localStorage.setItem('user_role', merchant.role || 'merchant');
+      console.log('✅ Stored merchant_id:', localStorage.getItem('merchant_id'));
 
       // Clear failed attempts
       localStorage.removeItem(getAttemptKey(email));
@@ -399,7 +406,7 @@ export default function LoginPage() {
 
       showToast('success', 'Welcome Back!', `Signed in as ${merchant.businessName || 'merchant'}`);
 
-      // ✅ Force redirect to dashboard
+      // ✅ Redirect to dashboard
       setTimeout(() => {
         const role = merchant.role || 'merchant';
         const redirectPath = role === 'developer' ? '/developer/dashboard' : '/dashboard';
