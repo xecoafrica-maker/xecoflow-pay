@@ -302,13 +302,13 @@ export default function Header() {
           {/* RIGHT SIDE ACTIONS */}
           <div className="flex items-center gap-3 flex-shrink-0">
             <Link
-              href="/login"
+              href="/maintenance"
               className="px-6 py-2.5 rounded-full border border-gray-700 text-[17px] font-medium text-gray-800 hover:bg-gray-50 transition-all"
             >
               Log In
             </Link>
             <Link
-              href="/signup"
+              href="/maintenance"
               className="px-6 py-2.5 rounded-full bg-[#A3E5F3] text-gray-800 text-[17px] font-medium hover:bg-[#8ED9E9] transition-all"
             >
               Sign Up
