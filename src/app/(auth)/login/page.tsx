@@ -450,9 +450,7 @@ export default function LoginPage() {
                 <br />
                 <span className="text-emerald-400">& automated tax</span>
                 <br />
-                compliance for
-                <br />
-                African businesses.
+                compliance.
               </h2>
 
               <p className="text-slate-400 text-sm sm:text-base max-w-[320px] leading-relaxed">
@@ -467,7 +465,7 @@ export default function LoginPage() {
               </span>
 
               <div className="flex flex-wrap gap-2">
-                {['M-PESA', 'Airtel Money', 'Visa', 'Mastercard', 'Banks'].map((channel) => (
+                {['M-PESA', 'Airtel Money', 'Mastercard', 'Banks'].map((channel) => (
                   <span
                     key={channel}
                     className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 transition-colors"
