@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   X,
   ChevronRight,
+  Building2,
 } from 'lucide-react';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
@@ -133,12 +134,17 @@ export default function LoginPage() {
   // ─── State ────────────────────────────────────────────────────────
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [identifier, setIdentifier] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutTimeLeft, setLockoutTimeLeft] = useState(0);
   const [attemptsRemaining, setAttemptsRemaining] = useState(MAX_LOGIN_ATTEMPTS);
+  
+  // ─── Error State ──────────────────────────────────────────────────
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [formError, setFormError] = useState('');
   
   // ─── Toast State ──────────────────────────────────────────────────
   const [toasts, setToasts] = useState<Array<{ id: string; type: 'error' | 'warning' | 'info' | 'success'; title: string; message: string }>>([]);
@@ -161,7 +167,7 @@ export default function LoginPage() {
   useEffect(() => {
     const loadAttemptData = () => {
       try {
-        const stored = localStorage.getItem(`login_attempts_${identifier || 'default'}`);
+        const stored = localStorage.getItem(`login_attempts_${email || 'default'}`);
         if (stored) {
           const data: LoginAttempt = JSON.parse(stored);
           
@@ -189,7 +195,7 @@ export default function LoginPage() {
         clearInterval(lockTimerRef.current);
       }
     };
-  }, [identifier]);
+  }, [email]);
 
   // ─── Lock Timer ──────────────────────────────────────────────────
   const startLockTimer = (lockedUntil: number) => {
@@ -212,7 +218,7 @@ export default function LoginPage() {
 
   // ─── Reset Attempts ──────────────────────────────────────────────
   const resetAttempts = () => {
-    localStorage.removeItem(`login_attempts_${identifier || 'default'}`);
+    localStorage.removeItem(`login_attempts_${email || 'default'}`);
     setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
     setIsLocked(false);
     setLockoutTimeLeft(0);
@@ -220,7 +226,7 @@ export default function LoginPage() {
 
   // ─── Track Failed Attempt ────────────────────────────────────────
   const trackFailedAttempt = () => {
-    const key = identifier || 'default';
+    const key = email || 'default';
     const stored = localStorage.getItem(`login_attempts_${key}`);
     let data: LoginAttempt = { count: 0, timestamp: Date.now() };
     
@@ -239,6 +245,7 @@ export default function LoginPage() {
       data.lockedUntil = Date.now() + LOCKOUT_DURATION;
       setIsLocked(true);
       startLockTimer(data.lockedUntil);
+      setFormError('Too many failed attempts. Please try again in 15 minutes.');
       showToast('error', 'Account Locked', 'Too many failed attempts. Please try again in 15 minutes.');
     }
     
@@ -248,7 +255,7 @@ export default function LoginPage() {
 
   // ─── Clear Attempts on Success ──────────────────────────────────
   const clearAttempts = () => {
-    localStorage.removeItem(`login_attempts_${identifier || 'default'}`);
+    localStorage.removeItem(`login_attempts_${email || 'default'}`);
     setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
     setIsLocked(false);
     setLockoutTimeLeft(0);
@@ -264,52 +271,95 @@ export default function LoginPage() {
     return `${secs}s`;
   };
 
+  // ─── Client-Side Validation ──────────────────────────────────────
+  const validateForm = (): boolean => {
+    let isValid = true;
+    setEmailError('');
+    setPasswordError('');
+    setFormError('');
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email) {
+      setEmailError('Email is required');
+      isValid = false;
+    } else if (!emailRegex.test(email)) {
+      setEmailError('Please enter a valid email address');
+      isValid = false;
+    }
+
+    // Password validation
+    if (!password) {
+      setPasswordError('Password is required');
+      isValid = false;
+    } else if (password.length < 8) {
+      setPasswordError('Password must be at least 8 characters');
+      isValid = false;
+    }
+
+    return isValid;
+  };
+
   // ─── MAIN LOGIN HANDLER ──────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // ── Clear previous errors ──
+    setFormError('');
+    setEmailError('');
+    setPasswordError('');
+
+    // ── Check lockout ──
     if (isLocked) {
-      showToast('error', 'Account Locked', 'Too many failed attempts. Please try again in 15 minutes.');
+      setFormError(`Too many failed attempts. Please try again in ${formatLockoutTime(lockoutTimeLeft)}`);
       return;
     }
 
-    if (!identifier || !password) {
-      showToast('warning', 'Validation Error', 'Please enter your email and password');
+    // ── Client-side validation ──
+    if (!validateForm()) {
       return;
     }
 
     setLoading(true);
 
     try {
-      // ─── Determine if identifier is email or merchant ID ────────────
-      const isEmail = identifier.includes('@') && identifier.includes('.');
-      const isMerchantId = /^[A-Z0-9]{8,}$/.test(identifier.toUpperCase());
-      
-      // ─── Prepare login payload ──────────────────────────────────────
-      const loginPayload = {
-        identifier,
-        password,
-      };
-
-      console.log('🔐 Login attempt for:', { identifier, isEmail, isMerchantId });
-
       // ─── Call the Next.js API route ──────────────────────────────────
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(loginPayload),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
 
-      console.log('📤 Login response status:', response.status);
+      // ─── Handle 400: Bad Request ─────────────────────────────────────
+      if (response.status === 400) {
+        setFormError(data.error || 'Email and password are required.');
+        setLoading(false);
+        return;
+      }
 
-      // ─── Rate Limit Error Handling ──────────────────────────────────
+      // ─── Handle 401: Unauthorized ────────────────────────────────────
+      if (response.status === 401) {
+        setFormError(data.error || 'Invalid email or password.');
+        trackFailedAttempt();
+        setLoading(false);
+        return;
+      }
+
+      // ─── Handle 429: Rate Limit ──────────────────────────────────────
       if (response.status === 429) {
         const retryAfter = data.retryAfter || 60;
-        showToast('warning', 'Too Many Requests', `Please wait ${retryAfter} seconds before trying again.`);
+        setFormError(`Too many attempts. Please wait ${retryAfter} seconds before trying again.`);
+        setLoading(false);
+        return;
+      }
+
+      // ─── Handle 500: Server Error ────────────────────────────────────
+      if (response.status >= 500) {
+        setFormError('System temporarily unavailable. Please try again later.');
         setLoading(false);
         return;
       }
@@ -330,17 +380,10 @@ export default function LoginPage() {
         token = data.accessToken;
         userData = data;
       }
-      
-      console.log('🔑 Extracted token:', token ? token.substring(0, 30) + '...' : 'NO TOKEN');
 
       if (!token) {
-        if (data.error?.includes('Too many') || data.error?.includes('rate')) {
-          showToast('warning', 'Too Many Attempts', data.error || 'Please wait before trying again.');
-          trackFailedAttempt();
-        } else {
-          showToast('error', 'Login Failed', data.error || 'Invalid credentials. Please try again.');
-          trackFailedAttempt();
-        }
+        setFormError(data.error || 'Invalid credentials. Please try again.');
+        trackFailedAttempt();
         setLoading(false);
         return;
       }
@@ -348,12 +391,10 @@ export default function LoginPage() {
       // ─── Get user data ──────────────────────────────────────────────
       const user = {
         userId: Number(userData?.userId || userData?.user_id || 0),
-        email: userData?.email || identifier,
+        email: userData?.email || email,
         role: userData?.role || 'merchant',
         businessName: userData?.businessName || userData?.business_name || '',
       };
-
-      console.log('✅ Login successful for:', user);
 
       // ─── Store token and user data (5 minutes session) ─────────────
       const expiryTime = Date.now() + SESSION_DURATION * 1000;
@@ -391,14 +432,10 @@ export default function LoginPage() {
       
       await log(
         'Failed login attempt',
-        `Failed login attempt for ${identifier} - ${err.message || 'Unknown error'}`
+        `Failed login attempt for ${email} - ${err.message || 'Unknown error'}`
       );
       
-      if (err.message?.includes('Too many') || err.message?.includes('rate')) {
-        showToast('warning', 'Too Many Requests', err.message || 'Please wait before trying again.');
-      } else {
-        showToast('error', 'Error', err.message || 'An unexpected error occurred. Please try again.');
-      }
+      setFormError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -418,10 +455,10 @@ export default function LoginPage() {
       ))}
 
       {/* ─── MAIN CONTAINER - Expanded Width ─── */}
-      <div className="w-full max-w-5xl flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
+      <div className="w-full max-w-6xl flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
         
         {/* ── LEFT PANEL – Brand ── */}
-        <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden min-h-[400px] lg:min-h-[550px]">
+        <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden min-h-[400px] lg:min-h-[580px]">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
           <div className="absolute top-[-100px] right-[-100px] w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-3xl" />
           <div className="absolute bottom-[-100px] left-[-100px] w-[300px] h-[300px] bg-emerald-500/10 rounded-full blur-3xl" />
@@ -430,35 +467,51 @@ export default function LoginPage() {
             {/* ── Brand ── */}
             <div>
               <Link href="/" className="inline-block">
-                <h1 className="text-2xl sm:text-3xl font-bold text-white">
+                <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
                   Xeco<span className="text-emerald-400">Flow</span>
                 </h1>
               </Link>
             </div>
 
             {/* ── Hero Text ── */}
-            <div className="space-y-3 sm:space-y-4 py-6 sm:py-8">
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight">
-                Modern payments
+            <div className="space-y-3 sm:space-y-4 py-6 sm:py-8 lg:py-10">
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-white leading-[1.1] tracking-tight">
+                Modern
+                <br />
+                payments
                 <br />
                 for African
                 <br />
                 <span className="text-emerald-400">businesses.</span>
               </h2>
-              <p className="text-slate-400 text-sm sm:text-base max-w-sm">
-                Accept M-PESA, Airtel Money, cards, and bank transfers through a single API.
+              <p className="text-slate-400 text-sm sm:text-base max-w-sm leading-relaxed mt-2">
+                Accept M-PESA, Airtel Money, cards,
+                <br className="hidden sm:block" />
+                and bank transfers through a single API.
               </p>
             </div>
 
             {/* ─── Accepted Channels ── */}
             <div className="flex flex-col gap-3 pt-4 border-t border-white/10">
-              <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Accepted Channels</span>
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <span className="bg-white/5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-slate-300">M-PESA</span>
-                <span className="bg-white/5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-slate-300">Airtel Money</span>
-                <span className="bg-white/5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-slate-300">Visa</span>
-                <span className="bg-white/5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-slate-300">Mastercard</span>
-                <span className="bg-white/5 px-3 py-1.5 rounded-full text-xs sm:text-sm text-slate-300">Banks</span>
+              <span className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-[0.15em]">
+                Accepted Channels
+              </span>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                <span className="bg-white/5 px-3 sm:px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium text-slate-300 hover:bg-white/10 transition-colors">
+                  M-PESA
+                </span>
+                <span className="bg-white/5 px-3 sm:px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium text-slate-300 hover:bg-white/10 transition-colors">
+                  Airtel Money
+                </span>
+                <span className="bg-white/5 px-3 sm:px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium text-slate-300 hover:bg-white/10 transition-colors">
+                  Visa
+                </span>
+                <span className="bg-white/5 px-3 sm:px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium text-slate-300 hover:bg-white/10 transition-colors">
+                  Mastercard
+                </span>
+                <span className="bg-white/5 px-3 sm:px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium text-slate-300 hover:bg-white/10 transition-colors">
+                  Banks
+                </span>
               </div>
             </div>
           </div>
@@ -470,7 +523,7 @@ export default function LoginPage() {
             {/* ── Mobile Brand (hidden on desktop) ── */}
             <div className="lg:hidden mb-6 sm:mb-8">
               <Link href="/" className="inline-block">
-                <h1 className="text-2xl font-bold text-[#0a2540] dark:text-white">
+                <h1 className="text-2xl font-bold text-[#0a2540] dark:text-white tracking-tight">
                   Xeco<span className="text-emerald-500">Flow</span>
                 </h1>
               </Link>
@@ -478,13 +531,24 @@ export default function LoginPage() {
 
             {/* ── Header ── */}
             <div className="mb-6 sm:mb-8">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
                 Welcome back
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 Sign in to your XecoFlow account
               </p>
             </div>
+
+            {/* ─── FORM ERROR DISPLAY ───────────────────────────────────── */}
+            {formError && (
+              <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3.5 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-red-700 dark:text-red-400">Error</p>
+                  <p className="text-sm text-red-600 dark:text-red-300">{formError}</p>
+                </div>
+              </div>
+            )}
 
             {/* ─── LOGIN FORM ───────────────────────────────────────────── */}
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
@@ -494,41 +558,67 @@ export default function LoginPage() {
                   Email
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Mail className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${
+                    emailError ? 'text-red-400' : 'text-gray-400'
+                  }`} />
                   <input
                     type="email"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (emailError) setEmailError('');
+                      if (formError) setFormError('');
+                    }}
                     placeholder="Enter your email address"
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-[#1a2a4a] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white"
+                    className={`w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-[#1a2a4a] border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white ${
+                      emailError 
+                        ? 'border-red-300 dark:border-red-700 focus:ring-red-500/20 focus:border-red-500' 
+                        : 'border-gray-200 dark:border-gray-700 focus:ring-indigo-500/20 focus:border-indigo-500'
+                    }`}
                     required
                     autoFocus
-                    disabled={isLocked}
+                    disabled={isLocked || loading}
                     autoComplete="email"
                   />
                 </div>
+                {emailError && (
+                  <p className="text-xs text-red-500 dark:text-red-400 mt-1.5 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {emailError}
+                  </p>
+                )}
               </div>
 
               {/* ── Password Field ── */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Password</label>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Lock className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${
+                    passwordError ? 'text-red-400' : 'text-gray-400'
+                  }`} />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (passwordError) setPasswordError('');
+                      if (formError) setFormError('');
+                    }}
                     placeholder="Enter your password"
-                    className="w-full pl-10 pr-11 py-3 bg-gray-50 dark:bg-[#1a2a4a] border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white"
+                    className={`w-full pl-10 pr-11 py-3 bg-gray-50 dark:bg-[#1a2a4a] border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white ${
+                      passwordError 
+                        ? 'border-red-300 dark:border-red-700 focus:ring-red-500/20 focus:border-red-500' 
+                        : 'border-gray-200 dark:border-gray-700 focus:ring-indigo-500/20 focus:border-indigo-500'
+                    }`}
                     required
-                    disabled={isLocked}
+                    disabled={isLocked || loading}
                     autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2"
-                    disabled={isLocked}
+                    disabled={isLocked || loading}
                   >
                     {showPassword ? (
                       <EyeOff className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
@@ -537,6 +627,12 @@ export default function LoginPage() {
                     )}
                   </button>
                 </div>
+                {passwordError && (
+                  <p className="text-xs text-red-500 dark:text-red-400 mt-1.5 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {passwordError}
+                  </p>
+                )}
               </div>
 
               {/* ── Remember Me & Forgot Password ── */}
@@ -547,7 +643,7 @@ export default function LoginPage() {
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
-                    disabled={isLocked}
+                    disabled={isLocked || loading}
                   />
                   <span className="text-sm text-gray-600 dark:text-gray-400">Remember for 30 days</span>
                 </label>
@@ -576,7 +672,7 @@ export default function LoginPage() {
               ) : (
                 <button
                   type="submit"
-                  disabled={loading || !identifier || !password}
+                  disabled={loading || !email || !password}
                   className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 flex items-center justify-center gap-2"
                 >
                   {loading ? (
@@ -594,25 +690,25 @@ export default function LoginPage() {
             </form>
 
             {/* ─── Footer ── */}
-            <div className="mt-6 space-y-4">
-              {/* ── Terms & Privacy ── */}
-              <p className="text-xs text-center text-gray-400 dark:text-gray-500 leading-relaxed">
-                By signing in, you agree to our{' '}
-                <Link href="/terms" className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline">
-                  Terms of Service
-                </Link>
-                {' '}and{' '}
-                <Link href="/privacy" className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline">
-                  Privacy Policy
-                </Link>
-              </p>
-
+            <div className="mt-6 space-y-3">
               {/* ── Create Account ── */}
               <p className="text-center text-sm text-gray-500 dark:text-gray-400">
                 New to XecoFlow?{' '}
                 <Link href="/signup" className="font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 inline-flex items-center gap-1">
                   Create account
                   <ChevronRight className="w-4 h-4" />
+                </Link>
+              </p>
+
+              {/* ── Terms & Privacy (below Create Account) ── */}
+              <p className="text-center text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed">
+                By signing in, you agree to our{' '}
+                <Link href="/terms" className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline transition-colors">
+                  Terms of Service
+                </Link>
+                {' '}and{' '}
+                <Link href="/privacy" className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline transition-colors">
+                  Privacy Policy
                 </Link>
               </p>
             </div>
