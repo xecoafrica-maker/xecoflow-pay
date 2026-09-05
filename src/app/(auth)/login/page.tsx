@@ -463,13 +463,16 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {/* ── UPDATED: Hero Text ── */}
+            {/* ── FIXED: Hero Text with "Automated compliance." on ONE LINE ── */}
             <div className="space-y-4 py-6 lg:py-8">
               <h2 className="text-2xl sm:text-3xl xl:text-4xl font-bold text-white leading-[1.2] tracking-tight">
                 <div className="w-full">Smart payments.</div>
-                <div className="w-full text-emerald-400">Automated compliance.</div>
+                <div className="w-full text-emerald-400 whitespace-nowrap">Automated compliance.</div>
+                <div className="w-full text-lg sm:text-xl xl:text-2xl font-medium text-slate-300 mt-1">
+                  for African businesses.
+                </div>
               </h2>
-              <div className="text-slate-400 text-sm sm:text-base max-w-sm leading-relaxed space-y-1">
+              <div className="text-slate-400 text-sm sm:text-base max-w-sm leading-relaxed space-y-1 mt-2">
                 <div>Accept M-PESA, Airtel Money, and cards while</div>
                 <div>XecoFlow handles your cashflow and tax filing</div>
                 <div>on autopilot.</div>
