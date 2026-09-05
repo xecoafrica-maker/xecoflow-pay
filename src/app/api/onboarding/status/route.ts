@@ -7,15 +7,21 @@ export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
     
+    console.log('📤 [Onboarding Proxy] Fetching onboarding status');
+    
     const response = await fetch(`${BACKEND_URL}/v1/onboarding/status`, {
       headers: {
         'Authorization': authHeader || '',
+        'Content-Type': 'application/json',
       },
     });
 
     const data = await response.json();
+    console.log('📥 [Onboarding Proxy] Response status:', response.status);
+    
     return NextResponse.json(data, { status: response.status });
   } catch (error: any) {
+    console.error('❌ [Onboarding Proxy] Error:', error.message);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
