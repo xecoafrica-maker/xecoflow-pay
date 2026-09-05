@@ -447,67 +447,66 @@ export default function LoginPage() {
 
       <div className="w-full max-w-[1000px] flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
         
-        {/* ── LEFT PANEL ── */}
-        <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex flex-col justify-between relative overflow-hidden min-h-[400px] lg:min-h-[520px]">
-          <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
-          <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
-          <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
+       {/* ── LEFT PANEL ── */}
+<div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex flex-col justify-between relative overflow-hidden min-h-[400px] lg:min-h-[520px]">
+  <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
+  <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
+  <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
 
-          <div className="relative z-10 flex flex-col h-full justify-between">
-            {/* Brand */}
-            <div>
-              <Link href="/" className="inline-block">
-                <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-                  Xeco<span className="text-emerald-400">Flow</span>
-                </h1>
-              </Link>
-            </div>
+  <div className="relative z-10 flex flex-col h-full justify-between">
+    {/* Brand */}
+    <div>
+      <Link href="/" className="inline-block">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+          Xeco<span className="text-emerald-400">Flow</span>
+        </h1>
+      </Link>
+    </div>
 
-            {/* ── UPDATED: Hero Text ── */}
-            <div className="space-y-4 py-6 lg:py-8">
-              <h2 className="text-2xl sm:text-3xl xl:text-4xl font-bold text-white leading-[1.15] tracking-tight">
-                Modern payment
-                <br />
-                <span className="text-emerald-400">automated tax compliance</span>
-                <br />
-                for African businesses.
-              </h2>
-              <p className="text-slate-400 text-sm sm:text-base max-w-sm leading-relaxed">
-                Accept M-PESA, Airtel Money, cards, and bank transfers
-                <br className="hidden sm:block" />
-                through a unified Business account—while automating
-                <br className="hidden sm:block" />
-                your cashflow and filing tax returns effortlessly.
-              </p>
-            </div>
+    {/* ── FIXED: Hero Text with Proper Line Breaks ── */}
+    <div className="space-y-4 py-6 lg:py-8">
+      <h2 className="text-2xl sm:text-3xl xl:text-4xl font-bold text-white leading-[1.2] tracking-tight">
+        Modern payment
+        <br />
+        <span className="text-emerald-400">automated tax compliance</span>
+        <br />
+        for African businesses.
+      </h2>
+      <p className="text-slate-400 text-sm sm:text-base max-w-sm leading-relaxed">
+        Accept M-PESA, Airtel Money, cards, and bank transfers
+        <br className="hidden sm:block" />
+        through a unified Business account—while automating
+        <br className="hidden sm:block" />
+        your cashflow and filing tax returns effortlessly.
+      </p>
+    </div>
 
-            {/* ── Accepted Channels ── */}
-            <div className="flex flex-col gap-2.5 pt-4 border-t border-white/10">
-              <span className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-[0.15em]">
-                Accepted Channels
-              </span>
-              
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
-                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
-                  M-PESA
-                </span>
-                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
-                  Airtel Money
-                </span>
-                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
-                  Visa
-                </span>
-                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
-                  Mastercard
-                </span>
-                <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
-                  Banks
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
+    {/* ── Accepted Channels ── */}
+    <div className="flex flex-col gap-2.5 pt-4 border-t border-white/10">
+      <span className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-[0.15em]">
+        Accepted Channels
+      </span>
+      
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
+        <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
+          M-PESA
+        </span>
+        <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
+          Airtel Money
+        </span>
+        <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
+          Visa
+        </span>
+        <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
+          Mastercard
+        </span>
+        <span className="bg-white/5 px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors text-center whitespace-nowrap">
+          Banks
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
         {/* ── RIGHT PANEL ── */}
         <div className="lg:w-1/2 p-6 sm:p-8 md:p-10 lg:p-12 bg-white dark:bg-[#0f1f3a] flex flex-col justify-center">
           <div className="max-w-sm mx-auto w-full">
