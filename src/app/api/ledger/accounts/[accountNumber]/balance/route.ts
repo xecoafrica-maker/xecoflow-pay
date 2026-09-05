@@ -5,11 +5,11 @@ const BACKEND_URL = process.env.API_URL || 'https://xecoflow-2gen.onrender.com';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { accountNumber: string } }
+  { params }: { params: Promise<{ accountNumber: string }> }
 ) {
   try {
     const authHeader = request.headers.get('authorization');
-    const { accountNumber } = params;
+    const { accountNumber } = await params;
     
     console.log('📤 [Balance Proxy] Fetching balance for account:', accountNumber);
     
