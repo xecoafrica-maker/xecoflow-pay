@@ -309,8 +309,8 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // ✅ UPDATED: Call your backend directly (or via API route)
-      const response = await fetch('/v1/auth/login', {
+      // ✅ CORRECT: Call the API route (same domain)
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -334,7 +334,6 @@ export default function LoginPage() {
 
       // 401: Unauthorized
       if (response.status === 401) {
-        // Check if it's a blacklisted token error
         if (data.code === 'TOKEN_BLACKLISTED') {
           setFormError('Your session has been revoked. Please login again.');
         } else {
@@ -397,10 +396,13 @@ export default function LoginPage() {
 
       showToast('success', 'Welcome Back!', `Signed in as ${merchant.businessName || 'merchant'}`);
 
+      // ✅ Force redirect to dashboard
       setTimeout(() => {
         const role = merchant.role || 'merchant';
-        router.push(role === 'developer' ? '/developer/dashboard' : '/dashboard');
-      }, 400);
+        const redirectPath = role === 'developer' ? '/developer/dashboard' : '/dashboard';
+        console.log('🔄 [Login] Redirecting to:', redirectPath);
+        router.push(redirectPath);
+      }, 500);
 
     } catch (err: any) {
       console.error('Login error:', err);
@@ -440,13 +442,11 @@ export default function LoginPage() {
         
         {/* ── LEFT PANEL ── */}
         <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex flex-col justify-between relative overflow-hidden min-h-[420px] lg:min-h-[560px]">
-          {/* Background effects */}
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
           <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
           <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
 
           <div className="relative z-10 flex flex-col h-full justify-between">
-            {/* Brand */}
             <div>
               <Link href="/" className="inline-block">
                 <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
@@ -455,7 +455,6 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {/* Hero Text */}
             <div className="space-y-7 py-6 lg:py-8">
               <h2 className="text-3xl sm:text-4xl xl:text-[2.75rem] font-bold text-white leading-[1.15] tracking-tight">
                 Modern payments
@@ -470,7 +469,6 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Accepted Channels */}
             <div className="flex flex-col gap-3 pt-5 border-t border-white/10">
               <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-widest">
                 Accepted Channels
@@ -493,7 +491,6 @@ export default function LoginPage() {
         {/* ── RIGHT PANEL ── */}
         <div className="lg:w-1/2 p-6 sm:p-8 md:p-10 lg:p-12 bg-white dark:bg-[#0f1f3a] flex flex-col justify-center">
           <div className="max-w-sm mx-auto w-full">
-            {/* Mobile logo */}
             <div className="lg:hidden mb-8">
               <Link href="/" className="inline-block">
                 <h1 className="text-2xl font-bold text-[#0a2540] dark:text-white tracking-tight">
@@ -511,7 +508,6 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Form-level error */}
             {formError && (
               <div className="mb-5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3.5 flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -523,7 +519,6 @@ export default function LoginPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Email
@@ -562,7 +557,6 @@ export default function LoginPage() {
                 )}
               </div>
 
-              {/* Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Password
@@ -612,7 +606,6 @@ export default function LoginPage() {
                 )}
               </div>
 
-              {/* Remember + Forgot */}
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
@@ -634,7 +627,6 @@ export default function LoginPage() {
                 </Link>
               </div>
 
-              {/* Attempts remaining */}
               {!isLocked && attemptsRemaining < MAX_LOGIN_ATTEMPTS && attemptsRemaining > 0 && (
                 <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg">
                   <AlertCircle className="w-4 h-4" />
@@ -644,7 +636,6 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* Submit */}
               {isLocked ? (
                 <div className="w-full py-3.5 bg-gray-400 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 cursor-not-allowed">
                   <Clock className="w-4 h-4" />
@@ -670,7 +661,6 @@ export default function LoginPage() {
               )}
             </form>
 
-            {/* Footer */}
             <div className="mt-6 space-y-3.5">
               <p className="text-center text-sm text-gray-500 dark:text-gray-400">
                 New to XecoFlow?{' '}
