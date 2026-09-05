@@ -463,19 +463,19 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {/* ── Hero Text ── */}
-<div className="space-y-4 py-6 lg:py-8">
-  <h2 className="text-2xl sm:text-3xl xl:text-4xl font-bold text-white leading-[1.15] tracking-tight">
-    Modern payment<br />
-    <span className="text-emerald-400">automated tax compliance</span><br />
-    for African businesses.
-  </h2>
-  <p className="text-slate-400 text-sm sm:text-base max-w-sm leading-relaxed">
-    Accept M-PESA, Airtel Money, cards, and bank transfers
-    through a unified Business account—while automating
-    your cashflow and filing tax returns effortlessly.
-  </p>
-</div>
+            {/* ── UPDATED: Hero Text ── */}
+            <div className="space-y-4 py-6 lg:py-8">
+              <h2 className="text-2xl sm:text-3xl xl:text-4xl font-bold text-white leading-[1.2] tracking-tight">
+                <div className="w-full">Smart payments.</div>
+                <div className="w-full text-emerald-400">Automated compliance.</div>
+              </h2>
+              <div className="text-slate-400 text-sm sm:text-base max-w-sm leading-relaxed space-y-1">
+                <div>Accept M-PESA, Airtel Money, and cards while</div>
+                <div>XecoFlow handles your cashflow and tax filing</div>
+                <div>on autopilot.</div>
+              </div>
+            </div>
+
             {/* ── Accepted Channels ── */}
             <div className="flex flex-col gap-2.5 pt-4 border-t border-white/10">
               <span className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase tracking-[0.15em]">
