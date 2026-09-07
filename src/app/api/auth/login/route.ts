@@ -2,9 +2,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.API_URL || 'https://xecoflow-2gen.onrender.com';
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const REQUEST_TIMEOUT = 10000;
 
 export async function POST(request: NextRequest) {
+  console.log('🚀 [Proxy] Login API called');
+
   try {
     const body = await request.json();
     const { email, password, rememberMe = false } = body;
@@ -16,74 +18,61 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call backend
+    console.log('📤 [Proxy] Forwarding login for:', email);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
     const response = await fetch(`${BACKEND_URL}/v1/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, rememberMe }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     const data = await response.json();
+    console.log('📥 [Proxy] Backend status:', response.status);
 
-    if (!response.ok || !data.success) {
-      return NextResponse.json(data, { status: response.status });
-    }
-
-    // Extract tokens
-    const accessToken = data.data?.accessToken || data.accessToken;
-    const refreshToken = data.data?.refreshToken || data.refreshToken;
-
-    if (!accessToken) {
-      return NextResponse.json(
-        { success: false, message: 'Authentication failed' },
-        { status: 500 }
-      );
-    }
-
-    // Create response WITHOUT tokens in body
-    const nextResponse = NextResponse.json({
-      success: true,
-      message: 'Login successful',
-      merchant: {
-        merchantId: data.data?.merchantId || data.merchantId,
-        businessName: data.data?.businessName || data.businessName,
-        email: data.data?.email || email,
-        phone: data.data?.phone || '',
-        status: data.data?.status || 'ACTIVE',
-        role: data.data?.role || 'merchant',
-        emailVerified: data.data?.emailVerified || false,
-      },
-      sessionExpiry: rememberMe ? 7 * 24 * 60 * 60 : 30 * 60,
+    // Create response
+    const nextResponse = NextResponse.json(data, {
+      status: response.status,
     });
 
-    // ✅ SECURE COOKIE SETTINGS (Permanent)
-    const cookieOptions = {
-      httpOnly: true,
-      secure: IS_PRODUCTION,          // true in production
-      sameSite: 'lax' as const,       // Best balance of security + usability
-      path: '/',
-      maxAge: rememberMe 
-        ? 7 * 24 * 60 * 60            // 7 days
-        : 30 * 60,                    // 30 minutes
-    };
+    // ─── Forward cookies from backend ─────────────────────────────
+    const setCookieHeaders = response.headers.getSetCookie?.() || [];
 
-    // Set Access Token
-    nextResponse.cookies.set('auth_token', accessToken, cookieOptions);
+    if (setCookieHeaders.length > 0) {
+      console.log(`🍪 [Proxy] Forwarding ${setCookieHeaders.length} cookie(s)`);
 
-    // Set Refresh Token (longer life)
-    if (refreshToken) {
-      nextResponse.cookies.set('refresh_token', refreshToken, {
-        ...cookieOptions,
-        maxAge: 30 * 24 * 60 * 60, // 30 days
+      setCookieHeaders.forEach((cookie) => {
+        // Remove Domain attribute so the browser accepts it for the current domain
+        const cleanedCookie = cookie
+          .split(';')
+          .filter((part) => !part.trim().toLowerCase().startsWith('domain='))
+          .join(';');
+
+        nextResponse.headers.append('Set-Cookie', cleanedCookie);
       });
+    } else {
+      console.log('⚠️ [Proxy] No Set-Cookie headers received from backend');
     }
 
     return nextResponse;
 
   } catch (error: any) {
-    console.error('[Login Proxy] Error:', error.message);
+    console.error('❌ [Proxy] Error:', error.message);
+
+    if (error.name === 'AbortError') {
+      return NextResponse.json(
+        { success: false, message: 'Request timed out. Please try again.' },
+        { status: 504 }
+      );
+    }
+
     return NextResponse.json(
-      { success: false, message: 'Internal server error' },
+      { success: false, message: 'An unexpected error occurred.' },
       { status: 500 }
     );
   }
