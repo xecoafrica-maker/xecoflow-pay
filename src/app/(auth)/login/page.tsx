@@ -309,7 +309,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // ✅ Call the API route (same domain)
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -318,19 +317,39 @@ export default function LoginPage() {
           password,
           rememberMe: rememberMe 
         }),
-        credentials: 'include', // ✅ Important for cookies!
+        credentials: 'include',
       });
 
-      const data = await response.json();
+      // ─── ✅ FIX: Handle non-JSON responses safely ──────────────
+      const contentType = response.headers.get('content-type') || '';
+      let data: any = {};
+
+      if (contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        // Plain text response (e.g. "Too Many Requests")
+        const text = await response.text();
+        data = { message: text || 'An error occurred' };
+      }
 
       // ─── ERROR HANDLING ──────────────────────────────────────────
 
+      // 429: Rate Limited
+      if (response.status === 429) {
+        const retryAfter = data.retryAfter || 30;
+        setFormError(`Too many login attempts. Please wait ${retryAfter} seconds.`);
+        setLoading(false);
+        return;
+      }
+
+      // 400: Bad Request
       if (response.status === 400) {
         setFormError(data.message || 'Please enter both email and password.');
         setLoading(false);
         return;
       }
 
+      // 401: Unauthorized
       if (response.status === 401) {
         if (data.code === 'TOKEN_BLACKLISTED') {
           setFormError('Your session has been revoked. Please login again.');
@@ -342,21 +361,16 @@ export default function LoginPage() {
         return;
       }
 
+      // 423: Locked
       if (response.status === 423) {
         setFormError(data.message || 'Too many failed attempts. Please try again later.');
         setLoading(false);
         return;
       }
 
-      if (response.status === 429) {
-        const retryAfter = data.retryAfter || 30;
-        setFormError(`Too many login attempts. Please wait ${retryAfter} seconds.`);
-        setLoading(false);
-        return;
-      }
-
+      // 500+: Server Error
       if (response.status >= 500) {
-        setFormError('We are experiencing technical difficulties. Please try again later.');
+        setFormError(data.message || 'We are experiencing technical difficulties. Please try again later.');
         setLoading(false);
         return;
       }
@@ -367,26 +381,23 @@ export default function LoginPage() {
 
       console.log('✅ Login successful, merchant data:', merchant);
 
-      // ✅ Create merchant data with both camelCase and snake_case
+      // ─── Create merchant data ──────────────────────────────────────
       const merchantData = {
-        // CamelCase (for modern code)
         merchantId: merchant.merchantId || merchant.merchant_id,
         businessName: merchant.businessName || merchant.business_name,
         email: merchant.email,
-        phone: merchant.phone,
-        status: merchant.status,
+        phone: merchant.phone || '',
+        status: merchant.status || 'ACTIVE',
         role: merchant.role || 'merchant',
-        // Snake_case (for dashboard compatibility)
         merchant_id: merchant.merchantId || merchant.merchant_id,
         business_name: merchant.businessName || merchant.business_name,
+        emailVerified: merchant.emailVerified || merchant.email_verified || false,
       };
 
-      // ✅ Store in multiple localStorage keys for compatibility
+      // ─── Store in localStorage ──────────────────────────────────────
       localStorage.setItem('user', JSON.stringify(merchantData));
       localStorage.setItem('merchant', JSON.stringify(merchantData));
       localStorage.setItem('merchantData', JSON.stringify(merchantData));
-      
-      // ✅ Store individual values for dashboard
       localStorage.setItem('merchant_id', String(merchantData.merchantId));
       localStorage.setItem('user_role', merchantData.role);
       localStorage.setItem('businessName', merchantData.businessName);
@@ -394,25 +405,24 @@ export default function LoginPage() {
 
       console.log('✅ Stored merchant_id:', localStorage.getItem('merchant_id'));
 
-      // Clear failed attempts
+      // ─── Clear failed attempts ──────────────────────────────────────
       localStorage.removeItem(getAttemptKey(email));
       setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
       setIsLocked(false);
 
+      // ─── Log activity ──────────────────────────────────────────────
       await log(
         ActivityActions.LOGIN,
-        `Successful login for ${merchant.email || email} (Role: ${merchant.role || 'merchant'})`
+        `Successful login for ${merchantData.email} (Role: ${merchantData.role})`
       );
 
-      showToast('success', 'Welcome Back!', `Signed in as ${merchant.businessName || 'merchant'}`);
+      showToast('success', 'Welcome Back!', `Signed in as ${merchantData.businessName}`);
 
-      // ✅ Redirect to dashboard
+      // ─── ✅ FIX: Use window.location.href for full page navigation ──
+      console.log('🔄 Redirecting to dashboard');
       setTimeout(() => {
-        const role = merchant.role || 'merchant';
-        const redirectPath = role === 'developer' ? '/developer/dashboard' : '/dashboard';
-        console.log('🔄 [Login] Redirecting to:', redirectPath);
-        router.push(redirectPath);
-      }, 500);
+        window.location.href = '/dashboard';
+      }, 300);
 
     } catch (err: any) {
       console.error('Login error:', err);

@@ -1,8 +1,9 @@
 // src/lib/auth.ts
 
 // ─── CONFIGURATION ──────────────────────────────────────────────────
-const TOKEN_EXPIRY = '5m'; // ← Changed from '7d' to '5m' (5 minutes)
-const SESSION_WARNING_THRESHOLD = 30; // 30 seconds warning (was 5 minutes)
+// ✅ FIXED: Match backend session duration (30 minutes)
+const TOKEN_EXPIRY = '30m'; // 30 minutes
+const SESSION_WARNING_THRESHOLD = 60; // 60 seconds warning (was 30)
 
 // ─── TYPES ──────────────────────────────────────────────────────────
 export interface MerchantAuth {
@@ -43,7 +44,13 @@ export function setToken(token: string): void {
 export function removeToken(): void {
   localStorage.removeItem('xecoflow_token');
   localStorage.removeItem('merchant');
-  localStorage.removeItem('auth_token'); // Also clear any other auth tokens
+  localStorage.removeItem('merchant_id');
+  localStorage.removeItem('user_role');
+  localStorage.removeItem('businessName');
+  localStorage.removeItem('email');
+  localStorage.removeItem('user');
+  localStorage.removeItem('merchantData');
+  localStorage.removeItem('auth_token');
 }
 
 /**
@@ -53,8 +60,12 @@ export function removeToken(): void {
  */
 export function getStoredMerchant(): any {
   if (typeof window === 'undefined') return null;
-  const data = localStorage.getItem('merchant');
-  return data ? JSON.parse(data) : null;
+  try {
+    const data = localStorage.getItem('merchant');
+    return data ? JSON.parse(data) : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -172,13 +183,13 @@ export function getRemainingSessionTime(): number {
 }
 
 /**
- * Check if token is about to expire (within 30 seconds)
+ * Check if token is about to expire (within 60 seconds)
  * JOB: Warns when session is about to expire
  * Used for: Showing "Session expiring soon" notifications
  */
 export function isTokenExpiringSoon(): boolean {
   const remaining = getRemainingSessionTime();
-  return remaining > 0 && remaining < SESSION_WARNING_THRESHOLD; // 30 seconds
+  return remaining > 0 && remaining < SESSION_WARNING_THRESHOLD; // 60 seconds
 }
 
 /**
@@ -205,6 +216,12 @@ export function clearAllAuthData(): void {
   // Clear localStorage
   localStorage.removeItem('xecoflow_token');
   localStorage.removeItem('merchant');
+  localStorage.removeItem('merchant_id');
+  localStorage.removeItem('user_role');
+  localStorage.removeItem('businessName');
+  localStorage.removeItem('email');
+  localStorage.removeItem('user');
+  localStorage.removeItem('merchantData');
   localStorage.removeItem('auth_token');
   localStorage.removeItem('refresh_token');
   localStorage.removeItem('session_id');
@@ -222,4 +239,14 @@ export function clearAllAuthData(): void {
       document.cookie = `${name.trim()}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
     });
   }
+}
+
+/**
+ * Proper logout function
+ * JOB: Clears all auth data and redirects to login
+ * Used for: User logout
+ */
+export function logout(): void {
+  clearAllAuthData();
+  window.location.href = '/login';
 }
