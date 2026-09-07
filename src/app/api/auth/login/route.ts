@@ -32,67 +32,14 @@ export async function POST(request: NextRequest) {
 
     clearTimeout(timeoutId);
 
-    // ─── ✅ Get raw response first ──────────────────────────────────
-    const rawText = await response.text();
-    console.log('📥 [Proxy] Raw response (first 200 chars):', rawText.substring(0, 200));
-
-    // ─── ✅ Handle 429 Rate Limiting ──────────────────────────────
-    if (response.status === 429) {
-      console.log('📥 [Proxy] Rate limit hit (429)');
-      
-      // Try to parse as JSON, fallback to plain text
-      let errorMessage = 'Too many login attempts. Please wait a moment.';
-      let retryAfter = 30;
-      
-      try {
-        const errorData = JSON.parse(rawText);
-        errorMessage = errorData.message || errorData.error || errorMessage;
-        retryAfter = errorData.retryAfter || 30;
-      } catch {
-        // If not JSON, use the text
-        errorMessage = rawText || errorMessage;
-        const retryHeader = response.headers.get('retry-after');
-        if (retryHeader) {
-          retryAfter = parseInt(retryHeader) || 30;
-        }
-      }
-      
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: errorMessage,
-          retryAfter: retryAfter
-        },
-        { status: 429 }
-      );
-    }
-
-    // ─── ✅ Parse JSON for other responses ──────────────────────────
-    let data;
-    try {
-      data = JSON.parse(rawText);
-    } catch (parseError) {
-      console.error('❌ [Proxy] Failed to parse JSON:', parseError);
-      console.error('❌ [Proxy] Raw response:', rawText);
-      
-      // Return the raw text as an error message
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: rawText || 'Invalid response from server' 
-        },
-        { status: response.status || 500 }
-      );
-    }
-
+    const data = await response.json();
     console.log('📥 [Proxy] Backend status:', response.status);
-    console.log('📥 [Proxy] Parsed data:', JSON.stringify(data, null, 2));
 
+    // ─── ✅ CRITICAL: Forward the cookie ──────────────────────────
     const nextResponse = NextResponse.json(data, {
       status: response.status,
     });
 
-    // ─── ✅ Forward cookies ──────────────────────────────────────────
     const setCookieHeaders = response.headers.getSetCookie?.() || [];
 
     if (setCookieHeaders.length > 0) {
@@ -104,17 +51,21 @@ export async function POST(request: NextRequest) {
           .split(';')
           .filter((part) => {
             const trimmed = part.trim().toLowerCase();
-            // Remove Domain attribute
             if (trimmed.startsWith('domain=')) return false;
             return true;
           })
           .join(';');
 
+        console.log(`🍪 [Proxy] Forwarding cookie: ${cleanedCookie.substring(0, 100)}...`);
         nextResponse.headers.append('Set-Cookie', cleanedCookie);
       });
     } else {
       console.log('⚠️ [Proxy] No Set-Cookie headers received from backend');
     }
+
+    // ✅ Add CORS headers to ensure cookie is accepted
+    nextResponse.headers.set('Access-Control-Allow-Credentials', 'true');
+    nextResponse.headers.set('Access-Control-Allow-Origin', 'https://xecoflow-pay.onrender.com');
 
     return nextResponse;
 
