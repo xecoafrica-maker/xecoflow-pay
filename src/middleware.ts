@@ -6,8 +6,19 @@ import type { NextRequest } from 'next/server';
 const CONFIG = {
   CSP: "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://*.onrender.com wss://*.onrender.com ws://*.onrender.com https://api.ipify.org https://api.my-ip.io https://ipapi.co; frame-ancestors 'none';",
   RATE_LIMIT_WINDOW: 60, // 1 minute
-  RATE_LIMIT_MAX: 500, // 500 requests per minute
-  AUTH_RATE_LIMIT_MAX: 20, // 20 requests per minute for auth endpoints
+  
+  // ─── RATE LIMITS ──────────────────────────────────────────────────
+  // Authenticated merchants (per merchant)
+  AUTHENTICATED_MAX: 500,     // 500 requests per minute
+  
+  // Anonymous users (per IP)
+  PUBLIC_MAX: 100,            // 100 requests per minute
+  
+  // Auth endpoints (per IP/email)
+  AUTH_MAX: 20,               // 20 auth attempts per minute
+  
+  // Sensitive operations (per IP/email)
+  SENSITIVE_MAX: 5,           // 5 attempts per minute
 };
 
 // ─── PUBLIC ROUTES (No auth required) ─────────────────────────────
@@ -57,21 +68,96 @@ const protectedApiRoutes = [
 // ─── RATE LIMITER (In-memory - for Edge) ──────────────────────────
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
-function isRateLimited(ip: string, pathname: string): boolean {
-  if (pathname === '/api/auth/verify-password' || pathname.startsWith('/api/auth/verify-password')) {
+function getRateLimitKey(ip: string, pathname: string, token: string | null): string {
+  // ─── EXEMPT PATHS - No rate limiting ─────────────────────────────
+  const exemptPaths = [
+    '/api/auth/login',
+    '/api/auth/verify-password',
+    '/api/health',
+    '/api/webhooks/',
+  ];
+  if (exemptPaths.some(path => pathname.startsWith(path))) {
+    return 'exempt';
+  }
+
+  // ─── SENSITIVE PATHS - Use email or IP ──────────────────────────
+  const sensitivePaths = [
+    '/api/auth/register',
+    '/api/auth/resend-verification',
+    '/api/auth/forgot-password',
+  ];
+  if (sensitivePaths.some(path => pathname.startsWith(path))) {
+    // Use email from body if available, otherwise IP
+    return `sensitive:${ip}`;
+  }
+
+  // ─── AUTH PATHS - Use IP ──────────────────────────────────────────
+  if (pathname.includes('/api/auth/')) {
+    return `auth:${ip}`;
+  }
+
+  // ─── AUTHENTICATED USERS - Use merchant ID ──────────────────────
+  if (token) {
+    // Try to extract merchant ID from token
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.merchantId) {
+        return `merchant:${payload.merchantId}`;
+      }
+    } catch {
+      // If token parsing fails, use IP
+    }
+    return `authenticated:${ip}`;
+  }
+
+  // ─── PUBLIC USERS - Use IP ──────────────────────────────────────
+  return `public:${ip}`;
+}
+
+function getMaxRequests(pathname: string, key: string): number {
+  // ─── EXEMPT - No limit ────────────────────────────────────────────
+  if (key === 'exempt') {
+    return Infinity;
+  }
+
+  // ─── SENSITIVE PATHS - Strict limit ──────────────────────────────
+  const sensitivePaths = [
+    '/api/auth/register',
+    '/api/auth/resend-verification',
+    '/api/auth/forgot-password',
+  ];
+  if (sensitivePaths.some(path => pathname.startsWith(path))) {
+    return CONFIG.SENSITIVE_MAX;
+  }
+
+  // ─── AUTH PATHS - Medium limit ────────────────────────────────────
+  if (pathname.includes('/api/auth/')) {
+    return CONFIG.AUTH_MAX;
+  }
+
+  // ─── AUTHENTICATED USERS - High limit ────────────────────────────
+  if (key.startsWith('merchant:') || key.startsWith('authenticated:')) {
+    return CONFIG.AUTHENTICATED_MAX;
+  }
+
+  // ─── PUBLIC USERS - Low limit ────────────────────────────────────
+  return CONFIG.PUBLIC_MAX;
+}
+
+function isRateLimited(ip: string, pathname: string, token: string | null): boolean {
+  const key = getRateLimitKey(ip, pathname, token);
+  
+  // ─── EXEMPT - No rate limiting ────────────────────────────────────
+  if (key === 'exempt') {
     return false;
   }
-  
-  let maxRequests = CONFIG.RATE_LIMIT_MAX;
-  if (pathname.includes('/api/auth/')) {
-    maxRequests = CONFIG.AUTH_RATE_LIMIT_MAX;
-  }
-  
+
+  const maxRequests = getMaxRequests(pathname, key);
   const now = Date.now();
-  const record = rateLimitStore.get(ip);
+  const record = rateLimitStore.get(key);
   
   if (!record || now > record.resetAt) {
-    rateLimitStore.set(ip, {
+    rateLimitStore.set(key, {
       count: 1,
       resetAt: now + CONFIG.RATE_LIMIT_WINDOW * 1000,
     });
@@ -83,7 +169,7 @@ function isRateLimited(ip: string, pathname: string): boolean {
   }
   
   record.count++;
-  rateLimitStore.set(ip, record);
+  rateLimitStore.set(key, record);
   return false;
 }
 
@@ -127,18 +213,15 @@ function extractToken(request: NextRequest): string | null {
   // 1. Check Authorization header
   const authHeader = request.headers.get('Authorization');
   if (authHeader?.startsWith('Bearer ')) {
-    console.log('🔑 [Middleware] Token found in Authorization header');
     return authHeader.substring(7);
   }
   
-  // 2. ✅ Check cookie - JUST CHECK IF IT EXISTS
+  // 2. Check cookie
   const authCookie = request.cookies.get('auth_token');
   if (authCookie) {
-    console.log('🍪 [Middleware] Found auth_token cookie (trusting, backend will validate)');
     return authCookie.value;
   }
   
-  console.log('❌ [Middleware] No token found');
   return null;
 }
 
@@ -149,8 +232,9 @@ export async function middleware(request: NextRequest) {
 
   // ─── 1. RATE LIMITING ─────────────────────────────────────────────
   const ip = getClientIp(request);
+  const token = extractToken(request);
   
-  if (isRateLimited(ip, pathname)) {
+  if (isRateLimited(ip, pathname, token)) {
     return new NextResponse('Too Many Requests', {
       status: 429,
       headers: {
@@ -180,7 +264,6 @@ export async function middleware(request: NextRequest) {
       return response;
     }
 
-    const token = extractToken(request);
     const isProtected = protectedApiRoutes.some(route => pathname.startsWith(route));
     
     if (isProtected && !token) {
@@ -210,8 +293,6 @@ export async function middleware(request: NextRequest) {
 
   // ─── 4. DASHBOARD PROTECTION ─────────────────────────────────────
   if (pathname.startsWith('/dashboard')) {
-    const token = extractToken(request);
-    
     const allowedDashboardPaths = [
       '/dashboard/login',
       '/dashboard/logout',
@@ -220,12 +301,8 @@ export async function middleware(request: NextRequest) {
     
     if (!allowedDashboardPaths.some(path => pathname.startsWith(path))) {
       if (!token) {
-        console.log('🔴 [Middleware] No token for dashboard, redirecting to login');
         return NextResponse.redirect(new URL('/login?session=expired', request.url));
       }
-      
-      // ✅ Token exists - allow access (backend will validate)
-      console.log('✅ [Middleware] Token found, allowing dashboard access');
     }
     
     const response = NextResponse.next();
@@ -237,10 +314,7 @@ export async function middleware(request: NextRequest) {
 
   // ─── 5. LOGIN PAGE WITH SESSION CHECK ────────────────────────────
   if (pathname === '/login') {
-    const token = extractToken(request);
-    
     if (token) {
-      console.log('✅ [Middleware] User already has token, redirecting to dashboard');
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
     
