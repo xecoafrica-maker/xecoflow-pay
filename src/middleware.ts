@@ -1,3 +1,4 @@
+// src/middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -7,13 +8,13 @@ const CONFIG = {
   TOKEN_EXPIRY_BUFFER: 30, // 30 seconds buffer
   MAX_TOKEN_AGE: 5 * 60, // 5 minutes
   
-  // Security headers - ✅ FIXED: Added WebSocket URLs
+  // Security headers
   CSP: "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://*.onrender.com wss://*.onrender.com ws://*.onrender.com https://api.ipify.org https://api.my-ip.io https://ipapi.co; frame-ancestors 'none';",
   
-  // Rate limiting - ✅ RELAXED for better UX
+  // Rate limiting
   RATE_LIMIT_WINDOW: 60, // 1 minute
-  RATE_LIMIT_MAX: 500, // ✅ Increased from 100 to 500 requests per minute
-  AUTH_RATE_LIMIT_MAX: 20, // ✅ Separate limit for auth endpoints (password verification)
+  RATE_LIMIT_MAX: 500, // 500 requests per minute
+  AUTH_RATE_LIMIT_MAX: 20, // 20 requests per minute for auth endpoints
 };
 
 // ─── PUBLIC ROUTES (No auth required) ─────────────────────────────
@@ -42,7 +43,7 @@ const publicPaths = [
   '/api/webhooks/',
   '/api/auth/verify-email',
   '/api/auth/reset-password',
-  '/api/auth/verify-password', // ✅ Added to bypass rate limiting
+  '/api/auth/verify-password',
   '/api/product-links/',
   '/api/payment-links/',
 ];
@@ -64,12 +65,10 @@ const protectedApiRoutes = [
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
 function isRateLimited(ip: string, pathname: string): boolean {
-  // ✅ Skip rate limiting for verify-password endpoint
   if (pathname === '/api/auth/verify-password' || pathname.startsWith('/api/auth/verify-password')) {
     return false;
   }
   
-  // ✅ Lower limit for auth endpoints
   let maxRequests = CONFIG.RATE_LIMIT_MAX;
   if (pathname.includes('/api/auth/')) {
     maxRequests = CONFIG.AUTH_RATE_LIMIT_MAX;
@@ -79,7 +78,6 @@ function isRateLimited(ip: string, pathname: string): boolean {
   const record = rateLimitStore.get(ip);
   
   if (!record || now > record.resetAt) {
-    // Reset the counter
     rateLimitStore.set(ip, {
       count: 1,
       resetAt: now + CONFIG.RATE_LIMIT_WINDOW * 1000,
@@ -99,28 +97,13 @@ function isRateLimited(ip: string, pathname: string): boolean {
 // ─── SECURITY HEADERS ──────────────────────────────────────────────
 function getSecurityHeaders(): Record<string, string> {
   return {
-    // HSTS - Force HTTPS
     'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
-    
-    // CSP - Content Security Policy
     'Content-Security-Policy': CONFIG.CSP,
-    
-    // XSS Protection
     'X-XSS-Protection': '1; mode=block',
-    
-    // Prevent MIME type sniffing
     'X-Content-Type-Options': 'nosniff',
-    
-    // Referrer Policy
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    
-    // Permissions Policy
     'Permissions-Policy': 'geolocation=(), microphone=(), camera=(), payment=()',
-    
-    // Prevent clickjacking
     'X-Frame-Options': 'DENY',
-    
-    // Cache Control for authenticated pages
     'Cache-Control': 'no-store, no-cache, must-revalidate, private',
     'Pragma': 'no-cache',
   };
@@ -136,22 +119,18 @@ interface TokenValidation {
 
 function validateToken(token: string): TokenValidation {
   try {
-    // Split token (assuming JWT format: header.payload.signature)
     const parts = token.split('.');
     if (parts.length !== 3) {
       return { valid: false, expired: false };
     }
     
-    // Decode payload (base64url)
     const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
-    
-    // Check expiry
     const now = Math.floor(Date.now() / 1000);
+    
     if (payload.exp && payload.exp < now) {
       return { valid: false, expired: true, payload };
     }
     
-    // Check if token is about to expire (within buffer time - 30 seconds)
     if (payload.exp && payload.exp - now < CONFIG.TOKEN_EXPIRY_BUFFER) {
       return { valid: true, expired: false, payload, expiringSoon: true };
     }
@@ -164,25 +143,21 @@ function validateToken(token: string): TokenValidation {
 
 // ─── HELPER: Get Client IP ─────────────────────────────────────────
 function getClientIp(request: NextRequest): string {
-  // Try x-forwarded-for (when behind proxy)
   const forwarded = request.headers.get('x-forwarded-for');
   if (forwarded) {
     return forwarded.split(',')[0].trim();
   }
   
-  // Try real-ip
   const realIp = request.headers.get('x-real-ip');
   if (realIp) {
     return realIp;
   }
   
-  // Try Cloudflare
   const cfConnectingIp = request.headers.get('cf-connecting-ip');
   if (cfConnectingIp) {
     return cfConnectingIp;
   }
   
-  // Fallback to a default
   return 'unknown';
 }
 
@@ -191,46 +166,47 @@ function pathMatches(pathname: string, patterns: string[]): boolean {
   return patterns.some(pattern => pathname.includes(pattern));
 }
 
-// ─── HELPER: Extract Token ─────────────────────────────────────────
+// ─── ✅ UPDATED: Extract Token with Debug Logging ─────────────────
 function extractToken(request: NextRequest): string | null {
   const { pathname } = request.nextUrl;
+  
+  // ─── DEBUG: Log all cookies ──────────────────────────────────────
+  const allCookies = request.cookies.getAll();
+  console.log('🍪 [Middleware] All cookie names:', allCookies.map(c => c.name));
   
   // 1. Check Authorization header
   const authHeader = request.headers.get('Authorization');
   if (authHeader?.startsWith('Bearer ')) {
+    console.log('🔑 [Middleware] Token found in Authorization header');
     return authHeader.substring(7);
   }
   
-  // 2. Check cookies (Next.js default)
-  const tokenCookie = request.cookies.get('next-auth.session-token');
-  if (tokenCookie) {
-    return tokenCookie.value;
+  // 2. ✅ Check custom auth token cookie (YOUR COOKIE)
+  const authCookie = request.cookies.get('auth_token');
+  if (authCookie) {
+    console.log('🍪 [Middleware] Found auth_token cookie:', authCookie.value.substring(0, 20) + '...');
+    return authCookie.value;
   }
   
-  // 3. Check cookies (Custom auth token)
-  const customCookie = request.cookies.get('auth_token');
-  if (customCookie) {
-    return customCookie.value;
-  }
-  
-  // 4. Check URL parameter (only for specific flows like email verification)
+  // 3. Check URL parameter (only for specific flows)
   const urlToken = request.nextUrl.searchParams.get('token');
   if (urlToken && pathMatches(pathname, ['/verify-email', '/reset-password'])) {
+    console.log('🔑 [Middleware] Token found in URL parameter');
     return urlToken;
   }
   
+  console.log('❌ [Middleware] No token found in cookies or headers');
   return null;
 }
 
 // ─── MAIN MIDDLEWARE ───────────────────────────────────────────────
 export async function middleware(request: NextRequest) {
-  const { pathname, origin } = request.nextUrl;
+  const { pathname } = request.nextUrl;
   const startTime = Date.now();
 
-  // ─── 1. RATE LIMITING (Protect against DDoS) ─────────────────────
+  // ─── 1. RATE LIMITING ─────────────────────────────────────────────
   const ip = getClientIp(request);
   
-  // ✅ Pass pathname to rate limiter
   if (isRateLimited(ip, pathname)) {
     return new NextResponse('Too Many Requests', {
       status: 429,
@@ -244,12 +220,9 @@ export async function middleware(request: NextRequest) {
   // ─── 2. PUBLIC PATHS ──────────────────────────────────────────────
   if (publicPaths.some(path => pathname.startsWith(path))) {
     const response = NextResponse.next();
-    
-    // Add security headers to public responses too
     Object.entries(getSecurityHeaders()).forEach(([key, value]) => {
       response.headers.set(key, value);
     });
-    
     return response;
   }
 
@@ -257,7 +230,6 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/api/')) {
     const token = extractToken(request);
     
-    // Check if this API route requires authentication
     const isProtected = protectedApiRoutes.some(route => pathname.startsWith(route));
     
     if (isProtected && !token) {
@@ -314,7 +286,6 @@ export async function middleware(request: NextRequest) {
         );
       }
       
-      // ─── Token expiring soon? Add warning header ───────────────
       const response = NextResponse.next();
       if (validation.expiringSoon) {
         response.headers.set('X-Token-Expiring-Soon', 'true');
@@ -325,7 +296,6 @@ export async function middleware(request: NextRequest) {
       return response;
     }
     
-    // For public API routes, still add security headers
     const response = NextResponse.next();
     Object.entries(getSecurityHeaders()).forEach(([key, value]) => {
       response.headers.set(key, value);
@@ -337,7 +307,6 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/dashboard')) {
     const token = extractToken(request);
     
-    // Allow specific dashboard pages without strict auth
     const allowedDashboardPaths = [
       '/dashboard/login',
       '/dashboard/logout',
@@ -346,28 +315,27 @@ export async function middleware(request: NextRequest) {
     
     if (!allowedDashboardPaths.some(path => pathname.startsWith(path))) {
       if (!token) {
+        console.log('🔴 [Middleware] No token for dashboard, redirecting to login');
         return NextResponse.redirect(new URL('/login', request.url));
       }
       
       const validation = validateToken(token);
       
       if (!validation.valid) {
-        // Redirect to login with expired parameter
         const loginUrl = new URL('/login', request.url);
         if (validation.expired) {
           loginUrl.searchParams.set('expired', 'true');
         }
+        console.log('🔴 [Middleware] Invalid token for dashboard, redirecting to login');
         return NextResponse.redirect(loginUrl);
       }
     }
     
-    // Add security headers to dashboard
     const response = NextResponse.next();
     Object.entries(getSecurityHeaders()).forEach(([key, value]) => {
       response.headers.set(key, value);
     });
     
-    // ─── Add session expiry info to headers ─────────────────────
     if (token) {
       const validation = validateToken(token);
       if (validation.valid && validation.payload?.exp) {
@@ -379,13 +347,31 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // ─── 5. DEFAULT - Add security headers ──────────────────────────
+  // ─── 5. LOGIN PAGE WITH SESSION ──────────────────────────────────
+  if (pathname === '/login') {
+    const token = extractToken(request);
+    
+    if (token) {
+      const validation = validateToken(token);
+      if (validation.valid) {
+        console.log('✅ [Middleware] User already logged in, redirecting to dashboard');
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+      }
+    }
+    
+    const response = NextResponse.next();
+    Object.entries(getSecurityHeaders()).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+    return response;
+  }
+
+  // ─── 6. DEFAULT - Add security headers ──────────────────────────
   const response = NextResponse.next();
   Object.entries(getSecurityHeaders()).forEach(([key, value]) => {
     response.headers.set(key, value);
   });
   
-  // ─── Add response time tracking ──────────────────────────────────
   response.headers.set('X-Response-Time', `${Date.now() - startTime}ms`);
   
   return response;
@@ -394,13 +380,6 @@ export async function middleware(request: NextRequest) {
 // ─── CONFIG ──────────────────────────────────────────────────────────
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon)
-     * - public folder
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
