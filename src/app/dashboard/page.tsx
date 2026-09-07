@@ -1,3 +1,4 @@
+// src/app/dashboard/page.tsx
 'use client';
 
 import Link from 'next/link';
@@ -44,8 +45,6 @@ import {
   Line,
   LineChart,
 } from 'recharts';
-import { getToken, removeToken, getStoredMerchant } from '@/lib/auth';
-import { getMerchantProfile } from '@/lib/auth-api';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -168,15 +167,12 @@ export default function DashboardOverview() {
 
   const tooltipFormatter = (value: any) => [`KES ${value}`, 'Amount'];
 
-  // ─── 🚀 Fetch Onboarding Status from Backend ──────────────────────
+  // ─── 🚀 Fetch Onboarding Status ──────────────────────────────────
   const fetchOnboarding = async () => {
-    const token = getToken();
-    if (!token) return;
-
     try {
-      // ✅ UPDATED: Use API route
+      // ✅ FIXED: No token needed - cookie is sent automatically
       const res = await fetch(`/api/onboarding/status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include',
       });
       const data = await res.json();
       
@@ -244,7 +240,9 @@ export default function DashboardOverview() {
       params.append('limit', '100');
 
       // 1. Fetch Transactions
-      const transRes = await fetch(`/api/transactions?${params.toString()}`);
+      const transRes = await fetch(`/api/transactions?${params.toString()}`, {
+        credentials: 'include',
+      });
       const transData = await transRes.json();
       
       if (transData.success) {
@@ -253,22 +251,24 @@ export default function DashboardOverview() {
       }
 
       // 2. Fetch Stats (for history, not balance)
-      const statsRes = await fetch(`/api/dashboard/stats?${params.toString()}`);
+      const statsRes = await fetch(`/api/dashboard/stats?${params.toString()}`, {
+        credentials: 'include',
+      });
       const statsData = await statsRes.json();
       
       if (statsData.success) {
         setStats(statsData.stats);
       }
 
-      // 3. ✅ Fetch REAL Balance from Ledger Engine - UPDATED to use API route
+      // 3. Fetch REAL Balance from Ledger Engine
       if (merchantIdParam) {
         const paddedId = String(merchantIdParam).padStart(8, '0');
         const accountNumber = `1-1001-${paddedId}`;
         console.log('🔍 Fetching balance for account:', accountNumber);
         
-        // ✅ UPDATED: Use API route
+        // ✅ FIXED: No token needed - cookie is sent automatically
         const balanceRes = await fetch(`/api/ledger/accounts/${accountNumber}/balance`, {
-          headers: { 'Authorization': `Bearer ${getToken()}` }
+          credentials: 'include',
         });
         const balanceData = await balanceRes.json();
         console.log('🔍 Balance response:', balanceData);
@@ -313,73 +313,50 @@ export default function DashboardOverview() {
     setFilteredTransactions(filtered);
   }, [transactions, statusFilter]);
 
-  // ─── Auth & Profile ──────────────────────────────────────────────
+  // ─── ✅ FIXED: Auth & Profile ──────────────────────────────────────
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
+    // ✅ Read merchant data from localStorage
+    let merchant = null;
+    let merchantIdValue = null;
+    let merchantNameValue = 'Merchant';
+    
+    try {
+      const stored = localStorage.getItem('merchant');
+      if (stored) {
+        merchant = JSON.parse(stored);
+        merchantIdValue = merchant.merchantId || merchant.merchant_id;
+        merchantNameValue = merchant.businessName || merchant.business_name || 'Merchant';
+      }
+    } catch (e) {
+      console.error('Failed to parse merchant data', e);
+    }
+
+    // ❌ If no merchant data, redirect to login
+    if (!merchant || !merchantIdValue) {
+      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+      router.push('/login?session=expired');
       return;
     }
 
-    const cached = getStoredMerchant();
-    console.log("📦 Cached merchant:", cached);
-    
-    if (cached) {
-      const id = cached.merchantId || cached.merchant_id;
-      if (id) {
-        setMerchantId(String(id));
-        setMerchantName(cached.businessName || cached.business_name || 'Merchant');
-      }
-    }
+    // ✅ Merchant data found
+    console.log('✅ Merchant data loaded:', merchant);
+    setMerchantId(String(merchantIdValue));
+    setMerchantName(merchantNameValue);
 
-    getMerchantProfile(token)
-      .then((profile) => {
-        if (profile) {
-          const id = profile.merchant_id;
-          if (id) {
-            setMerchantId(String(id));
-            setMerchantName(profile.business_name || 'Merchant');
-            localStorage.setItem('merchant', JSON.stringify(profile));
-          }
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to fetch profile:', err);
-        if (err.message.includes('401') || err.message.includes('Unauthorized')) {
-          removeToken();
-          router.push('/login');
-        }
-      });
-
-    const checkAndFetch = async () => {
-      const cachedData = getStoredMerchant();
-      if (cachedData) {
-        const id = cachedData.merchantId || cachedData.merchant_id;
-        if (id) {
-          console.log("🚀 Fetching data with merchant ID:", id);
-          await fetchDashboardData(String(id));
-          await fetchOnboarding();
-        }
-      } else {
-        try {
-          const token = getToken();
-          if (token) {
-            const profile = await getMerchantProfile(token);
-            if (profile && profile.merchant_id) {
-              setMerchantId(String(profile.merchant_id));
-              await fetchDashboardData(String(profile.merchant_id));
-              await fetchOnboarding();
-            }
-          }
-        } catch (err) {
-          console.error("Failed to get profile for data fetch:", err);
-        }
+    // ─── Fetch dashboard data ──────────────────────────────────────
+    const fetchData = async () => {
+      try {
+        await fetchDashboardData(String(merchantIdValue));
+        await fetchOnboarding();
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      } finally {
+        setLoading(false);
       }
     };
 
-    setTimeout(() => {
-      checkAndFetch();
-    }, 500);
+    fetchData();
+
   }, [router]);
 
   // ─── Log Dashboard View ──────────────────────────────────────────
