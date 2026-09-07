@@ -1,9 +1,10 @@
+// src/app/dashboard/layout.tsx
 'use client';
 
 import { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/dashboard/Sidebar';
-import { getToken, verifyToken, clearAllAuthData, getRemainingSessionTime } from '@/lib/auth';
+import { clearAllAuthData } from '@/lib/auth';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -18,58 +19,99 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   // ─── Check authentication ──────────────────────────────────────────
   useEffect(() => {
     const checkAuth = async () => {
-      const token = getToken();
+      // ✅ Read merchant data from localStorage (NOT token!)
+      let merchant = null;
+      try {
+        const stored = localStorage.getItem('merchant');
+        if (stored) {
+          merchant = JSON.parse(stored);
+        }
+      } catch (e) {
+        console.error('Failed to parse merchant data', e);
+      }
+
+      // ❌ If no merchant data, redirect to login
+      if (!merchant || !merchant.merchantId) {
+        console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+        clearAllAuthData();
+        router.push('/login?session=expired');
+        return;
+      }
+
+      // ✅ Merchant data found, session is valid
+      console.log('✅ Merchant data found:', merchant.businessName);
+      setIsLoading(false);
+
+      // ─── Optional: Check session expiry via API ──────────────────
+      // You can call a protected API endpoint to check if the session is still valid
+      try {
+        const response = await fetch('/api/auth/me', {
+          credentials: 'include',
+        });
+        
+        if (!response.ok) {
+          // Session expired on backend
+          console.warn('⚠️ Session expired, redirecting to login');
+          clearAllAuthData();
+          router.push('/login?session=expired');
+          return;
+        }
+        
+        // Get session info from response
+        const data = await response.json();
+        if (data.sessionInfo?.remaining) {
+          const remaining = data.sessionInfo.remaining;
+          setSessionTimeLeft(remaining);
+          if (remaining < 60) {
+            setSessionExpiring(true);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check session:', error);
+      }
       
-      if (!token) {
-        clearAllAuthData();
-        router.push('/login?session=expired');
-        return;
-      }
-
-      // Verify token validity
-      const decoded = verifyToken(token);
-      if (!decoded) {
-        // Token is invalid or expired
-        clearAllAuthData();
-        router.push('/login?session=expired');
-        return;
-      }
-
-      // Check if token is about to expire (30 seconds)
-      const remaining = getRemainingSessionTime();
-      if (remaining > 0 && remaining < 30) { // ← Changed from 300 to 30
-        setSessionExpiring(true);
-        setSessionTimeLeft(remaining);
-      }
-
       setIsLoading(false);
     };
 
     checkAuth();
 
-    // ─── Session expiry checker (every 5 seconds) ──────────────────
+    // ─── Session expiry checker (every 30 seconds) ──────────────────
     const interval = setInterval(() => {
-      const token = getToken();
-      if (!token) {
+      // Check if merchant data still exists
+      const merchant = localStorage.getItem('merchant');
+      if (!merchant) {
         clearAllAuthData();
         router.push('/login?session=expired');
         return;
       }
 
-      const remaining = getRemainingSessionTime();
-      if (remaining <= 0) {
-        clearAllAuthData();
-        router.push('/login?session=expired');
-        return;
-      }
-
-      if (remaining < 30) { // ← Changed from 300 to 30
-        setSessionExpiring(true);
-        setSessionTimeLeft(remaining);
-      } else {
-        setSessionExpiring(false);
-      }
-    }, 5000); // ← Changed from 30000 to 5000 (check every 5 seconds)
+      // ─── Optional: Check session via API ──────────────────────────
+      fetch('/api/auth/me', {
+        credentials: 'include',
+      })
+        .then((response) => {
+          if (!response.ok) {
+            clearAllAuthData();
+            router.push('/login?session=expired');
+            return;
+          }
+          return response.json();
+        })
+        .then((data) => {
+          if (data?.sessionInfo?.remaining) {
+            const remaining = data.sessionInfo.remaining;
+            setSessionTimeLeft(remaining);
+            if (remaining < 60) {
+              setSessionExpiring(true);
+            } else {
+              setSessionExpiring(false);
+            }
+          }
+        })
+        .catch(() => {
+          // Network error, don't redirect
+        });
+    }, 30000); // Check every 30 seconds
 
     return () => clearInterval(interval);
   }, [router]);
@@ -101,7 +143,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
             <button
               onClick={() => {
-                // Refresh token logic
                 window.location.reload();
               }}
               className="px-3 py-1 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors"
