@@ -5,13 +5,15 @@ const BACKEND_URL = process.env.API_URL || 'https://xecoflow-2gen.onrender.com';
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
+    // ✅ Forward the cookie from the request
+    const cookieHeader = request.headers.get('cookie') || '';
     
     console.log('📤 [Onboarding Proxy] Fetching onboarding status');
+    console.log('🍪 [Onboarding Proxy] Cookie present:', !!cookieHeader);
     
     const response = await fetch(`${BACKEND_URL}/v1/onboarding/status`, {
       headers: {
-        'Authorization': authHeader || '',
+        'Cookie': cookieHeader,  // ✅ Forward the cookie!
         'Content-Type': 'application/json',
       },
     });

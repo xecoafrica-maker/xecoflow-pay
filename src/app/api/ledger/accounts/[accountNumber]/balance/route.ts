@@ -8,14 +8,16 @@ export async function GET(
   { params }: { params: Promise<{ accountNumber: string }> }
 ) {
   try {
-    const authHeader = request.headers.get('authorization');
     const { accountNumber } = await params;
+    // ✅ Forward the cookie from the request
+    const cookieHeader = request.headers.get('cookie') || '';
     
     console.log('📤 [Balance Proxy] Fetching balance for account:', accountNumber);
+    console.log('🍪 [Balance Proxy] Cookie present:', !!cookieHeader);
     
     const response = await fetch(`${BACKEND_URL}/v1/ledger/accounts/${accountNumber}/balance`, {
       headers: {
-        'Authorization': authHeader || '',
+        'Cookie': cookieHeader,  // ✅ Forward the cookie!
         'Content-Type': 'application/json',
       },
     });
