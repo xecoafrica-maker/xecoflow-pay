@@ -163,6 +163,24 @@ export default function LoginPage() {
   const toastId = useRef(0);
   const lockTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // ─── ✅ FIX: Check if user is already logged in (using localStorage only) ──
+  useEffect(() => {
+    try {
+      const merchant = localStorage.getItem('merchant');
+      if (merchant) {
+        const parsed = JSON.parse(merchant);
+        if (parsed.merchantId || parsed.merchant_id) {
+          console.log('✅ User already logged in, redirecting to dashboard');
+          window.location.href = '/dashboard';
+          return;
+        }
+      }
+      // ❌ REMOVED: document.cookie check (httpOnly cookies are not visible to JavaScript)
+    } catch {
+      // Ignore errors, proceed to login
+    }
+  }, []);
+
   // ─── Helpers ──────────────────────────────────────────────────────
   const showToast = useCallback((type: ToastType, title: string, message: string) => {
     const id = String(++toastId.current);
@@ -184,7 +202,7 @@ export default function LoginPage() {
   const getAttemptKey = (emailValue: string) =>
     `login_attempts_${emailValue.trim().toLowerCase() || 'anonymous'}`;
 
-  // ─── Lockout Logic ────────────────────────────────────────────────
+  // ─── Lockout Logic (UX only - server is source of truth) ─────────
   const startLockTimer = useCallback((lockedUntil: number) => {
     if (lockTimerRef.current) clearInterval(lockTimerRef.current);
 
@@ -299,6 +317,7 @@ export default function LoginPage() {
     setEmailError('');
     setPasswordError('');
 
+    // UX only - server is source of truth for lockout
     if (isLocked) {
       setFormError(`Too many failed attempts. Please try again in ${formatLockoutTime(lockoutTimeLeft)}`);
       return;
@@ -312,29 +331,27 @@ export default function LoginPage() {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: email.trim(), 
+        body: JSON.stringify({
+          email: email.trim(),
           password,
-          rememberMe: rememberMe 
+          rememberMe: rememberMe,
         }),
         credentials: 'include',
       });
 
-      // ─── ✅ FIX: Handle non-JSON responses safely ──────────────
+      // ─── Handle non-JSON responses safely ──────────────────────────
       const contentType = response.headers.get('content-type') || '';
       let data: any = {};
 
       if (contentType.includes('application/json')) {
         data = await response.json();
       } else {
-        // Plain text response (e.g. "Too Many Requests")
         const text = await response.text();
         data = { message: text || 'An error occurred' };
       }
 
       // ─── ERROR HANDLING ──────────────────────────────────────────
 
-      // 429: Rate Limited
       if (response.status === 429) {
         const retryAfter = data.retryAfter || 30;
         setFormError(`Too many login attempts. Please wait ${retryAfter} seconds.`);
@@ -342,14 +359,12 @@ export default function LoginPage() {
         return;
       }
 
-      // 400: Bad Request
       if (response.status === 400) {
         setFormError(data.message || 'Please enter both email and password.');
         setLoading(false);
         return;
       }
 
-      // 401: Unauthorized
       if (response.status === 401) {
         if (data.code === 'TOKEN_BLACKLISTED') {
           setFormError('Your session has been revoked. Please login again.');
@@ -361,14 +376,13 @@ export default function LoginPage() {
         return;
       }
 
-      // 423: Locked
+      // ✅ Server lockout (423) - source of truth
       if (response.status === 423) {
         setFormError(data.message || 'Too many failed attempts. Please try again later.');
         setLoading(false);
         return;
       }
 
-      // 500+: Server Error
       if (response.status >= 500) {
         setFormError(data.message || 'We are experiencing technical difficulties. Please try again later.');
         setLoading(false);
@@ -378,6 +392,13 @@ export default function LoginPage() {
       // ─── ✅ SUCCESS ─────────────────────────────────────────────────
 
       const merchant = data.data || data.merchant || {};
+
+      // ✅ Check if merchant data is valid
+      if (!merchant.merchantId && !merchant.merchant_id) {
+        setFormError('Login succeeded but no merchant data received.');
+        setLoading(false);
+        return;
+      }
 
       console.log('✅ Login successful, merchant data:', merchant);
 
@@ -394,14 +415,11 @@ export default function LoginPage() {
         emailVerified: merchant.emailVerified || merchant.email_verified || false,
       };
 
-      // ─── Store in localStorage ──────────────────────────────────────
-      localStorage.setItem('user', JSON.stringify(merchantData));
+      // ─── Store in localStorage (SINGLE SOURCE OF TRUTH) ────────────
       localStorage.setItem('merchant', JSON.stringify(merchantData));
-      localStorage.setItem('merchantData', JSON.stringify(merchantData));
       localStorage.setItem('merchant_id', String(merchantData.merchantId));
       localStorage.setItem('user_role', merchantData.role);
-      localStorage.setItem('businessName', merchantData.businessName);
-      localStorage.setItem('email', merchantData.email);
+      // ❌ REMOVED: businessName and email (read from merchant object instead)
 
       console.log('✅ Stored merchant_id:', localStorage.getItem('merchant_id'));
 
@@ -410,19 +428,23 @@ export default function LoginPage() {
       setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
       setIsLocked(false);
 
-      // ─── Log activity ──────────────────────────────────────────────
-      await log(
-        ActivityActions.LOGIN,
-        `Successful login for ${merchantData.email} (Role: ${merchantData.role})`
-      );
+      // ─── Log activity (with fallback) ──────────────────────────────
+      try {
+        await log(
+          ActivityActions.LOGIN || 'LOGIN',
+          `Successful login for ${merchantData.email} (Role: ${merchantData.role})`
+        );
+      } catch (logError) {
+        console.debug('Activity logging skipped:', logError);
+      }
 
       showToast('success', 'Welcome Back!', `Signed in as ${merchantData.businessName}`);
 
-      // ─── ✅ FIX: Use window.location.href for full page navigation ──
+      // ─── Redirect ──────────────────────────────────────────────────
       console.log('🔄 Redirecting to dashboard');
       setTimeout(() => {
         window.location.href = '/dashboard';
-      }, 300);
+      }, 100);
 
     } catch (err: any) {
       console.error('Login error:', err);
@@ -435,10 +457,14 @@ export default function LoginPage() {
         setFormError('Something went wrong. Please try again or contact support if the issue persists.');
       }
 
-      await log(
-        'Failed login attempt',
-        `Failed login for ${email}: ${err.message || 'Unknown error'}`
-      );
+      try {
+        await log(
+          'Failed login attempt',
+          `Failed login for ${email}: ${err.message || 'Unknown error'}`
+        );
+      } catch (logError) {
+        console.debug('Activity logging skipped:', logError);
+      }
     } finally {
       setLoading(false);
     }
