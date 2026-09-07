@@ -377,10 +377,9 @@ export default function Sidebar() {
     return item.href !== undefined && item.href !== '';
   };
 
-  // ─── Password Verification (FIXED) ──────────────────────────────────
+  // ─── Password Verification ──────────────────────────────────────────
   const verifyPassword = async (enteredPassword: string) => {
     try {
-      // 🔥 FIX: Try multiple token keys
       const token = 
         localStorage.getItem('auth_token') ||
         localStorage.getItem('token') ||
@@ -396,7 +395,6 @@ export default function Sidebar() {
         return false;
       }
 
-      // Get merchant ID from stored merchant data
       const storedMerchant = getStoredMerchant();
       const merchantId = storedMerchant?.merchantId || storedMerchant?.merchant_id || '';
 
@@ -477,14 +475,38 @@ export default function Sidebar() {
     }
   }, [pathname]);
 
-  // ─── Handle Sign Out ──────────────────────────────────────────────
+  // ─── ✅ FIXED: Handle Sign Out ──────────────────────────────────────
   const handleSignOut = () => {
+    // ─── 1. Clear ALL localStorage items ──────────────────────────────
     localStorage.removeItem('auth_token');
     localStorage.removeItem('token');
     localStorage.removeItem('accessToken');
     localStorage.removeItem('xecoflow_token');
     localStorage.removeItem('xecoflow_merchant');
-    router.push('/login');
+    localStorage.removeItem('merchant');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    
+    // ─── 2. Clear sessionStorage ──────────────────────────────────────
+    sessionStorage.removeItem('auth_token');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('merchant');
+    sessionStorage.removeItem('authToken');
+    sessionStorage.removeItem('user');
+    
+    // ─── 3. Clear all cookies ─────────────────────────────────────────
+    document.cookie.split(';').forEach(cookie => {
+      const [name] = cookie.split('=');
+      document.cookie = `${name.trim()}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      document.cookie = `${name.trim()}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+    });
+    
+    // ─── 4. Clear localStorage completely (optional - more aggressive) ──
+    // localStorage.clear(); // Uncomment if needed
+    
+    // ─── 5. Redirect to login with timestamp to prevent caching ──────
+    router.push(`/login?t=${Date.now()}`);
   };
 
   // Don't render sidebar on full page apps (ecosystem)
