@@ -2,25 +2,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL = process.env.API_URL || 'https://xecoflow-2gen.onrender.com';
-const REQUEST_TIMEOUT = 10000; // 10 seconds
-
-// ─── Validation Helpers ──────────────────────────────────────────
-function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function isValidPassword(password: string): boolean {
-  return password.length >= 8;
-}
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 export async function POST(request: NextRequest) {
-  console.log('🚀 [Proxy] Login API called');
-
   try {
     const body = await request.json();
-    const { email, password, rememberMe } = body;
+    const { email, password, rememberMe = false } = body;
 
-    // ─── 1. Validate Required Fields ──────────────────────────────
     if (!email || !password) {
       return NextResponse.json(
         { success: false, message: 'Email and password are required' },
@@ -28,105 +16,74 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ─── 2. Validate Email Format ──────────────────────────────────
-    if (!isValidEmail(email)) {
-      return NextResponse.json(
-        { success: false, message: 'Invalid email format' },
-        { status: 400 }
-      );
-    }
-
-    // ─── 3. Validate Password Strength ─────────────────────────────
-    if (!isValidPassword(password)) {
-      return NextResponse.json(
-        { success: false, message: 'Password must be at least 8 characters' },
-        { status: 400 }
-      );
-    }
-
-    console.log('📤 [Proxy] Forwarding login for:', email);
-
-    // ─── 4. Forward with Timeout ────────────────────────────────────
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
+    // Call backend
     const response = await fetch(`${BACKEND_URL}/v1/auth/login`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, rememberMe }),
-      signal: controller.signal,
     });
-
-    clearTimeout(timeoutId);
 
     const data = await response.json();
-    console.log('📥 [Proxy] Backend status:', response.status);
 
-    // ─── 5. Create Response ──────────────────────────────────────────
-    const nextResponse = NextResponse.json(data, {
-      status: response.status,
-    });
-
-    // ─── 6. Forward ALL Cookies ─────────────────────────────────────
-    const setCookieHeaders = response.headers.getSetCookie?.() || [];
-
-    if (setCookieHeaders.length > 0) {
-      console.log(`🍪 [Proxy] Forwarding ${setCookieHeaders.length} cookie(s)`);
-
-      setCookieHeaders.forEach((cookie) => {
-        // Clean the cookie for the frontend domain
-        // Remove Domain attribute so it defaults to current domain
-        // Remove Secure flag for local development
-        let cleanedCookie = cookie
-          .split(';')
-          .filter((part) => {
-            const trimmed = part.trim().toLowerCase();
-            // Remove Domain attribute
-            if (trimmed.startsWith('domain=')) return false;
-            // Remove Secure flag in development
-            if (trimmed === 'secure' && process.env.NODE_ENV !== 'production') return false;
-            return true;
-          })
-          .join(';');
-
-        // Add SameSite=None and Secure for cross-domain in production
-        if (process.env.NODE_ENV === 'production') {
-          // Only if it's not already present
-          if (!cleanedCookie.toLowerCase().includes('samesite')) {
-            cleanedCookie += '; SameSite=None';
-          }
-          if (!cleanedCookie.toLowerCase().includes('secure')) {
-            cleanedCookie += '; Secure';
-          }
-        }
-
-        nextResponse.headers.append('Set-Cookie', cleanedCookie);
-      });
-    } else {
-      console.log('⚠️ [Proxy] No Set-Cookie headers received from backend');
+    if (!response.ok || !data.success) {
+      return NextResponse.json(data, { status: response.status });
     }
 
-    // ─── 7. Add Security Headers ────────────────────────────────────
-    nextResponse.headers.set('X-Content-Type-Options', 'nosniff');
-    nextResponse.headers.set('X-Frame-Options', 'DENY');
+    // Extract tokens
+    const accessToken = data.data?.accessToken || data.accessToken;
+    const refreshToken = data.data?.refreshToken || data.refreshToken;
+
+    if (!accessToken) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication failed' },
+        { status: 500 }
+      );
+    }
+
+    // Create response WITHOUT tokens in body
+    const nextResponse = NextResponse.json({
+      success: true,
+      message: 'Login successful',
+      merchant: {
+        merchantId: data.data?.merchantId || data.merchantId,
+        businessName: data.data?.businessName || data.businessName,
+        email: data.data?.email || email,
+        phone: data.data?.phone || '',
+        status: data.data?.status || 'ACTIVE',
+        role: data.data?.role || 'merchant',
+        emailVerified: data.data?.emailVerified || false,
+      },
+      sessionExpiry: rememberMe ? 7 * 24 * 60 * 60 : 30 * 60,
+    });
+
+    // ✅ SECURE COOKIE SETTINGS (Permanent)
+    const cookieOptions = {
+      httpOnly: true,
+      secure: IS_PRODUCTION,          // true in production
+      sameSite: 'lax' as const,       // Best balance of security + usability
+      path: '/',
+      maxAge: rememberMe 
+        ? 7 * 24 * 60 * 60            // 7 days
+        : 30 * 60,                    // 30 minutes
+    };
+
+    // Set Access Token
+    nextResponse.cookies.set('auth_token', accessToken, cookieOptions);
+
+    // Set Refresh Token (longer life)
+    if (refreshToken) {
+      nextResponse.cookies.set('refresh_token', refreshToken, {
+        ...cookieOptions,
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+      });
+    }
 
     return nextResponse;
 
   } catch (error: any) {
-    console.error('❌ [Proxy] Error:', error.message);
-
-    if (error.name === 'AbortError') {
-      return NextResponse.json(
-        { success: false, message: 'Request timed out. Please try again.' },
-        { status: 504 }
-      );
-    }
-
-    // Don't expose internal errors to client
+    console.error('[Login Proxy] Error:', error.message);
     return NextResponse.json(
-      { success: false, message: 'An unexpected error occurred. Please try again.' },
+      { success: false, message: 'Internal server error' },
       { status: 500 }
     );
   }
