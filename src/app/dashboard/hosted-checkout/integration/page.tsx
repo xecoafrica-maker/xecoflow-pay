@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import crypto from 'crypto';
 import { io, Socket } from 'socket.io-client';
 import {
   Lock,
@@ -20,7 +19,7 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import { getToken, getStoredMerchant } from '@/lib/auth';
+import { getStoredMerchant } from '@/lib/auth';
 import { getMerchantProfile } from '@/lib/auth-api';
 
 const PAYMENT_METHODS = [
@@ -221,7 +220,9 @@ export default function HostedCheckoutIntegration() {
       });
 
       try {
-        const res = await fetch(`/v1/product-links/status/${txId}`);
+        const res = await fetch(`/api/product-links/status/${txId}`, {
+          credentials: 'include',
+        });
         const data = await res.json();
 
         if (data.success && data.data) {
@@ -266,14 +267,12 @@ export default function HostedCheckoutIntegration() {
   };
 
   // ─── Fetch Credentials from Database ──────────────────────────────
-  const fetchCredentials = async (token: string, merchantId: string) => {
+  const fetchCredentials = async (merchantId: string) => {
     try {
       console.log('🔍 Fetching credentials for merchant:', merchantId);
       
       const response = await fetch(`/api/auth/credentials?merchantId=${merchantId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        credentials: 'include',
       });
 
       const data = await response.json();
@@ -301,49 +300,38 @@ export default function HostedCheckoutIntegration() {
     }
   };
 
+  // ─── Load Merchant Data ──────────────────────────────────────────
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
+    // ✅ Read merchant data from localStorage
+    let merchant = null;
+    let id = '';
+    
+    try {
+      const stored = localStorage.getItem('merchant');
+      if (stored) {
+        merchant = JSON.parse(stored);
+        id = String(merchant.merchant_id || merchant.merchantId || '');
+      }
+    } catch (e) {
+      console.error('Failed to parse merchant data', e);
+    }
+
+    // ❌ If no merchant data, redirect to login
+    if (!merchant || !id) {
+      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+      router.push('/login?session=expired');
       return;
     }
 
-    const storedMerchant = getStoredMerchant();
-    let id = '';
-    
-    if (storedMerchant) {
-      id = String(storedMerchant.merchantId || storedMerchant.merchant_id || '');
-      if (id) {
-        setMerchantId(id);
-        setMerchantName(storedMerchant.businessName || storedMerchant.business_name || 'Merchant');
-      }
-    }
+    // ✅ Merchant data found
+    console.log('✅ Merchant data loaded:', merchant);
+    setMerchantId(id);
+    setMerchantName(merchant.business_name || merchant.businessName || 'Merchant');
 
-    getMerchantProfile(token)
-      .then((profile) => {
-        if (profile?.merchant_id) {
-          const profileId = String(profile.merchant_id);
-          setMerchantId(profileId);
-          setMerchantName(profile.business_name || 'Merchant');
-          localStorage.setItem('merchant', JSON.stringify(profile));
-          fetchCredentials(token, profileId);
-        } else if (id) {
-          fetchCredentials(token, id);
-        } else {
-          setError('No merchant ID found');
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to fetch profile:', err);
-        if (id) {
-          fetchCredentials(token, id);
-        } else {
-          setError('Failed to fetch merchant profile');
-          setLoading(false);
-        }
-      });
-  }, []);
+    // ─── Fetch credentials ──────────────────────────────────────
+    fetchCredentials(id);
+
+  }, [router]);
 
   // ─── Cleanup polling on unmount ─────────────────────────────────
   useEffect(() => {
@@ -392,7 +380,7 @@ export default function HostedCheckoutIntegration() {
         phone: phone,
         amount: finalAmount,
         shortcode: merchantId,
-        idempotencyKey: 'key-' + crypto.randomBytes(8).toString('hex'),
+        idempotencyKey: 'key-' + globalThis.crypto.randomUUID().slice(0, 16),
       };
 
       const sorted: Record<string, any> = {};
@@ -402,20 +390,23 @@ export default function HostedCheckoutIntegration() {
       const bodyString = JSON.stringify(sorted);
 
       const timestamp = Math.floor(Date.now() / 1000);
-      const nonce = crypto.randomBytes(16).toString('hex');
+      const nonce = globalThis.crypto.randomUUID().replace(/-/g, '');
 
       const canonicalString = `${timestamp}.${nonce}.POST./.${bodyString}`;
 
-      const signature = crypto
-        .createHmac('sha256', apiSecret)
-        .update(canonicalString)
-        .digest('hex');
+      const signature = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(canonicalString)
+      ).then(buffer => {
+        const hashArray = Array.from(new Uint8Array(buffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      });
 
       console.log('🔑 Request details:');
       console.log('  API Key:', apiKey);
       console.log('  Signature:', signature);
 
-      const response = await fetch('/v1/payments', {
+      const response = await fetch('/api/payments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -424,6 +415,7 @@ export default function HostedCheckoutIntegration() {
           'x-timestamp': String(timestamp),
           'x-nonce': nonce,
         },
+        credentials: 'include',
         body: bodyString,
       });
 

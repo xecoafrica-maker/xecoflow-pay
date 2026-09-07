@@ -28,7 +28,7 @@ import {
   Wallet,
   Loader2,
 } from 'lucide-react';
-import { getToken, getStoredMerchant } from '@/lib/auth';
+import { getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -161,22 +161,39 @@ export default function ScheduledWithdrawalsPage() {
   // ─── Fetch Schedules ──────────────────────────────────────────────
   const fetchSchedules = async () => {
     try {
-      const token = getToken();
-      if (!token) return;
+      // ✅ Read merchant from localStorage
+      let merchant = null;
+      let id = '';
+      
+      try {
+        const stored = localStorage.getItem('merchant');
+        if (stored) {
+          merchant = JSON.parse(stored);
+          id = String(merchant.merchant_id || merchant.merchantId || '');
+        }
+      } catch (e) {
+        console.error('Failed to parse merchant data', e);
+      }
+
+      if (!id) {
+        console.warn('No merchant ID available');
+        return;
+      }
 
       const statusParam = filterStatus !== 'All' ? `&status=${filterStatus}` : '';
       const frequencyParam = filterFrequency !== 'All' ? `&frequency=${filterFrequency}` : '';
 
+      // ✅ FIXED: Use API route with credentials
       const response = await fetch(
-        `/api/v1/schedules?limit=100${statusParam}${frequencyParam}`,
+        `/api/schedules?merchantId=${id}&limit=100${statusParam}${frequencyParam}`,
         {
-          headers: { 'Authorization': `Bearer ${token}` },
+          credentials: 'include',
         }
       );
 
       if (!response.ok) {
         if (response.status === 401) {
-          router.push('/login');
+          router.push('/login?session=expired');
           return;
         }
         throw new Error(`HTTP ${response.status}`);
@@ -210,23 +227,35 @@ export default function ScheduledWithdrawalsPage() {
     }
   };
 
-  // ─── Load Merchant Data ──────────────────────────────────────────
+  // ─── ✅ FIXED: Auth & Profile ──────────────────────────────────────
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
+    // ✅ Read merchant data from localStorage
+    let merchant = null;
+    let id = '';
+    
+    try {
+      const stored = localStorage.getItem('merchant');
+      if (stored) {
+        merchant = JSON.parse(stored);
+        id = String(merchant.merchant_id || merchant.merchantId || '');
+      }
+    } catch (e) {
+      console.error('Failed to parse merchant data', e);
+    }
+
+    // ❌ If no merchant data, redirect to login
+    if (!merchant || !id) {
+      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+      router.push('/login?session=expired');
       return;
     }
 
-    const cached = getStoredMerchant();
-    if (cached) {
-      const id = String(cached.merchant_id || cached.merchantId);
-      if (id) {
-        setMerchantId(id);
-        setMerchantName(cached.business_name || cached.businessName || '');
-      }
-    }
+    // ✅ Merchant data found
+    console.log('✅ Merchant data loaded:', merchant);
+    setMerchantId(id);
+    setMerchantName(merchant.business_name || merchant.businessName || '');
 
+    // ─── Fetch schedules ──────────────────────────────────────
     fetchSchedules();
 
     setTimeout(() => {
@@ -234,7 +263,7 @@ export default function ScheduledWithdrawalsPage() {
     }, 500);
   }, [router]);
 
-  // ─── Log View - Only once per page visit ──────────────────────
+  // ─── Log View ──────────────────────────────────────────────────────
   useEffect(() => {
     const logView = async () => {
       if (isLoggingView.current || hasLoggedView.current) {
@@ -250,7 +279,6 @@ export default function ScheduledWithdrawalsPage() {
             `Viewed scheduled withdrawals for ${merchantName || 'business'}`
           );
           hasLoggedView.current = true;
-          console.log('✅ Scheduled withdrawals view logged');
         }
       } catch (error) {
         console.debug('Scheduled withdrawals view logging skipped:', error);
@@ -307,12 +335,26 @@ export default function ScheduledWithdrawalsPage() {
     if (!selectedSchedule) return;
 
     try {
-      const token = getToken();
-      if (!token) return;
+      // ✅ Get merchant from localStorage
+      let merchant = null;
+      try {
+        const stored = localStorage.getItem('merchant');
+        if (stored) {
+          merchant = JSON.parse(stored);
+        }
+      } catch (e) {
+        console.error('Failed to parse merchant data', e);
+      }
 
-      const response = await fetch(`/api/v1/schedules/${selectedSchedule.id}`, {
+      if (!merchant || !merchant.merchant_id) {
+        router.push('/login?session=expired');
+        return;
+      }
+
+      // ✅ FIXED: Use API route with credentials
+      const response = await fetch(`/api/schedules/${selectedSchedule.id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
       });
 
       if (!response.ok) throw new Error('Failed to delete schedule');
@@ -333,15 +375,29 @@ export default function ScheduledWithdrawalsPage() {
 
   const handleToggleStatus = async (schedule: ScheduledWithdrawal) => {
     try {
-      const token = getToken();
-      if (!token) return;
+      // ✅ Get merchant from localStorage
+      let merchant = null;
+      try {
+        const stored = localStorage.getItem('merchant');
+        if (stored) {
+          merchant = JSON.parse(stored);
+        }
+      } catch (e) {
+        console.error('Failed to parse merchant data', e);
+      }
+
+      if (!merchant || !merchant.merchant_id) {
+        router.push('/login?session=expired');
+        return;
+      }
 
       const newStatus = schedule.status === 'Active' || schedule.status === 'PENDING' ? 'PAUSED' : 'PENDING';
-      const endpoint = `/api/v1/schedules/${schedule.id}/${newStatus === 'PAUSED' ? 'pause' : 'resume'}`;
+      const endpoint = `/api/schedules/${schedule.id}/${newStatus === 'PAUSED' ? 'pause' : 'resume'}`;
 
+      // ✅ FIXED: Use API route with credentials
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
       });
 
       if (!response.ok) throw new Error('Failed to update schedule status');
@@ -368,9 +424,19 @@ export default function ScheduledWithdrawalsPage() {
     setIsSubmitting(true);
 
     try {
-      const token = getToken();
-      if (!token) {
-        router.push('/login');
+      // ✅ Get merchant from localStorage
+      let merchant = null;
+      try {
+        const stored = localStorage.getItem('merchant');
+        if (stored) {
+          merchant = JSON.parse(stored);
+        }
+      } catch (e) {
+        console.error('Failed to parse merchant data', e);
+      }
+
+      if (!merchant || !merchant.merchant_id) {
+        router.push('/login?session=expired');
         return;
       }
 
@@ -384,22 +450,19 @@ export default function ScheduledWithdrawalsPage() {
       };
 
       // ✅ CORRECT: Convert EAT time to UTC
-      // The merchant selects time in EAT (East Africa Time, UTC+3)
-      // We need to store it as UTC in the database
       const eatTimeString = `${formData.nextDate}T${formData.time || '08:00:00'}`;
       const localDate = new Date(eatTimeString);
-      
-      // ✅ Convert to UTC by subtracting timezone offset
-      // This ensures 10:30 AM EAT becomes 07:30 UTC
       const utcDate = new Date(localDate.getTime() - localDate.getTimezoneOffset() * 60000);
 
-      const response = await fetch('/api/v1/schedules', {
+      // ✅ FIXED: Use API route with credentials
+      const response = await fetch('/api/schedules', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
+          merchantId: merchant.merchant_id,
           amount: parseFloat(formData.amount),
           frequency: frequencyMap[formData.frequency] || 'weekly',
           nextDate: formData.nextDate,
@@ -407,7 +470,7 @@ export default function ScheduledWithdrawalsPage() {
           method: formData.method,
           destination_reference: formData.destination_reference || '',
           destination_type: formData.method === 'M-PESA' ? 'MPESA_PHONE' : 'BANK_ACCOUNT',
-          scheduled_at: utcDate.toISOString(), // ✅ UTC time
+          scheduled_at: utcDate.toISOString(),
         }),
       });
 

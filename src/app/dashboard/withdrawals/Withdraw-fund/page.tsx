@@ -19,7 +19,7 @@ import {
   Check,
   Loader2,
 } from 'lucide-react';
-import { getToken, getStoredMerchant } from '@/lib/auth';
+import { getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 // ─── Helper Functions ──────────────────────────────────────────────
@@ -31,7 +31,7 @@ const maskAccountNumber = (account: string) => {
 };
 
 const normalizeKenyanPhone = (phone: string): string => {
-  const cleaned = phone.replace(/\D/g, ''); // Remove non-digits
+  const cleaned = phone.replace(/\D/g, '');
 
   if (cleaned.startsWith('0') && cleaned.length === 10) {
     return `254${cleaned.slice(1)}`;
@@ -81,22 +81,37 @@ export default function WithdrawFundPage() {
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
-  // ─── Load REAL Data (Balance from Ledger + Settlement from KYC) ────
+  // ─── ✅ FIXED: Auth & Profile ──────────────────────────────────────
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
+    // ✅ Read merchant data from localStorage
+    let merchant = null;
+    let id = '';
+    
+    try {
+      const stored = localStorage.getItem('merchant');
+      if (stored) {
+        merchant = JSON.parse(stored);
+        id = String(merchant.merchant_id || merchant.merchantId || '');
+      }
+    } catch (e) {
+      console.error('Failed to parse merchant data', e);
+    }
+
+    // ❌ If no merchant data, redirect to login
+    if (!merchant || !id) {
+      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+      router.push('/login?session=expired');
       return;
     }
 
+    // ✅ Merchant data found
+    console.log('✅ Merchant data loaded:', merchant);
+    setMerchantData(merchant);
+
+    // ─── Fetch REAL Data (Balance + Settlement) ─────────────────────
     const fetchData = async () => {
       try {
-        const cached = getStoredMerchant();
-        if (cached) {
-          setMerchantData(cached);
-        }
-
-        const merchantId = cached?.merchant_id || cached?.merchantId;
+        const merchantId = merchant.merchant_id || merchant.merchantId;
         if (!merchantId) {
           setLoading(false);
           return;
@@ -105,12 +120,13 @@ export default function WithdrawFundPage() {
         const paddedId = String(merchantId).padStart(8, '0');
         const accountNumber = `1-1001-${paddedId}`;
 
+        // ✅ FIXED: Use API routes with credentials
         const [identityRes, balanceRes] = await Promise.all([
-          fetch('/v1/business-account/identity', {
-            headers: { Authorization: `Bearer ${token}` }
+          fetch('/api/business-account/identity', {
+            credentials: 'include',
           }),
-          fetch(`/v1/ledger/accounts/${accountNumber}/balance`, {
-            headers: { Authorization: `Bearer ${token}` }
+          fetch(`/api/ledger/accounts/${accountNumber}/balance`, {
+            credentials: 'include',
           })
         ]);
 
@@ -152,7 +168,7 @@ export default function WithdrawFundPage() {
         isLoggingView.current = true;
         await log(
           ActivityActions.VIEW_WITHDRAW_HISTORY,
-          `Viewed withdraw funds page for ${merchantData?.business_name || 'business'}`
+          `Viewed withdraw funds page for ${merchantData?.business_name || merchantData?.businessName || 'business'}`
         );
         hasLoggedView.current = true;
       } catch (error) {
@@ -197,7 +213,6 @@ export default function WithdrawFundPage() {
 
     setError('');
     
-    // ✅ FIXED: Use browser-native globalThis.crypto.randomUUID()
     const idempotencyKey = globalThis.crypto.randomUUID();
 
     setTransactionDetails({
@@ -217,25 +232,35 @@ export default function WithdrawFundPage() {
     setIsProcessing(true);
     setError('');
     
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
+    // ✅ FIXED: Get merchant from localStorage
+    let merchant = null;
+    try {
+      const stored = localStorage.getItem('merchant');
+      if (stored) {
+        merchant = JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error('Failed to parse merchant data', e);
+    }
+
+    if (!merchant || !merchant.merchant_id) {
+      router.push('/login?session=expired');
       return;
     }
 
     try {
-      // ✅ FIXED URL: Removed /api to prevent double /v1 rewrite
-      const res = await fetch('/v1/payments/withdraw', {
+      // ✅ FIXED: Use API route with credentials
+      const res = await fetch('/api/payments/withdraw', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
+        credentials: 'include',
         body: JSON.stringify({
           phoneNumber: normalizeKenyanPhone(transactionDetails.phoneNumber),
           amount: transactionDetails.amount,
           remarks: 'Withdrawal from XecoFlow Dashboard',
-          idempotencyKey: transactionDetails.idempotencyKey, 
+          idempotencyKey: transactionDetails.idempotencyKey,
         }),
       });
 
