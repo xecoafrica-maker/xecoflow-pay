@@ -26,7 +26,7 @@ import {
   FileSpreadsheet,
   FileText,
 } from 'lucide-react';
-import { getToken, getStoredMerchant } from '@/lib/auth';
+import { getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -116,14 +116,14 @@ export default function WalletPage() {
   // ─── Fetch Wallet Transactions ─────────────────────────────────────
   const fetchWalletTransactions = async () => {
     try {
-      const token = getToken();
-      if (!token || !merchantId) return;
+      if (!merchantId) return;
 
       const paddedId = String(merchantId).padStart(8, '0');
       const accountNumber = `1-1001-${paddedId}`;
 
-      const entriesRes = await fetch(`/v1/ledger/accounts/${accountNumber}/entries`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      // ✅ FIXED: Use API route with credentials
+      const entriesRes = await fetch(`/api/ledger/accounts/${accountNumber}/entries`, {
+        credentials: 'include',
       });
 
       if (!entriesRes.ok) throw new Error(`HTTP ${entriesRes.status}`);
@@ -147,8 +147,9 @@ export default function WalletPage() {
         allEntries = mappedEntries;
       }
 
-      const b2cRes = await fetch(`/v1/payments/withdrawals?merchantId=${merchantId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      // ✅ FIXED: Use API route with credentials
+      const b2cRes = await fetch(`/api/withdrawals?merchantId=${merchantId}`, {
+        credentials: 'include',
       });
 
       if (b2cRes.ok) {
@@ -195,31 +196,42 @@ export default function WalletPage() {
     }
   };
 
-  // ─── Load Merchant Data ──────────────────────────────────────────
+  // ─── ✅ FIXED: Auth & Profile ──────────────────────────────────────
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
+    // ✅ Read merchant data from localStorage
+    let merchant = null;
+    let id = '';
+    
+    try {
+      const stored = localStorage.getItem('merchant');
+      if (stored) {
+        merchant = JSON.parse(stored);
+        id = String(merchant.merchant_id || merchant.merchantId || '');
+      }
+    } catch (e) {
+      console.error('Failed to parse merchant data', e);
+    }
+
+    // ❌ If no merchant data, redirect to login
+    if (!merchant || !id) {
+      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+      router.push('/login?session=expired');
       return;
     }
 
-    const cached = getStoredMerchant();
-    if (cached) {
-      const id = String(cached.merchant_id || cached.merchantId);
-      if (id) {
-        setMerchantId(id);
-      }
-    }
+    // ✅ Merchant data found
+    console.log('✅ Merchant data loaded:', merchant);
+    setMerchantId(id);
 
-    setTimeout(() => {
-      setLoading(false);
-    }, 500);
   }, [router]);
 
   // ─── Fetch data when merchantId is available ─────────────────────
   useEffect(() => {
     if (merchantId) {
       fetchWalletTransactions();
+      setTimeout(() => {
+        setLoading(false);
+      }, 500);
     }
   }, [merchantId]);
 
@@ -675,7 +687,7 @@ export default function WalletPage() {
                     <p className={`text-3xl font-bold mt-1 ${selectedTransaction.Type === 'Credit' ? 'text-emerald-700' : 'text-rose-700'}`}>
                       {selectedTransaction.Type === 'Credit' ? '+' : '-'} {formatCurrency(selectedTransaction.Amount)}
                     </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <div className="mt-2 flex-wrap items-center gap-2">
                       <TypeBadge type={selectedTransaction.Type} />
                       <StatusBadge status={selectedTransaction.status} />
                     </div>

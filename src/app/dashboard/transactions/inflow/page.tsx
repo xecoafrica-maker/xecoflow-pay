@@ -28,7 +28,7 @@ import {
   FileSpreadsheet,
   FileText,
 } from 'lucide-react';
-import { getToken, getStoredMerchant } from '@/lib/auth';
+import { getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -159,7 +159,10 @@ export default function InflowPage() {
       params.append('merchantId', id);
       params.append('limit', '100');
       
-      const response = await fetch(`/api/transactions?${params.toString()}`);
+      // ✅ FIXED: Use credentials: 'include' - no token needed
+      const response = await fetch(`/api/transactions?${params.toString()}`, {
+        credentials: 'include',
+      });
       const data = await response.json();
       
       if (data.success) {
@@ -410,22 +413,36 @@ export default function InflowPage() {
     );
   };
 
+  // ─── ✅ FIXED: Auth & Profile ──────────────────────────────────────
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
+    // ✅ Read merchant data from localStorage
+    let merchant = null;
+    let id = '';
+    
+    try {
+      const stored = localStorage.getItem('merchant');
+      if (stored) {
+        merchant = JSON.parse(stored);
+        id = String(merchant.merchant_id || merchant.merchantId || '');
+      }
+    } catch (e) {
+      console.error('Failed to parse merchant data', e);
+    }
+
+    // ❌ If no merchant data, redirect to login
+    if (!merchant || !id) {
+      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+      router.push('/login?session=expired');
       return;
     }
 
-    const cached = getStoredMerchant();
-    if (cached) {
-      const id = String(cached.merchant_id || cached.merchantId);
-      if (id) {
-        setMerchantId(id);
-      }
-    }
+    // ✅ Merchant data found
+    console.log('✅ Merchant data loaded:', merchant);
+    setMerchantId(id);
 
+    // ─── Fetch transactions ──────────────────────────────────────
     fetchTransactions();
+
   }, [router]);
 
   if (loading) {

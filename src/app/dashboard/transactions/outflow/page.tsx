@@ -33,7 +33,7 @@ import {
   FileSpreadsheet,
   FileText,
 } from 'lucide-react';
-import { getToken, getStoredMerchant } from '@/lib/auth';
+import { getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -128,14 +128,9 @@ export default function OutflowPage() {
   // ─── Fetch Outflow Data ──────────────────────────────────────────────
   const fetchOutflowData = async () => {
     try {
-      const token = getToken();
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
-      const res = await fetch('/v1/payments/withdrawals', {
-        headers: { 'Authorization': `Bearer ${token}` }
+      // ✅ FIXED: Use API route with credentials
+      const res = await fetch('/api/withdrawals', {
+        credentials: 'include',
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -167,23 +162,35 @@ export default function OutflowPage() {
     }
   };
 
-  // ─── Load Data ──────────────────────────────────────────────────────
+  // ─── ✅ FIXED: Auth & Profile ──────────────────────────────────────
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
+    // ✅ Read merchant data from localStorage
+    let merchant = null;
+    let id = '';
+    
+    try {
+      const stored = localStorage.getItem('merchant');
+      if (stored) {
+        merchant = JSON.parse(stored);
+        id = String(merchant.merchant_id || merchant.merchantId || '');
+        setMerchantName(merchant.business_name || merchant.businessName || '');
+      }
+    } catch (e) {
+      console.error('Failed to parse merchant data', e);
+    }
+
+    // ❌ If no merchant data, redirect to login
+    if (!merchant || !id) {
+      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+      router.push('/login?session=expired');
       return;
     }
 
-    const cached = getStoredMerchant();
-    if (cached) {
-      const id = String(cached.merchant_id || cached.merchantId);
-      if (id) {
-        setMerchantId(id);
-        setMerchantName(cached.business_name || cached.businessName || '');
-      }
-    }
+    // ✅ Merchant data found
+    console.log('✅ Merchant data loaded:', merchant);
+    setMerchantId(id);
 
+    // ─── Fetch outflow data ──────────────────────────────────────
     fetchOutflowData();
 
     setTimeout(() => {

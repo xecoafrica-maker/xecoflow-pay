@@ -17,7 +17,7 @@ import {
   Loader2,
   Building,
 } from 'lucide-react';
-import { getToken, getStoredMerchant } from '@/lib/auth';
+import { getStoredMerchant } from '@/lib/auth';
 import { getMerchantProfile } from '@/lib/auth-api';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
@@ -92,114 +92,95 @@ export default function StatementPage() {
   // ─── Fetch Merchant and All Transactions ──────────────────────────
   const fetchData = async () => {
     try {
-      const token = getToken();
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
+      // ✅ FIXED: Read merchant from localStorage
       const cached = getStoredMerchant();
       let merchantId = cached?.merchant_id || cached?.merchantId;
 
       if (!merchantId) {
-        const profile = await getMerchantProfile(token);
-        if (profile) {
-          const merchantData: MerchantProfile = {
-            merchant_id: profile.merchant_id,
-            business_name: profile.business_name,
-            email: profile.email,
-            phone: profile.phone || profile.settlement_phone || '',
-            settlement_phone: profile.settlement_phone || profile.phone || '',
-            status: profile.status,
-            created_at: profile.created_at,
-          };
-          setMerchant(merchantData);
-          merchantId = profile.merchant_id;
-          localStorage.setItem('merchant', JSON.stringify(merchantData));
-        }
-      } else {
-        try {
-          const profile = await getMerchantProfile(token);
-          if (profile) {
-            const merchantData: MerchantProfile = {
-              merchant_id: profile.merchant_id,
-              business_name: profile.business_name,
-              email: profile.email,
-              phone: profile.phone || profile.settlement_phone || '',
-              settlement_phone: profile.settlement_phone || profile.phone || '',
-              status: profile.status,
-              created_at: profile.created_at,
-            };
-            setMerchant(merchantData);
-          } else if (cached) {
-            const merchantData: MerchantProfile = {
-              merchant_id: cached.merchant_id || cached.merchantId,
-              business_name: cached.business_name || cached.businessName || '',
-              email: cached.email || '',
-              phone: cached.phone || '',
-              settlement_phone: cached.phone || '',
-              status: cached.status || 'Active',
-              created_at: new Date().toISOString(),
-            };
-            setMerchant(merchantData);
-          }
-        } catch (err) {
-          console.error('Error fetching profile:', err);
-          if (cached) {
-            const merchantData: MerchantProfile = {
-              merchant_id: cached.merchant_id || cached.merchantId,
-              business_name: cached.business_name || cached.businessName || '',
-              email: cached.email || '',
-              phone: cached.phone || '',
-              settlement_phone: cached.phone || '',
-              status: cached.status || 'Active',
-              created_at: new Date().toISOString(),
-            };
-            setMerchant(merchantData);
-          }
-        }
+        console.warn('No merchant found in localStorage');
+        router.push('/login?session=expired');
+        return;
       }
 
-      if (merchantId) {
-        const params = new URLSearchParams();
-        params.append('merchantId', String(merchantId));
-        params.append('limit', '500');
+      // Set merchant data from localStorage
+      const merchantData: MerchantProfile = {
+        merchant_id: merchantId,
+        business_name: cached?.business_name || cached?.businessName || '',
+        email: cached?.email || '',
+        phone: cached?.phone || '',
+        settlement_phone: cached?.phone || '',
+        status: cached?.status || 'Active',
+        created_at: cached?.created_at || new Date().toISOString(),
+      };
+      setMerchant(merchantData);
 
-        // ─── Fetch all transaction types ────────────────────────────
-        const responses = await Promise.all([
-          fetch(`/api/transactions?${params.toString()}`),
-          fetch(`/api/b2c-transactions?${params.toString()}`),
-          fetch(`/api/c2b-transactions?${params.toString()}`),
-        ]);
+      // ─── Fetch transactions with credentials ──────────────────────
+      const params = new URLSearchParams();
+      params.append('merchantId', String(merchantId));
+      params.append('limit', '500');
 
-        const allData = await Promise.all(responses.map(r => r.json()));
-        
-        // Combine all transactions
-        let allTransactions: Transaction[] = [];
-        
-        allData.forEach((data) => {
-          if (data.success) {
-            allTransactions = [...allTransactions, ...(data.data || [])];
-          }
-        });
+      // Fetch all transaction types
+      const responses = await Promise.all([
+        fetch(`/api/transactions?${params.toString()}`, {
+          credentials: 'include',
+        }),
+        fetch(`/api/b2c-transactions?${params.toString()}`, {
+          credentials: 'include',
+        }),
+        fetch(`/api/c2b-transactions?${params.toString()}`, {
+          credentials: 'include',
+        }),
+      ]);
 
-        // Sort by created_at (newest first)
-        allTransactions.sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
+      const allData = await Promise.all(responses.map(r => r.json()));
+      
+      // Combine all transactions
+      let allTransactions: Transaction[] = [];
+      
+      allData.forEach((data) => {
+        if (data.success) {
+          allTransactions = [...allTransactions, ...(data.data || [])];
+        }
+      });
 
-        setTransactions(allTransactions);
-      }
+      // Sort by created_at (newest first)
+      allTransactions.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
 
+      setTransactions(allTransactions);
       setLoading(false);
+
     } catch (error) {
       console.error('Error fetching data:', error);
       setLoading(false);
     }
   };
 
+  // ─── ✅ FIXED: Auth & Profile ──────────────────────────────────────
   useEffect(() => {
+    // ✅ Read merchant data from localStorage
+    let merchant = null;
+    try {
+      const stored = localStorage.getItem('merchant');
+      if (stored) {
+        merchant = JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error('Failed to parse merchant data', e);
+    }
+
+    // ❌ If no merchant data, redirect to login
+    if (!merchant || !merchant.merchant_id) {
+      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+      router.push('/login?session=expired');
+      return;
+    }
+
+    // ✅ Merchant data found
+    console.log('✅ Merchant data loaded:', merchant);
     fetchData();
+
   }, [router]);
 
   // ─── Log View - Only once per page visit ──────────────────────
