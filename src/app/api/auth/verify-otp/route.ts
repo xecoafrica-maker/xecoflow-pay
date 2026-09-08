@@ -20,8 +20,8 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── 1. Verify OTP with Communications Engine ──────────────────
-    console.log('📤 Calling Communications Engine OTP verify...');
-    const otpResponse = await fetch(COMMS_URL + '/api/otp/verify', {
+    console.log('📤 Calling Communications Engine OTP verify at:', `${COMMS_URL}/api/otp/verify`);
+    const otpResponse = await fetch(`${COMMS_URL}/api/otp/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, otp }),
@@ -30,7 +30,8 @@ export async function POST(request: NextRequest) {
     const otpData = await otpResponse.json();
     console.log('📥 OTP Verification response:', otpData);
 
-    if (!otpData.success) {
+    // ─── Check if OTP verification was successful ──────────────────
+    if (!otpResponse.ok || !otpData.success) {
       return NextResponse.json(
         { 
           success: false, 
@@ -42,13 +43,13 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── 2. Get the merchant token from Auth Engine ──────────────────
-    const authUrl = AUTH_API_BASE + '/v1/auth/login-with-otp';
+    const authUrl = `${AUTH_API_BASE}/v1/auth/login-with-otp`;
     console.log('📤 Calling Auth Engine at:', authUrl);
     
     const authResponse = await fetch(authUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, tempToken }),
     });
 
     const authData = await authResponse.json();
