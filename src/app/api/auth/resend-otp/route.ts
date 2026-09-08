@@ -8,39 +8,30 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email } = body;
 
-    console.log('🔄 Resending OTP for:', email);
+    console.log('📤 Resending OTP for:', email);
 
     if (!email) {
       return NextResponse.json(
-        { success: false, message: 'Email required' },
+        { success: false, message: 'Email is required' },
         { status: 400 }
       );
     }
 
+    // ─── Call Communications Engine to resend OTP ──────────────────
     const response = await fetch(COMMS_URL + '/api/otp/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name: 'Merchant' }),
+      body: JSON.stringify({ email }),
     });
 
     const data = await response.json();
-    console.log('📥 Communications Engine response:', data);
+    console.log('📥 Resend OTP response:', data);
 
-    if (data.success) {
-      return NextResponse.json({
-        success: true,
-        message: 'OTP resent successfully',
-      });
-    } else {
-      return NextResponse.json(
-        { success: false, message: data.message || 'Failed to resend OTP' },
-        { status: 500 }
-      );
-    }
+    return NextResponse.json(data, { status: response.status });
   } catch (error: any) {
     console.error('❌ Resend OTP error:', error.message);
     return NextResponse.json(
-      { success: false, message: 'Failed to connect: ' + error.message },
+      { success: false, message: 'Failed to resend OTP: ' + error.message },
       { status: 500 }
     );
   }

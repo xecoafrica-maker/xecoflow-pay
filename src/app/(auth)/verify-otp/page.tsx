@@ -3,102 +3,173 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { Mail, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Mail, ArrowRight, Loader2, AlertCircle, Shield, Clock, CheckCircle, XCircle } from 'lucide-react';
 
-// ⚠️ This is the exact same code you had, but the Content is wrapped inside a separate component
 function VerifyOTPContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get('email') || '';
+  const tempToken = searchParams.get('token') || '';
   
-  const [otp, setOtp] = useState('');
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [seconds, setSeconds] = useState(60);
-  const [resendDisabled, setResendDisabled] = useState(true);
+  const [seconds, setSeconds] = useState(300); // 5 minutes
+  const [resendDisabled, setResendDisabled] = useState(false);
+  const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // ─── Timer ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (seconds > 0) {
-      const timer = setTimeout(() => setSeconds(seconds - 1), 1000);
-      return () => clearTimeout(timer);
-    } else {
-      setResendDisabled(false);
+    if (seconds <= 0) {
+      setResendDisabled(true);
+      return;
     }
+    const timer = setTimeout(() => setSeconds(seconds - 1), 1000);
+    return () => clearTimeout(timer);
   }, [seconds]);
 
-  // If no email, redirect to login
+  // ─── If no email or token, redirect to login ─────────────────────
   useEffect(() => {
-    if (!email) {
+    if (!email || !tempToken) {
       router.push('/login');
     }
-  }, [email, router]);
+  }, [email, tempToken, router]);
 
-  const handleVerify = async (e: React.FormEvent) => {
+  // ─── Handle OTP Input ─────────────────────────────────────────────
+  const handleChange = (index: number, value: string) => {
+    if (value.length > 1) return;
+    if (!/^\d*$/.test(value)) return;
+
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+
+    // Auto-focus next input
+    if (value && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+    if (e.key === 'Enter') {
+      handleVerify();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    if (!otp || otp.length !== 6) {
-      setError('Please enter a valid 6-digit OTP');
+    const paste = e.clipboardData.getData('text');
+    if (!/^\d{6}$/.test(paste)) return;
+    
+    const digits = paste.split('');
+    setOtp(digits);
+    inputRefs.current[5]?.focus();
+  };
+
+  // ─── Handle Verify ────────────────────────────────────────────────
+  const handleVerify = async () => {
+    const otpCode = otp.join('');
+    if (otpCode.length !== 6) {
+      setError('Please enter all 6 digits');
       return;
     }
 
     setLoading(true);
     setError('');
+    setAttemptsRemaining(null);
 
     try {
       const response = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp }),
+        body: JSON.stringify({ email, otp: otpCode, tempToken }),
       });
 
       const data = await response.json();
 
-      if (data.success) {
+      if (response.ok && data.success) {
         setSuccess(true);
-        if (data.token) {
-          localStorage.setItem('xecoflow_token', data.token);
-          localStorage.setItem('merchant', JSON.stringify(data.merchant));
+        // Store merchant data
+        if (data.data) {
+          localStorage.setItem('merchant', JSON.stringify(data.data));
         }
+        // Remove temp token
+        localStorage.removeItem('otp_temp_token');
         setTimeout(() => {
           router.push('/dashboard');
         }, 1500);
       } else {
         setError(data.message || 'Invalid OTP. Please try again.');
+        if (data.attemptsRemaining !== undefined) {
+          setAttemptsRemaining(data.attemptsRemaining);
+        }
+        if (data.maxAttemptsReached) {
+          setResendDisabled(true);
+        }
+        // Clear OTP fields
+        setOtp(['', '', '', '', '', '']);
+        inputRefs.current[0]?.focus();
       }
-    } catch (err: any) {
-      setError('Failed to verify OTP. Please try again.');
+    } catch (error) {
+      setError('Network error. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  // ─── Handle Resend ────────────────────────────────────────────────
   const handleResend = async () => {
-    setResendDisabled(true);
-    setSeconds(60);
+    setLoading(true);
     setError('');
 
     try {
       const response = await fetch('/api/auth/resend-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, tempToken }),
       });
 
       const data = await response.json();
-      if (!data.success) {
+
+      if (response.ok && data.success) {
+        setSeconds(data.expiresIn || 300);
+        setResendDisabled(false);
+        setError('');
+        setOtp(['', '', '', '', '', '']);
+        setAttemptsRemaining(null);
+        inputRefs.current[0]?.focus();
+      } else {
         setError(data.message || 'Failed to resend OTP');
+        if (data.retryAfter) {
+          setResendDisabled(true);
+          setSeconds(data.retryAfter);
+        }
       }
-    } catch (err) {
-      setError('Failed to resend OTP');
+    } catch (error) {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (!email) {
+  // ─── Format Time ──────────────────────────────────────────────────
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  if (!email || !tempToken) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-indigo-600 mx-auto" />
+          <Loader2 className="w-12 h-12 animate-spin text-emerald-600 mx-auto" />
           <p className="mt-4 text-gray-600">Redirecting...</p>
         </div>
       </div>
@@ -109,14 +180,15 @@ function VerifyOTPContent() {
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
-          {/* Logo */}
+          {/* Header */}
           <div className="text-center mb-8">
-            <Link href="/" className="inline-block">
-              <h1 className="text-2xl font-bold text-[#0a2540]">
-                Xeco<span className="text-emerald-500">Flow</span>
-              </h1>
-            </Link>
-            <p className="text-sm text-gray-500 mt-2">Enter the verification code sent to your email</p>
+            <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Shield className="w-8 h-8 text-emerald-500" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">Verify Your Email</h1>
+            <p className="text-sm text-gray-500 mt-2">
+              Enter the 6-digit code sent to <span className="font-medium text-gray-700">{email}</span>
+            </p>
           </div>
 
           {/* Email Display */}
@@ -125,12 +197,28 @@ function VerifyOTPContent() {
             <span className="text-sm text-gray-700">{email}</span>
           </div>
 
+          {/* Timer */}
+          <div className="flex items-center justify-center gap-2 mb-6 text-sm text-gray-500">
+            <Clock className="w-4 h-4" />
+            <span>Code expires in</span>
+            <span className={`font-mono font-semibold ${seconds < 60 ? 'text-red-500' : 'text-gray-700'}`}>
+              {formatTime(seconds)}
+            </span>
+          </div>
+
+          {/* Attempts Remaining */}
+          {attemptsRemaining !== null && attemptsRemaining > 0 && (
+            <div className="text-center text-sm text-amber-600 mb-4">
+              {attemptsRemaining} attempt{attemptsRemaining > 1 ? 's' : ''} remaining
+            </div>
+          )}
+
           {/* Success Message */}
           {success && (
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 flex items-center gap-3">
-              <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white text-sm font-bold">✓</div>
+              <CheckCircle className="w-5 h-5 text-emerald-500" />
               <div>
-                <p className="text-sm font-medium text-emerald-800">OTP Verified!</p>
+                <p className="text-sm font-medium text-emerald-800">Email Verified!</p>
                 <p className="text-xs text-emerald-600">Redirecting to dashboard...</p>
               </div>
             </div>
@@ -139,7 +227,7 @@ function VerifyOTPContent() {
           {/* Error Message */}
           {error && !success && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-6 flex items-start gap-2">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <XCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
@@ -148,27 +236,34 @@ function VerifyOTPContent() {
           {!success && (
             <form onSubmit={handleVerify} className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-3 text-center">
                   Enter 6-digit code
                 </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '');
-                    if (val.length <= 6) setOtp(val);
-                  }}
-                  placeholder="000000"
-                  className="w-full px-4 py-3 text-center text-2xl tracking-[0.5em] font-mono bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                  autoFocus
-                />
+                <div className="flex justify-center gap-2" onPaste={handlePaste}>
+                  {otp.map((digit, index) => (
+                    <input
+                      key={index}
+                      ref={(el) => { inputRefs.current[index] = el; }}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleChange(index, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(index, e)}
+                      className={`w-12 h-14 text-center text-2xl font-bold border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all ${
+                        error ? 'border-red-300' : 'border-gray-300'
+                      }`}
+                      autoFocus={index === 0}
+                      disabled={loading || success}
+                    />
+                  ))}
+                </div>
               </div>
 
               <button
                 type="submit"
-                disabled={loading || otp.length !== 6}
-                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 flex items-center justify-center gap-2"
+                disabled={loading || otp.join('').length !== 6 || success}
+                className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg shadow-emerald-600/10 hover:shadow-emerald-600/20 flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -190,10 +285,10 @@ function VerifyOTPContent() {
               Didn't receive the code?{' '}
               <button
                 onClick={handleResend}
-                disabled={resendDisabled || success}
-                className="font-medium text-indigo-600 hover:text-indigo-700 disabled:text-gray-400 disabled:cursor-not-allowed"
+                disabled={resendDisabled || success || loading}
+                className="font-medium text-emerald-600 hover:text-emerald-700 disabled:text-gray-400 disabled:cursor-not-allowed"
               >
-                {resendDisabled ? 'Resend in ' + seconds + 's' : 'Resend Code'}
+                {seconds > 0 && !resendDisabled ? `Resend in ${formatTime(seconds)}` : 'Resend Code'}
               </button>
             </p>
             <Link
@@ -209,13 +304,12 @@ function VerifyOTPContent() {
   );
 }
 
-// 🚀 This is the main export. It wraps your logic in a Suspense boundary.
 export default function Page() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-indigo-600 mx-auto" />
+          <Loader2 className="w-12 h-12 animate-spin text-emerald-600 mx-auto" />
           <p className="mt-4 text-gray-600">Loading page...</p>
         </div>
       </div>

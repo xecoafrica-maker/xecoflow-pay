@@ -175,7 +175,6 @@ export default function LoginPage() {
           return;
         }
       }
-      // ❌ REMOVED: document.cookie check (httpOnly cookies are not visible to JavaScript)
     } catch {
       // Ignore errors, proceed to login
     }
@@ -389,7 +388,28 @@ export default function LoginPage() {
         return;
       }
 
-      // ─── ✅ SUCCESS ─────────────────────────────────────────────────
+      // ─── ✅ ✅ ✅ OTP VERIFICATION CHECK ──────────────────────────────
+      // If OTP is required, redirect to OTP verification page
+      if (data.success && data.requiresOTP) {
+        // Store temporary token
+        localStorage.setItem('otp_temp_token', data.tempToken);
+        
+        console.log('🔐 OTP required, redirecting to verify-otp page');
+        console.log('📧 Email:', data.email);
+        console.log('🔑 TempToken:', data.tempToken ? 'Present' : 'Missing');
+        
+        // Clear failed attempts
+        localStorage.removeItem(getAttemptKey(email));
+        setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
+        setIsLocked(false);
+
+        // Redirect to OTP verification
+        router.push(`/verify-otp?email=${encodeURIComponent(data.email)}&token=${encodeURIComponent(data.tempToken)}`);
+        setLoading(false);
+        return;
+      }
+
+      // ─── ✅ ✅ ✅ NORMAL LOGIN SUCCESS ──────────────────────────────────
 
       const merchant = data.data || data.merchant || {};
 
@@ -415,11 +435,12 @@ export default function LoginPage() {
         emailVerified: merchant.emailVerified || merchant.email_verified || false,
       };
 
-      // ─── Store in localStorage (SINGLE SOURCE OF TRUTH) ────────────
+      // ─── Store in localStorage ─────────────────────────────────────
       localStorage.setItem('merchant', JSON.stringify(merchantData));
       localStorage.setItem('merchant_id', String(merchantData.merchantId));
       localStorage.setItem('user_role', merchantData.role);
-      // ❌ REMOVED: businessName and email (read from merchant object instead)
+      // Remove any lingering OTP token
+      localStorage.removeItem('otp_temp_token');
 
       console.log('✅ Stored merchant_id:', localStorage.getItem('merchant_id'));
 
@@ -428,7 +449,7 @@ export default function LoginPage() {
       setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
       setIsLocked(false);
 
-      // ─── Log activity (with fallback) ──────────────────────────────
+      // ─── Log activity ──────────────────────────────────────────────
       try {
         await log(
           ActivityActions.LOGIN || 'LOGIN',
