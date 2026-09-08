@@ -34,8 +34,24 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json();
     console.log('📥 [Proxy] Backend status:', response.status);
+    console.log('📥 [Proxy] Backend response:', JSON.stringify(data, null, 2));
 
-    // ─── ✅ CRITICAL: Forward the cookie ──────────────────────────
+    // ─── ✅ Check for OTP requirement ──────────────────────────────
+    if (data.success && data.requiresOTP) {
+      console.log('🔐 [Proxy] OTP required for:', email);
+      console.log('🔐 [Proxy] TempToken present:', !!data.tempToken);
+      
+      // Return OTP response without setting cookies
+      return NextResponse.json(data, {
+        status: response.status,
+        headers: {
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Origin': 'https://xecoflow-pay.onrender.com',
+        },
+      });
+    }
+
+    // ─── ✅ Normal login flow - forward the cookie ──────────────────
     const nextResponse = NextResponse.json(data, {
       status: response.status,
     });
