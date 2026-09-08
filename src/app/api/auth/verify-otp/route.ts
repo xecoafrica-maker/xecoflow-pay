@@ -11,6 +11,7 @@ export async function POST(request: NextRequest) {
 
     console.log('🔍 Verifying OTP for:', email);
     console.log('🔍 TempToken present:', !!tempToken);
+    console.log('🔍 OTP:', otp);
 
     if (!email || !otp) {
       return NextResponse.json(
@@ -19,57 +20,70 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ─── 1. Verify OTP with Communications Engine ──────────────────
-    console.log('📤 Calling Communications Engine OTP verify at:', `${COMMS_URL}/api/otp/verify`);
-    const otpResponse = await fetch(`${COMMS_URL}/api/otp/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, otp }),
-    });
-
-    const otpData = await otpResponse.json();
-    console.log('📥 OTP Verification response:', otpData);
-
-    // ─── Check if OTP verification was successful ──────────────────
-    if (!otpResponse.ok || !otpData.success) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          message: otpData.message || 'Invalid OTP',
-          attemptsRemaining: otpData.attemptsRemaining 
-        },
-        { status: 401 }
-      );
-    }
-
-    // ─── 2. Get the merchant token from Auth Engine ──────────────────
-    const authUrl = `${AUTH_API_BASE}/v1/auth/login-with-otp`;
+    // ─── 1. Verify OTP with Auth Engine ──────────────────────────
+    // Auth Engine has the OTP verification logic and returns merchant data
+    const authUrl = `${AUTH_API_BASE}/v1/auth/verify-otp`;
     console.log('📤 Calling Auth Engine at:', authUrl);
     
     const authResponse = await fetch(authUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, tempToken }),
+      body: JSON.stringify({ email, otp, tempToken }),
     });
 
     const authData = await authResponse.json();
-    console.log('📥 Auth Response:', authData);
+    console.log('📥 Auth Response:', JSON.stringify(authData, null, 2));
 
-    if (!authResponse.ok || !authData.token) {
+    if (!authResponse.ok) {
       return NextResponse.json(
-        { success: false, message: authData.error || 'Failed to generate session token' },
+        { 
+          success: false, 
+          message: authData.message || 'Failed to verify OTP',
+          attemptsRemaining: authData.attemptsRemaining 
+        },
+        { status: authResponse.status }
+      );
+    }
+
+    // ─── 2. Extract merchant data from response ──────────────────
+    // Auth Engine returns data in the 'data' field
+    const merchantData = authData.data || authData.merchant || null;
+    
+    if (!merchantData) {
+      console.error('❌ No merchant data in response:', authData);
+      return NextResponse.json(
+        { success: false, message: 'No merchant data received' },
         { status: 500 }
       );
     }
 
-    // ─── 3. Return success with token ──────────────────────────────────
+    console.log('✅ Merchant data received:', merchantData);
+
+    // ─── 3. Get the token from cookies or response ──────────────
+    // The token might be set as a cookie by Auth Engine
+    // Or we can generate one here
+    let token = authData.token || null;
+    
+    // If token is not in the body, try to get it from cookies
+    if (!token) {
+      const cookieHeader = authResponse.headers.get('set-cookie');
+      if (cookieHeader) {
+        const cookieMatch = cookieHeader.match(/auth_token=([^;]+)/);
+        if (cookieMatch) {
+          token = cookieMatch[1];
+        }
+      }
+    }
+
+    // ─── 4. Return success with token and merchant data ──────────
     return NextResponse.json({
       success: true,
       message: 'OTP verified successfully',
-      token: authData.token,
-      merchant: authData.merchant,
-      data: authData.merchant,
+      token: token,
+      merchant: merchantData,
+      data: merchantData,
     });
+
   } catch (error: any) {
     console.error('❌ Verify OTP error:', error.message);
     return NextResponse.json(
