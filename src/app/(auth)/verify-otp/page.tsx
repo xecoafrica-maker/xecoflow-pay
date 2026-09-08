@@ -9,14 +9,36 @@ import { Mail, ArrowRight, Loader2, AlertCircle, Shield, Clock, CheckCircle, XCi
 function VerifyOTPContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const email = searchParams.get('email') || '';
-  const tempToken = searchParams.get('token') || '';
+  
+  // ─── GET EMAIL AND TOKEN FROM URL OR LOCALSTORAGE ──────────────────
+  const emailFromUrl = searchParams.get('email') || '';
+  const tokenFromUrl = searchParams.get('token') || '';
+  
+  // Try to get from localStorage if not in URL
+  const [email, setEmail] = useState('');
+  const [tempToken, setTempToken] = useState('');
+  
+  useEffect(() => {
+    // Get from URL first, then localStorage
+    const storedEmail = localStorage.getItem('otp_email') || '';
+    const storedToken = localStorage.getItem('otp_temp_token') || '';
+    
+    const finalEmail = emailFromUrl || storedEmail;
+    const finalToken = tokenFromUrl || storedToken;
+    
+    setEmail(finalEmail);
+    setTempToken(finalToken);
+    
+    if (!finalEmail || !finalToken) {
+      router.push('/login');
+    }
+  }, [emailFromUrl, tokenFromUrl, router]);
   
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [seconds, setSeconds] = useState(300); // 5 minutes
+  const [seconds, setSeconds] = useState(300);
   const [resendDisabled, setResendDisabled] = useState(false);
   const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -31,13 +53,6 @@ function VerifyOTPContent() {
     return () => clearTimeout(timer);
   }, [seconds]);
 
-  // ─── If no email or token, redirect to login ─────────────────────
-  useEffect(() => {
-    if (!email || !tempToken) {
-      router.push('/login');
-    }
-  }, [email, tempToken, router]);
-
   // ─── Handle OTP Input ─────────────────────────────────────────────
   const handleChange = (index: number, value: string) => {
     if (value.length > 1) return;
@@ -47,7 +62,6 @@ function VerifyOTPContent() {
     newOtp[index] = value;
     setOtp(newOtp);
 
-    // Auto-focus next input
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
@@ -95,12 +109,27 @@ function VerifyOTPContent() {
 
       if (response.ok && data.success) {
         setSuccess(true);
-        // Store merchant data
-        if (data.data) {
-          localStorage.setItem('merchant', JSON.stringify(data.data));
+        
+        // ─── ✅ STORE TOKEN ──────────────────────────────────────────
+        if (data.token) {
+          localStorage.setItem('auth_token', data.token);
+          // Also set cookie for middleware
+          document.cookie = `auth_token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+          console.log('✅ Token stored:', data.token.substring(0, 20) + '...');
         }
-        // Remove temp token
+        
+        // ─── ✅ STORE MERCHANT DATA ──────────────────────────────────
+        const merchant = data.merchant || data.data;
+        if (merchant) {
+          localStorage.setItem('merchant', JSON.stringify(merchant));
+          localStorage.setItem('user', JSON.stringify(merchant));
+          console.log('✅ Merchant stored:', merchant.businessName);
+        }
+        
+        // ─── ✅ CLEAN UP ─────────────────────────────────────────────
         localStorage.removeItem('otp_temp_token');
+        localStorage.removeItem('otp_email');
+        
         setTimeout(() => {
           router.push('/dashboard');
         }, 1500);
@@ -112,11 +141,11 @@ function VerifyOTPContent() {
         if (data.maxAttemptsReached) {
           setResendDisabled(true);
         }
-        // Clear OTP fields
         setOtp(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
       }
     } catch (error) {
+      console.error('❌ Verify error:', error);
       setError('Network error. Please try again.');
     } finally {
       setLoading(false);
