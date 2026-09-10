@@ -59,6 +59,9 @@ function VerifyOTPContent() {
   const [resendDisabled, setResendDisabled] = useState(false);
   const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  
+  // ─── ✅ GUARD: Prevent double submission ──────────────────────────
+  const submittingRef = useRef(false);
 
   // ─── Timer ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -89,6 +92,7 @@ function VerifyOTPContent() {
       inputRefs.current[index - 1]?.focus();
     }
     if (e.key === 'Enter') {
+      e.preventDefault();
       handleVerify();
     }
   };
@@ -105,12 +109,26 @@ function VerifyOTPContent() {
 
   // ─── Handle Verify ────────────────────────────────────────────────
   const handleVerify = async () => {
+    // ─── ✅ GUARD 1: Prevent double submission via ref ───────────────
+    if (submittingRef.current) {
+      console.log('⏭️ Already submitting — skipping duplicate call');
+      return;
+    }
+    
+    // ─── ✅ GUARD 2: Prevent submission if already loading or success ─
+    if (loading || success) {
+      console.log('⏭️ Loading or success state — skipping');
+      return;
+    }
+
     const otpCode = otp.join('');
     if (otpCode.length !== 6) {
       setError('Please enter all 6 digits');
       return;
     }
 
+    // ─── Lock submission ──────────────────────────────────────────────
+    submittingRef.current = true;
     setLoading(true);
     setError('');
     setAttemptsRemaining(null);
@@ -194,17 +212,31 @@ function VerifyOTPContent() {
         }
         setOtp(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
+        
+        // ─── Unlock submission on failure so user can retry ───────────
+        submittingRef.current = false;
       }
     } catch (error) {
       console.error('❌ Verify error:', error);
       setError('Network error. Please try again.');
+      
+      // ─── Unlock submission on error ───────────────────────────────
+      submittingRef.current = false;
     } finally {
       setLoading(false);
+      // NOTE: We do NOT unlock submittingRef on success —
+      // the page is about to redirect, so no more submissions needed.
     }
   };
 
   // ─── Handle Resend ────────────────────────────────────────────────
   const handleResend = async () => {
+    if (submittingRef.current) {
+      console.log('⏭️ Already submitting — skipping resend');
+      return;
+    }
+    
+    submittingRef.current = true;
     setLoading(true);
     setError('');
 
@@ -235,6 +267,7 @@ function VerifyOTPContent() {
       setError('Network error. Please try again.');
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 
@@ -314,7 +347,7 @@ function VerifyOTPContent() {
 
           {/* OTP Form */}
           {!success && (
-            <form onSubmit={handleVerify} className="space-y-6">
+            <form onSubmit={(e) => { e.preventDefault(); handleVerify(); }} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3 text-center">
                   Enter 6-digit code
