@@ -163,21 +163,22 @@ export default function LoginPage() {
   const toastId = useRef(0);
   const lockTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ─── ✅ FIX: Check if user is already logged in (using localStorage only) ──
+  // ─── ✅ SESSION CHECK ONLY — NO AUTO-REDIRECT ────────────────────
+  // We only LOG the session state. We do NOT redirect.
+  // Auto-redirecting from login page causes infinite loops
+  // when the destination page disagrees about session state.
+  // If user has a valid session, the dashboard will handle it
+  // when they navigate there (or via middleware).
   useEffect(() => {
-    try {
-      const merchant = localStorage.getItem('merchant');
-      if (merchant) {
-        const parsed = JSON.parse(merchant);
-        if (parsed.merchantId || parsed.merchant_id) {
-          console.log('✅ User already logged in, redirecting to dashboard');
-          window.location.href = '/dashboard';
-          return;
-        }
-      }
-    } catch {
-      // Ignore errors, proceed to login
-    }
+    const token = localStorage.getItem('auth_token');
+    const merchant = localStorage.getItem('merchant');
+    
+    console.log('=== LOGIN PAGE MOUNT ===');
+    console.log('auth_token:', token ? '✅ Present' : '❌ Missing');
+    console.log('merchant:', merchant ? '✅ Present' : '❌ Missing');
+    
+    // No redirect — user stays on login page.
+    // This is intentional.
   }, []);
 
   // ─── Helpers ──────────────────────────────────────────────────────
