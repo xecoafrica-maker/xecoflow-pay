@@ -26,10 +26,19 @@ function VerifyOTPContent() {
     const finalEmail = emailFromUrl || storedEmail;
     const finalToken = tokenFromUrl || storedToken;
     
+    console.log('=== VERIFY OTP PAGE MOUNT ===');
+    console.log('emailFromUrl:', emailFromUrl);
+    console.log('storedEmail:', storedEmail);
+    console.log('finalEmail:', finalEmail);
+    console.log('tokenFromUrl:', tokenFromUrl ? 'Present' : 'Missing');
+    console.log('storedToken:', storedToken ? 'Present' : 'Missing');
+    console.log('finalToken:', finalToken ? 'Present' : 'Missing');
+    
     setEmail(finalEmail);
     setTempToken(finalToken);
     
     if (!finalEmail || !finalToken) {
+      console.warn('⚠️ Missing email or token, redirecting to login');
       router.push('/login');
     }
   }, [emailFromUrl, tokenFromUrl, router]);
@@ -107,29 +116,61 @@ function VerifyOTPContent() {
 
       const data = await response.json();
 
+      // ─── DEBUG: Log everything ────────────────────────────────────
+      console.log('=== VERIFY OTP RESPONSE ===');
+      console.log('response.ok:', response.ok);
+      console.log('data.success:', data.success);
+      console.log('data.token:', data.token ? '✅ Present' : '❌ Missing');
+      console.log('data.merchant:', data.merchant);
+      console.log('data.data:', data.data);
+
       if (response.ok && data.success) {
         setSuccess(true);
-        
+
         // ─── ✅ STORE TOKEN ──────────────────────────────────────────
         if (data.token) {
           localStorage.setItem('auth_token', data.token);
-          // Also set cookie for middleware
-          document.cookie = `auth_token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
-          console.log('✅ Token stored:', data.token.substring(0, 20) + '...');
+          sessionStorage.setItem('auth_token', data.token);
+          
+          // Set cookie - use Secure + SameSite=None for HTTPS (Render)
+          const isProduction = window.location.protocol === 'https:';
+          const cookieString = isProduction
+            ? `auth_token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=None; Secure`
+            : `auth_token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+          document.cookie = cookieString;
+          
+          console.log('✅ Token stored in localStorage');
+          console.log('✅ Token stored in sessionStorage');
+          console.log('✅ Cookie set:', document.cookie.substring(0, 60));
+        } else {
+          console.error('❌ No token in response!');
         }
-        
+
         // ─── ✅ STORE MERCHANT DATA ──────────────────────────────────
         const merchant = data.merchant || data.data;
         if (merchant) {
           localStorage.setItem('merchant', JSON.stringify(merchant));
           localStorage.setItem('user', JSON.stringify(merchant));
-          console.log('✅ Merchant stored:', merchant.businessName);
+          sessionStorage.setItem('merchant', JSON.stringify(merchant));
+          console.log('✅ Merchant stored:', merchant);
+        } else {
+          console.error('❌ No merchant data in response!');
         }
+
+        // ─── VERIFY STORAGE WORKED ──────────────────────────────────
+        const storedToken = localStorage.getItem('auth_token');
+        const storedMerchant = localStorage.getItem('merchant');
         
-        // ─── ✅ CLEAN UP ─────────────────────────────────────────────
+        console.log('=== STORAGE VERIFICATION ===');
+        console.log('storedToken:', storedToken ? '✅ ' + storedToken.substring(0, 30) + '...' : '❌ NULL');
+        console.log('storedMerchant:', storedMerchant ? '✅ ' + storedMerchant.substring(0, 60) + '...' : '❌ NULL');
+
+        // ─── CLEAN UP ────────────────────────────────────────────────
         localStorage.removeItem('otp_temp_token');
         localStorage.removeItem('otp_email');
-        
+
+        // ─── REDIRECT ────────────────────────────────────────────────
+        console.log('=== REDIRECTING TO DASHBOARD IN 1.5s ===');
         setTimeout(() => {
           router.push('/dashboard');
         }, 1500);
