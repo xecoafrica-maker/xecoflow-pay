@@ -392,12 +392,17 @@ export default function LoginPage() {
       // ─── ✅ ✅ ✅ OTP VERIFICATION CHECK ──────────────────────────────
       // If OTP is required, redirect to OTP verification page
       if (data.success && data.requiresOTP) {
-        // Store temporary token
+        // ─── STORE TEMP TOKEN AND EMAIL IN BOTH STORAGES ──────────────
         localStorage.setItem('otp_temp_token', data.tempToken);
+        localStorage.setItem('otp_email', data.email);
+        sessionStorage.setItem('otp_temp_token', data.tempToken);
+        sessionStorage.setItem('otp_email', data.email);
         
         console.log('🔐 OTP required, redirecting to verify-otp page');
         console.log('📧 Email:', data.email);
         console.log('🔑 TempToken:', data.tempToken ? 'Present' : 'Missing');
+        console.log('✅ Stored otp_email in localStorage:', localStorage.getItem('otp_email'));
+        console.log('✅ Stored otp_temp_token in localStorage');
         
         // Clear failed attempts
         localStorage.removeItem(getAttemptKey(email));
@@ -442,6 +447,9 @@ export default function LoginPage() {
       localStorage.setItem('user_role', merchantData.role);
       // Remove any lingering OTP token
       localStorage.removeItem('otp_temp_token');
+      localStorage.removeItem('otp_email');
+      sessionStorage.removeItem('otp_temp_token');
+      sessionStorage.removeItem('otp_email');
 
       console.log('✅ Stored merchant_id:', localStorage.getItem('merchant_id'));
 

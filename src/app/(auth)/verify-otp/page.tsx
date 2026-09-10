@@ -19,16 +19,24 @@ function VerifyOTPContent() {
   const [tempToken, setTempToken] = useState('');
   
   useEffect(() => {
-    // Get from URL first, then localStorage
-    const storedEmail = localStorage.getItem('otp_email') || '';
-    const storedToken = localStorage.getItem('otp_temp_token') || '';
+    // ─── SOURCE OF TRUTH: localStorage, fallback sessionStorage ─────
+    const storedEmail = 
+      localStorage.getItem('otp_email') || 
+      sessionStorage.getItem('otp_email') || 
+      '';
+    const storedToken = 
+      localStorage.getItem('otp_temp_token') || 
+      sessionStorage.getItem('otp_temp_token') || 
+      '';
     
+    // URL params are secondary
     const finalEmail = emailFromUrl || storedEmail;
     const finalToken = tokenFromUrl || storedToken;
     
     console.log('=== VERIFY OTP PAGE MOUNT ===');
     console.log('emailFromUrl:', emailFromUrl);
-    console.log('storedEmail:', storedEmail);
+    console.log('storedEmail (localStorage):', localStorage.getItem('otp_email'));
+    console.log('storedEmail (sessionStorage):', sessionStorage.getItem('otp_email'));
     console.log('finalEmail:', finalEmail);
     console.log('tokenFromUrl:', tokenFromUrl ? 'Present' : 'Missing');
     console.log('storedToken:', storedToken ? 'Present' : 'Missing');
@@ -165,9 +173,11 @@ function VerifyOTPContent() {
         console.log('storedToken:', storedToken ? '✅ ' + storedToken.substring(0, 30) + '...' : '❌ NULL');
         console.log('storedMerchant:', storedMerchant ? '✅ ' + storedMerchant.substring(0, 60) + '...' : '❌ NULL');
 
-        // ─── CLEAN UP ────────────────────────────────────────────────
+        // ─── CLEAN UP OTP DATA ───────────────────────────────────────
         localStorage.removeItem('otp_temp_token');
         localStorage.removeItem('otp_email');
+        sessionStorage.removeItem('otp_temp_token');
+        sessionStorage.removeItem('otp_email');
 
         // ─── REDIRECT ────────────────────────────────────────────────
         console.log('=== REDIRECTING TO DASHBOARD IN 1.5s ===');
