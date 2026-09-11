@@ -309,7 +309,6 @@ export default function LoginPage() {
     setEmailError('');
     setPasswordError('');
 
-    // UX only - server is source of truth for lockout
     if (isLocked) {
       setFormError(`Too many failed attempts. Please try again in ${formatLockoutTime(lockoutTimeLeft)}`);
       return;
@@ -331,7 +330,6 @@ export default function LoginPage() {
         credentials: 'include',
       });
 
-      // ─── Handle non-JSON responses safely ──────────────────────────
       const contentType = response.headers.get('content-type') || '';
       let data: any = {};
 
@@ -368,7 +366,6 @@ export default function LoginPage() {
         return;
       }
 
-      // ✅ Server lockout (423) - source of truth
       if (response.status === 423) {
         setFormError(data.message || 'Too many failed attempts. Please try again later.');
         setLoading(false);
@@ -381,7 +378,7 @@ export default function LoginPage() {
         return;
       }
 
-      // ─── ✅ ✅ ✅ OTP VERIFICATION CHECK ──────────────────────────────
+      // ─── OTP VERIFICATION CHECK ──────────────────────────────────
       if (data.success && data.requiresOTP) {
         localStorage.setItem('otp_temp_token', data.tempToken);
         localStorage.setItem('otp_email', data.email);
@@ -389,10 +386,6 @@ export default function LoginPage() {
         sessionStorage.setItem('otp_email', data.email);
         
         console.log('🔐 OTP required, redirecting to verify-otp page');
-        console.log('📧 Email:', data.email);
-        console.log('🔑 TempToken:', data.tempToken ? 'Present' : 'Missing');
-        console.log('✅ Stored otp_email in localStorage:', localStorage.getItem('otp_email'));
-        console.log('✅ Stored otp_temp_token in localStorage');
         
         localStorage.removeItem(getAttemptKey(email));
         setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
@@ -403,7 +396,7 @@ export default function LoginPage() {
         return;
       }
 
-      // ─── ✅ ✅ ✅ NORMAL LOGIN SUCCESS ──────────────────────────────────
+      // ─── NORMAL LOGIN SUCCESS ───────────────────────────────────
 
       const merchant = data.data || data.merchant || {};
 
@@ -483,16 +476,18 @@ export default function LoginPage() {
 
   // ─── Render ───────────────────────────────────────────────────────
   return (
-    <div 
+    <div
       className="min-h-screen flex items-center justify-center p-4 sm:p-6 md:p-8"
       style={{
-        backgroundColor: '#f9fafb', // Very light gray base
+        backgroundColor: '#f5f5f5',
         backgroundImage: `
-          linear-gradient(45deg, #f3f4f6 25%, transparent 25%, transparent 75%, #f3f4f6 75%, #f3f4f6),
-          linear-gradient(45deg, #f3f4f6 25%, transparent 25%, transparent 75%, #f3f4f6 75%, #f3f4f6)
+          linear-gradient(45deg, #ebebeb 25%, transparent 25%),
+          linear-gradient(-45deg, #ebebeb 25%, transparent 25%),
+          linear-gradient(45deg, transparent 75%, #ebebeb 75%),
+          linear-gradient(-45deg, transparent 75%, #ebebeb 75%)
         `,
-        backgroundSize: '24px 24px',
-        backgroundPosition: '0 0, 12px 12px'
+        backgroundSize: '48px 48px',
+        backgroundPosition: '0 0, 0 24px, 24px -24px, -24px 0',
       }}
     >
       {/* Toasts */}
