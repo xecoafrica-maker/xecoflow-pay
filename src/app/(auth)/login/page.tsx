@@ -486,13 +486,13 @@ export default function LoginPage() {
     <div 
       className="min-h-screen flex items-center justify-center p-4 sm:p-6 md:p-8"
       style={{
-        backgroundColor: '#f3f4f6',
+        backgroundColor: '#f9fafb', // Very light gray base
         backgroundImage: `
-          linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%, #e5e7eb),
-          linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%, #e5e7eb)
+          linear-gradient(45deg, #f3f4f6 25%, transparent 25%, transparent 75%, #f3f4f6 75%, #f3f4f6),
+          linear-gradient(45deg, #f3f4f6 25%, transparent 25%, transparent 75%, #f3f4f6 75%, #f3f4f6)
         `,
-        backgroundSize: '20px 20px',
-        backgroundPosition: '0 0, 10px 10px'
+        backgroundSize: '24px 24px',
+        backgroundPosition: '0 0, 12px 12px'
       }}
     >
       {/* Toasts */}
