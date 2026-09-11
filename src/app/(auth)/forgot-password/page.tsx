@@ -3,22 +3,49 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Mail, ArrowRight, CheckCircle } from 'lucide-react';
+import { Mail, Hash, ArrowRight, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
+  const [merchantId, setMerchantId] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Password reset requested for', email);
-    setSubmitted(true);
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          merchantId: merchantId.trim(),
+          email: email.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setSubmitted(true);
+      } else {
+        setError(data.message || 'Could not process your request. Please try again.');
+      }
+    } catch (err) {
+      console.error('Forgot password error:', err);
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-5xl flex flex-col lg:flex-row bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
-        
+
         {/* ── LEFT PANEL – Brand ── */}
         <div className="lg:w-1/2 bg-[#0a2540] p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden min-h-[400px]">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
@@ -43,7 +70,7 @@ export default function ForgotPasswordPage() {
                 <span className="text-emerald-400">securely.</span>
               </h2>
               <p className="text-slate-400 text-base max-w-sm">
-                We'll send you a link to reset your password. Make sure you have access to your email.
+                Enter your Merchant ID and email. We'll send you a link to reset your password.
               </p>
             </div>
 
@@ -76,13 +103,53 @@ export default function ForgotPasswordPage() {
               </h2>
               <p className="text-sm text-gray-500 mt-1">
                 {!submitted
-                  ? 'Enter your email and we\'ll send you a reset link.'
-                  : 'We sent a password reset link to your email.'}
+                  ? 'Enter your Merchant ID and email to receive a reset link.'
+                  : 'If your details match our records, you will receive a reset link shortly.'}
               </p>
             </div>
 
+            {/* Error banner */}
+            {error && !submitted && (
+              <div className="mb-5 rounded-xl bg-red-50 border border-red-200 p-3.5 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-red-700">Error</p>
+                  <p className="text-sm text-red-600">{error}</p>
+                </div>
+              </div>
+            )}
+
             {!submitted ? (
               <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Merchant ID */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Merchant ID
+                  </label>
+                  <div className="relative">
+                    <Hash className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={merchantId}
+                      onChange={(e) => {
+                        setMerchantId(e.target.value.replace(/\D/g, ''));
+                        if (error) setError('');
+                      }}
+                      placeholder="e.g. 250084"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                      required
+                      autoFocus
+                      disabled={loading}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Find this on your dashboard or any receipt from XecoFlow.
+                  </p>
+                </div>
+
+                {/* Email */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     Email
@@ -92,21 +159,36 @@ export default function ForgotPasswordPage() {
                     <input
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (error) setError('');
+                      }}
                       placeholder="you@example.com"
                       className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                       required
-                      autoFocus
+                      disabled={loading}
                     />
                   </div>
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Use the email associated with your merchant account.
+                  </p>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={!email}
+                  disabled={!email || !merchantId || loading}
                   className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 flex items-center justify-center gap-2 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:shadow-none"
                 >
-                  Send reset link <ArrowRight className="w-4 h-4" />
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      Send reset link <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </form>
             ) : (
@@ -116,8 +198,8 @@ export default function ForgotPasswordPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 max-w-sm mx-auto">
-                    We've sent a password reset link to <strong className="text-gray-900">{email}</strong>.
-                    Please check your inbox and follow the instructions.
+                    We've received your request. If the details match our records, a password reset link will arrive at{' '}
+                    <strong className="text-gray-900">{email}</strong> shortly.
                   </p>
                   <p className="text-xs text-gray-400 mt-2">
                     Didn't receive the email? Check your spam folder or{' '}
@@ -126,6 +208,8 @@ export default function ForgotPasswordPage() {
                       onClick={() => {
                         setSubmitted(false);
                         setEmail('');
+                        setMerchantId('');
+                        setError('');
                       }}
                       className="text-indigo-600 hover:text-indigo-700 font-medium"
                     >
