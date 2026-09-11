@@ -13,8 +13,6 @@ import {
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { getStoredMerchant, getToken } from '@/lib/auth';
-import { getMerchantProfile } from '@/lib/auth-api';
 
 interface MerchantData {
   businessName: string;
@@ -37,43 +35,38 @@ export default function AutomatedPayBillPage() {
   const ACCENT = '#10B981';
 
   useEffect(() => {
-    const fetchMerchantData = async () => {
-      try {
-        const token = getToken();
-        if (!token) {
-          router.push('/login');
-          return;
-        }
-        const profile = await getMerchantProfile(token);
-        const stored = getStoredMerchant();
-        const merchantId =
-          profile?.merchant_id || stored?.merchantId || stored?.merchant_id || '';
+    // ✅ Read merchant data from localStorage (same pattern as transactions page)
+    let storedMerchant: any = null;
+    let id = '';
 
-        setMerchant({
-          businessName:
-            profile?.business_name ||
-            stored?.businessName ||
-            stored?.business_name ||
-            'Xeco BIZ Account',
-          virtualAccount: String(merchantId),
-          shortcode: '4049263',
-          merchantId: String(merchantId),
-        });
-      } catch {
-        const stored = getStoredMerchant();
-        const merchantId = stored?.merchantId || stored?.merchant_id || '';
-        setMerchant({
-          businessName:
-            stored?.businessName || stored?.business_name || 'Xeco BIZ Account',
-          virtualAccount: String(merchantId),
-          shortcode: '4049263',
-          merchantId: String(merchantId),
-        });
-      } finally {
-        setLoading(false);
+    try {
+      const stored = localStorage.getItem('merchant');
+      if (stored) {
+        storedMerchant = JSON.parse(stored);
+        id = String(storedMerchant.merchant_id || storedMerchant.merchantId || '');
       }
-    };
-    fetchMerchantData();
+    } catch (e) {
+      console.error('Failed to parse merchant data', e);
+    }
+
+    // ❌ No merchant data — redirect to login
+    if (!storedMerchant || !id) {
+      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+      router.push('/login?session=expired');
+      return;
+    }
+
+    // ✅ Merchant data found
+    setMerchant({
+      businessName:
+        storedMerchant.businessName ||
+        storedMerchant.business_name ||
+        'Xeco BIZ Account',
+      virtualAccount: String(id),
+      shortcode: '4049263',
+      merchantId: String(id),
+    });
+    setLoading(false);
   }, [router]);
 
   const handleCopyDetails = useCallback(() => {

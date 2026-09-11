@@ -71,6 +71,8 @@ import {
   Eye,
   EyeOff,
   CheckCircle,
+  Scale,
+  Percent,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -160,7 +162,7 @@ const sidebarSections: SidebarSection[] = [
     ],
   },
   {
-    title: 'PRODUCTS',
+    title: 'SERVICES',
     items: [
       {
         icon: Send,
@@ -193,6 +195,11 @@ const sidebarSections: SidebarSection[] = [
         label: 'Get Automated PayBill',
         href: '/dashboard/paybill/automated',
       },
+      {
+        icon: Percent,
+        label: 'Service Charges',
+        href: '/dashboard/rates/transaction-fees', 
+      }
     ],
   },
   {
