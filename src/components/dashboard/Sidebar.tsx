@@ -73,6 +73,7 @@ import {
   CheckCircle,
   Scale,
   Percent,
+  BadgeDollarSign,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -196,7 +197,7 @@ const sidebarSections: SidebarSection[] = [
         href: '/dashboard/paybill/automated',
       },
       {
-        icon: Percent,
+        icon: BadgeDollarSign,
         label: 'Service Charges',
         href: '/dashboard/rates/transaction-fees', 
       }
