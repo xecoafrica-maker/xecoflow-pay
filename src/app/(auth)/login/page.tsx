@@ -164,6 +164,11 @@ export default function LoginPage() {
   const lockTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // ─── ✅ SESSION CHECK ONLY — NO AUTO-REDIRECT ────────────────────
+  // We only LOG the session state. We do NOT redirect.
+  // Auto-redirecting from login page causes infinite loops
+  // when the destination page disagrees about session state.
+  // If user has a valid session, the dashboard will handle it
+  // when they navigate there (or via middleware).
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
     const merchant = localStorage.getItem('merchant');
@@ -171,6 +176,9 @@ export default function LoginPage() {
     console.log('=== LOGIN PAGE MOUNT ===');
     console.log('auth_token:', token ? '✅ Present' : '❌ Missing');
     console.log('merchant:', merchant ? '✅ Present' : '❌ Missing');
+    
+    // No redirect — user stays on login page.
+    // This is intentional.
   }, []);
 
   // ─── Helpers ──────────────────────────────────────────────────────
@@ -309,6 +317,7 @@ export default function LoginPage() {
     setEmailError('');
     setPasswordError('');
 
+    // UX only - server is source of truth for lockout
     if (isLocked) {
       setFormError(`Too many failed attempts. Please try again in ${formatLockoutTime(lockoutTimeLeft)}`);
       return;
@@ -330,6 +339,7 @@ export default function LoginPage() {
         credentials: 'include',
       });
 
+      // ─── Handle non-JSON responses safely ──────────────────────────
       const contentType = response.headers.get('content-type') || '';
       let data: any = {};
 
@@ -366,6 +376,7 @@ export default function LoginPage() {
         return;
       }
 
+      // ✅ Server lockout (423) - source of truth
       if (response.status === 423) {
         setFormError(data.message || 'Too many failed attempts. Please try again later.');
         setLoading(false);
@@ -378,28 +389,37 @@ export default function LoginPage() {
         return;
       }
 
-      // ─── OTP VERIFICATION CHECK ──────────────────────────────────
+      // ─── ✅ ✅ ✅ OTP VERIFICATION CHECK ──────────────────────────────
+      // If OTP is required, redirect to OTP verification page
       if (data.success && data.requiresOTP) {
+        // ─── STORE TEMP TOKEN AND EMAIL IN BOTH STORAGES ──────────────
         localStorage.setItem('otp_temp_token', data.tempToken);
         localStorage.setItem('otp_email', data.email);
         sessionStorage.setItem('otp_temp_token', data.tempToken);
         sessionStorage.setItem('otp_email', data.email);
         
         console.log('🔐 OTP required, redirecting to verify-otp page');
+        console.log('📧 Email:', data.email);
+        console.log('🔑 TempToken:', data.tempToken ? 'Present' : 'Missing');
+        console.log('✅ Stored otp_email in localStorage:', localStorage.getItem('otp_email'));
+        console.log('✅ Stored otp_temp_token in localStorage');
         
+        // Clear failed attempts
         localStorage.removeItem(getAttemptKey(email));
         setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
         setIsLocked(false);
 
+        // Redirect to OTP verification
         router.push(`/verify-otp?email=${encodeURIComponent(data.email)}&token=${encodeURIComponent(data.tempToken)}`);
         setLoading(false);
         return;
       }
 
-      // ─── NORMAL LOGIN SUCCESS ───────────────────────────────────
+      // ─── ✅ ✅ ✅ NORMAL LOGIN SUCCESS ──────────────────────────────────
 
       const merchant = data.data || data.merchant || {};
 
+      // ✅ Check if merchant data is valid
       if (!merchant.merchantId && !merchant.merchant_id) {
         setFormError('Login succeeded but no merchant data received.');
         setLoading(false);
@@ -408,6 +428,7 @@ export default function LoginPage() {
 
       console.log('✅ Login successful, merchant data:', merchant);
 
+      // ─── Create merchant data ──────────────────────────────────────
       const merchantData = {
         merchantId: merchant.merchantId || merchant.merchant_id,
         businessName: merchant.businessName || merchant.business_name,
@@ -420,9 +441,11 @@ export default function LoginPage() {
         emailVerified: merchant.emailVerified || merchant.email_verified || false,
       };
 
+      // ─── Store in localStorage ─────────────────────────────────────
       localStorage.setItem('merchant', JSON.stringify(merchantData));
       localStorage.setItem('merchant_id', String(merchantData.merchantId));
       localStorage.setItem('user_role', merchantData.role);
+      // Remove any lingering OTP token
       localStorage.removeItem('otp_temp_token');
       localStorage.removeItem('otp_email');
       sessionStorage.removeItem('otp_temp_token');
@@ -430,10 +453,12 @@ export default function LoginPage() {
 
       console.log('✅ Stored merchant_id:', localStorage.getItem('merchant_id'));
 
+      // ─── Clear failed attempts ──────────────────────────────────────
       localStorage.removeItem(getAttemptKey(email));
       setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
       setIsLocked(false);
 
+      // ─── Log activity ──────────────────────────────────────────────
       try {
         await log(
           ActivityActions.LOGIN || 'LOGIN',
@@ -445,6 +470,7 @@ export default function LoginPage() {
 
       showToast('success', 'Welcome Back!', `Signed in as ${merchantData.businessName}`);
 
+      // ─── Redirect ──────────────────────────────────────────────────
       console.log('🔄 Redirecting to dashboard');
       setTimeout(() => {
         window.location.href = '/dashboard';
@@ -476,20 +502,7 @@ export default function LoginPage() {
 
   // ─── Render ───────────────────────────────────────────────────────
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4 sm:p-6 md:p-8"
-      style={{
-        backgroundColor: '#f5f5f5',
-        backgroundImage: `
-          linear-gradient(45deg, #ebebeb 25%, transparent 25%),
-          linear-gradient(-45deg, #ebebeb 25%, transparent 25%),
-          linear-gradient(45deg, transparent 75%, #ebebeb 75%),
-          linear-gradient(-45deg, transparent 75%, #ebebeb 75%)
-        `,
-        backgroundSize: '48px 48px',
-        backgroundPosition: '0 0, 0 24px, 24px -24px, -24px 0',
-      }}
-    >
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#0a2540] dark:to-[#0f1f3a] flex items-center justify-center p-4 sm:p-6 md:p-8">
       {/* Toasts */}
       {toasts.map((t) => (
         <Toast
