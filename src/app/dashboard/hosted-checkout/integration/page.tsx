@@ -493,12 +493,12 @@ export default function HostedCheckoutIntegration() {
 
     if (paymentStatus === 'processing') {
       return (
-        <div className="border border-[#D8D4C9] bg-white px-5 py-4 mb-6">
+        <div className="rounded-xl border border-[#E5E7EB] bg-white px-5 py-4 mb-6">
           <div className="flex items-center gap-4">
-            <Loader2 className="w-5 h-5 animate-spin text-[#0B1526] shrink-0" />
+            <Loader2 className="w-5 h-5 animate-spin text-[#111827] shrink-0" />
             <div>
-              <p className="text-sm font-medium text-[#0B1526]">Submitting your payment instruction</p>
-              <p className="text-xs text-[#5B6B82] mt-0.5">This will only take a moment.</p>
+              <p className="text-sm font-medium text-[#111827]">Submitting your payment instruction</p>
+              <p className="text-xs text-[#6B7280] mt-0.5">This will only take a moment.</p>
             </div>
           </div>
         </div>
@@ -511,34 +511,34 @@ export default function HostedCheckoutIntegration() {
       const progressPct = Math.min((pollingCount / MAX_POLLING_ATTEMPTS) * 100, 95);
 
       return (
-        <div className="border border-[#D8D4C9] bg-white mb-6">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-[#EDEAE2]">
+        <div className="rounded-xl border border-[#E5E7EB] bg-white mb-6 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-[#F3F4F6]">
             <div className="flex items-center gap-2.5">
-              <Loader2 className="w-4 h-4 animate-spin text-[#8A6A2A]" />
-              <span className="text-sm font-medium text-[#0B1526]">Awaiting confirmation on your device</span>
+              <Loader2 className="w-4 h-4 animate-spin text-[#F59E0B]" />
+              <span className="text-sm font-medium text-[#111827]">Awaiting confirmation on your device</span>
             </div>
             {isSocketConnected ? (
-              <Wifi className="w-4 h-4 text-[#1F6F4E]" aria-label="Live connection active" />
+              <Wifi className="w-4 h-4 text-[#10B981]" aria-label="Live connection active" />
             ) : (
-              <WifiOff className="w-4 h-4 text-[#8A6A2A]" aria-label="Checking status periodically" />
+              <WifiOff className="w-4 h-4 text-[#F59E0B]" aria-label="Checking status periodically" />
             )}
           </div>
           <div className="px-5 py-4">
-            <p className="text-sm text-[#5B6B82] mb-3">
+            <p className="text-sm text-[#6B7280] mb-3">
               Check your phone and enter your PIN to authorize the transaction.
             </p>
-            <div className="flex justify-between text-xs text-[#5B6B82] tabular-nums mb-1.5">
+            <div className="flex justify-between text-xs text-[#6B7280] tabular-nums mb-1.5">
               <span>Elapsed</span>
               <span>{elapsedMin}m {elapsedSec}s</span>
             </div>
-            <div className="w-full h-1 bg-[#EDEAE2]">
+            <div className="w-full h-1 bg-[#F3F4F6]">
               <div
-                className="h-full bg-[#8A6A2A] transition-all duration-1000"
+                className="h-full bg-[#F59E0B] transition-all duration-1000"
                 style={{ width: `${progressPct}%` }}
               />
             </div>
             {!isSocketConnected && (
-              <p className="text-xs text-[#8A6A2A] mt-2.5">
+              <p className="text-xs text-[#F59E0B] mt-2.5">
                 Live updates unavailable — status is being checked automatically.
               </p>
             )}
@@ -549,12 +549,12 @@ export default function HostedCheckoutIntegration() {
 
     if (paymentStatus === 'success') {
       return (
-        <div className="border border-[#1F6F4E]/30 bg-[#F3F8F5] px-5 py-4 mb-6">
+        <div className="rounded-xl border border-[#10B981]/30 bg-[#ECFDF5] px-5 py-4 mb-6">
           <div className="flex items-start gap-4">
-            <CheckCircle className="w-5 h-5 text-[#1F6F4E] shrink-0 mt-0.5" />
+            <CheckCircle className="w-5 h-5 text-[#10B981] shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-[#123C2D]">Payment instruction confirmed</p>
-              <p className="text-xs text-[#5B6B82] mt-1 tabular-nums">
+              <p className="text-sm font-medium text-[#065F46]">Payment instruction confirmed</p>
+              <p className="text-xs text-[#6B7280] mt-1 tabular-nums">
                 Checkout reference: {paymentResponse?.data?.checkoutRequestId || 'N/A'}
               </p>
             </div>
@@ -565,16 +565,16 @@ export default function HostedCheckoutIntegration() {
 
     if (paymentStatus === 'error') {
       return (
-        <div className="border border-[#9B3232]/30 bg-[#FBF3F3] px-5 py-4 mb-6">
+        <div className="rounded-xl border border-[#EF4444]/30 bg-[#FEF2F2] px-5 py-4 mb-6">
           <div className="flex items-start gap-4">
-            <XCircle className="w-5 h-5 text-[#9B3232] shrink-0 mt-0.5" />
+            <XCircle className="w-5 h-5 text-[#EF4444] shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-[#6E2323]">Payment not completed</p>
-              <p className="text-sm text-[#5B6B82] mt-1">{errorMessage}</p>
+              <p className="text-sm font-medium text-[#B91C1C]">Payment not completed</p>
+              <p className="text-sm text-[#6B7280] mt-1">{errorMessage}</p>
               {showRetry && (
                 <button
                   onClick={retryPayment}
-                  className="mt-3 text-xs font-medium text-[#9B3232] border border-[#9B3232]/40 px-3.5 py-1.5 hover:bg-[#9B3232] hover:text-white transition-colors"
+                  className="mt-3 text-xs font-medium text-[#EF4444] rounded-lg border border-[#EF4444]/40 px-3.5 py-1.5 hover:bg-[#EF4444] hover:text-white transition-colors"
                 >
                   Try again
                 </button>
@@ -590,10 +590,10 @@ export default function HostedCheckoutIntegration() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F7F6F0]">
+      <div className="min-h-screen flex items-center justify-center bg-[#F5F6F8]">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-[#0B1526] mx-auto" />
-          <p className="mt-4 text-sm text-[#5B6B82]">Preparing your secure checkout…</p>
+          <Loader2 className="w-8 h-8 animate-spin text-[#10B981] mx-auto" />
+          <p className="mt-4 text-sm text-[#6B7280]">Preparing your secure checkout…</p>
         </div>
       </div>
     );
@@ -601,14 +601,14 @@ export default function HostedCheckoutIntegration() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F7F6F0] px-6">
-        <div className="max-w-sm w-full bg-white border border-[#D8D4C9] p-8 text-center">
-          <AlertCircle className="w-10 h-10 text-[#9B3232] mx-auto mb-4" />
-          <h2 className="text-lg font-serif text-[#0B1526] mb-2">We couldn't load this checkout</h2>
-          <p className="text-sm text-[#5B6B82] mb-6">{error}</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#F5F6F8] px-6">
+        <div className="max-w-sm w-full bg-white rounded-2xl border border-[#E5E7EB] shadow-sm p-8 text-center">
+          <AlertCircle className="w-10 h-10 text-[#EF4444] mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-[#111827] mb-2">We couldn't load this checkout</h2>
+          <p className="text-sm text-[#6B7280] mb-6">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="bg-[#0B1526] hover:bg-[#16233B] text-white text-sm font-medium px-6 py-2.5 transition-colors"
+            className="rounded-xl bg-[#10B981] hover:bg-[#059669] text-white text-sm font-medium px-6 py-2.5 transition-colors"
           >
             Try again
           </button>
@@ -618,38 +618,38 @@ export default function HostedCheckoutIntegration() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F6F0]">
+    <div className="min-h-screen bg-[#F5F6F8]">
       {/* Header */}
-      <header className="bg-[#0B1526]">
+      <header className="bg-white border-b border-[#E5E7EB]">
         <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 border border-[#3A4A63] flex items-center justify-center text-[#D9C48A] font-serif text-sm">X</div>
+            <div className="w-9 h-9 rounded-xl bg-[#ECFDF5] flex items-center justify-center text-[#10B981] font-semibold text-sm">X</div>
             <div>
-              <p className="font-serif text-lg text-white leading-none">Xecoflow</p>
-              <p className="text-[11px] text-[#8FA0B8] mt-1">Secure payment terminal</p>
+              <p className="text-base font-semibold text-[#111827] leading-none">Xecoflow</p>
+              <p className="text-[11px] text-[#9CA3AF] mt-1">Secure payment checkout</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-[#8FA0B8]">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#D9C48A]" />
+          <div className="flex items-center gap-2 text-xs text-[#6B7280]">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#10B981]" />
             256-bit encrypted
           </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-10">
-        {/* Checkout document */}
-        <div className="border border-[#D8D4C9] bg-white">
+        {/* Checkout card */}
+        <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
           <div className="grid lg:grid-cols-5">
-            {/* Ledger stub */}
-            <div className="lg:col-span-2 px-6 md:px-8 py-8 border-b lg:border-b-0 lg:border-r border-dashed border-[#D8D4C9]">
-              <p className="text-xs uppercase tracking-wide text-[#9AA5B4] mb-1">Transaction record</p>
-              <p className="text-xs text-[#5B6B82] mb-6 tabular-nums">Ref. {customerRef || '—'}</p>
+            {/* Summary panel */}
+            <div className="lg:col-span-2 px-6 md:px-8 py-8 border-b lg:border-b-0 lg:border-r border-[#F3F4F6] bg-[#FAFBFC]">
+              <p className="text-xs uppercase tracking-wide text-[#9CA3AF] mb-1">Transaction record</p>
+              <p className="text-xs text-[#6B7280] mb-6 tabular-nums">Ref. {customerRef || '—'}</p>
 
-              <label htmlFor="checkout-amount" className="block text-xs text-[#5B6B82] mb-1.5">
+              <label htmlFor="checkout-amount" className="block text-xs text-[#6B7280] mb-1.5">
                 Amount to pay ({currency})
               </label>
-              <div className="flex items-baseline border-b border-[#0B1526] pb-2 mb-1">
-                <span className="text-sm text-[#5B6B82] mr-2">{currency}</span>
+              <div className="flex items-baseline border-b-2 border-[#10B981] pb-2 mb-1">
+                <span className="text-sm text-[#6B7280] mr-2">{currency}</span>
                 <input
                   id="checkout-amount"
                   type="text"
@@ -658,13 +658,13 @@ export default function HostedCheckoutIntegration() {
                   onChange={handleAmountChange}
                   placeholder={amount.toFixed(2)}
                   disabled={isProcessing || paymentStatus === 'success'}
-                  className="w-full bg-transparent text-2xl font-serif text-[#0B1526] tabular-nums outline-none disabled:opacity-60"
+                  className="w-full bg-transparent text-2xl font-semibold text-[#111827] tabular-nums outline-none disabled:opacity-60"
                 />
               </div>
-              <p className="text-xs text-[#9AA5B4] mb-6">Leave blank to use the requested amount.</p>
+              <p className="text-xs text-[#9CA3AF] mb-6">Leave blank to use the requested amount.</p>
 
-              <div className="flex justify-between text-sm text-[#0B1526] py-2 border-t border-[#EDEAE2] tabular-nums">
-                <span className="text-[#5B6B82]">Total due</span>
+              <div className="flex justify-between text-sm text-[#111827] py-2 border-t border-[#F3F4F6] tabular-nums">
+                <span className="text-[#6B7280]">Total due</span>
                 <span className="font-medium">{currency} {amount.toFixed(2)}</span>
               </div>
             </div>
@@ -675,45 +675,45 @@ export default function HostedCheckoutIntegration() {
 
               {paymentStatus !== 'success' && paymentStatus !== 'pending' && (
                 <>
-                  <p className="text-xs uppercase tracking-wide text-[#9AA5B4] mb-3">Payment method</p>
-                  <div className="border border-[#D8D4C9] mb-6">
+                  <p className="text-xs uppercase tracking-wide text-[#9CA3AF] mb-3">Payment method</p>
+                  <div className="rounded-xl border border-[#E5E7EB] mb-6 overflow-hidden">
                     {PAYMENT_METHODS.map((m, idx) => {
                       const Icon = m.icon;
                       const selected = method === m.id;
                       return (
                         <label
                           key={m.id}
-                          className={`flex items-center gap-3 px-4 py-3 cursor-pointer text-sm ${idx !== 0 ? 'border-t border-[#EDEAE2]' : ''} ${selected ? 'bg-[#F7F6F0]' : 'bg-white'}`}
+                          className={`flex items-center gap-3 px-4 py-3 cursor-pointer text-sm ${idx !== 0 ? 'border-t border-[#F3F4F6]' : ''} ${selected ? 'bg-[#ECFDF5]' : 'bg-white'}`}
                         >
                           <input
                             type="radio"
                             checked={selected}
                             onChange={() => setMethod(m.id)}
-                            className="accent-[#0B1526]"
+                            className="accent-[#10B981]"
                           />
-                          <Icon size={15} className="text-[#5B6B82]" />
-                          <span className={selected ? 'text-[#0B1526] font-medium' : 'text-[#0B1526]'}>{m.label}</span>
+                          <Icon size={15} className={selected ? 'text-[#10B981]' : 'text-[#6B7280]'} />
+                          <span className={selected ? 'text-[#111827] font-medium' : 'text-[#111827]'}>{m.label}</span>
                         </label>
                       );
                     })}
                   </div>
 
-                  <p className="text-sm text-[#0B1526] mb-5">
+                  <p className="text-sm text-[#111827] mb-5">
                     You're paying <span className="font-medium">{businessName}</span>{' '}
                     <span className="font-medium tabular-nums">{currency} {amount.toFixed(2)}</span>
                   </p>
 
                   {(method === 'mpesa' || method === 'airtel') && (
                     <>
-                      <ol className="text-sm text-[#5B6B82] space-y-1 mb-5 list-decimal pl-5">
+                      <ol className="text-sm text-[#6B7280] space-y-1 mb-5 list-decimal pl-5">
                         <li>Confirm your {method === 'mpesa' ? 'M-PESA' : 'Airtel Money'} mobile number below</li>
                         <li>Select "Send payment request" to trigger a prompt on your phone</li>
                         <li>Enter your PIN on your device to authorize the payment</li>
                       </ol>
 
-                      <label className="block text-xs text-[#5B6B82] mb-1.5">Mobile number</label>
-                      <div className="flex border border-[#D8D4C9] mb-6">
-                        <span className="flex items-center gap-1.5 px-3.5 border-r border-[#D8D4C9] text-sm text-[#5B6B82] bg-[#F7F6F0]">
+                      <label className="block text-xs text-[#6B7280] mb-1.5">Mobile number</label>
+                      <div className="flex rounded-xl border border-[#E5E7EB] mb-6 overflow-hidden focus-within:border-[#10B981]">
+                        <span className="flex items-center gap-1.5 px-3.5 border-r border-[#E5E7EB] text-sm text-[#6B7280] bg-[#F5F6F8]">
                           <Smartphone size={13} /> +254
                         </span>
                         <input
@@ -731,13 +731,13 @@ export default function HostedCheckoutIntegration() {
                   <button
                     onClick={handleProceed}
                     disabled={isProcessing}
-                    className={`w-full sm:w-auto bg-[#0B1526] hover:bg-[#16233B] text-white text-sm font-medium px-8 py-3 transition-colors ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`w-full sm:w-auto rounded-xl bg-[#10B981] hover:bg-[#059669] text-white text-sm font-medium px-8 py-3 transition-colors ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     {isProcessing ? 'Sending request…' : 'Send payment request'}
                   </button>
 
                   {errorMessage && paymentStatus === 'error' && (
-                    <div className="mt-4 flex items-start gap-2 text-sm text-[#9B3232]">
+                    <div className="mt-4 flex items-start gap-2 text-sm text-[#EF4444]">
                       <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                       <p>{errorMessage}</p>
                     </div>
@@ -748,7 +748,7 @@ export default function HostedCheckoutIntegration() {
               {paymentStatus === 'success' && (
                 <Link
                   href={returnUrl}
-                  className="inline-flex items-center gap-2 bg-[#1F6F4E] hover:bg-[#185C40] text-white text-sm font-medium px-6 py-2.5 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white text-sm font-medium px-6 py-2.5 transition-colors"
                 >
                   <CheckCircle className="w-4 h-4" /> View transaction
                 </Link>
@@ -757,7 +757,7 @@ export default function HostedCheckoutIntegration() {
           </div>
         </div>
 
-        <div className="flex items-center justify-center gap-2 text-xs text-[#9AA5B4] mt-6">
+        <div className="flex items-center justify-center gap-2 text-xs text-[#9CA3AF] mt-6">
           <Globe className="w-3.5 h-3.5" /> Powered by Xecoflow · Secure and PCI-DSS compliant
         </div>
       </main>
