@@ -617,9 +617,6 @@ export default function HostedCheckoutIntegration() {
     );
   }
 
-  const stepLabels = ['Details', 'Authorize', 'Confirmed'];
-  const activeStepIndex = paymentStatus === 'success' ? 2 : paymentStatus === 'pending' || paymentStatus === 'processing' ? 1 : 0;
-
   return (
     <div className="min-h-screen bg-[#F7F6F0]">
       {/* Header */}
@@ -632,55 +629,16 @@ export default function HostedCheckoutIntegration() {
               <p className="text-[11px] text-[#8FA0B8] mt-1">Secure payment terminal</p>
             </div>
           </div>
-          <Link
-            href="/developers/introduction"
-            className="hidden sm:inline-flex items-center gap-1.5 text-xs text-[#C9D2E0] hover:text-white transition-colors"
-          >
-            Developer docs <ArrowRight className="w-3 h-3" />
-          </Link>
+          <div className="flex items-center gap-2 text-xs text-[#8FA0B8]">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#D9C48A]" />
+            256-bit encrypted
+          </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-10">
-        {/* Transaction docket */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border border-[#D8D4C9] bg-white px-5 py-3.5 mb-6">
-          <div className="flex items-center gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-[#1F6F4E]" />
-            <span className="text-sm text-[#0B1526]">
-              Paying <span className="font-medium">{businessName}</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-4 text-xs text-[#5B6B82]">
-            {merchantId && <span className="tabular-nums">Merchant ID {merchantId}</span>}
-            {isReady && (
-              <span className="text-[#1F6F4E] flex items-center gap-1">
-                <CheckCircle className="w-3.5 h-3.5" /> Credentials verified
-              </span>
-            )}
-          </div>
-        </div>
-
         {/* Checkout document */}
         <div className="border border-[#D8D4C9] bg-white">
-          {/* Step tracker */}
-          <div className="grid grid-cols-3 border-b border-[#D8D4C9]">
-            {stepLabels.map((label, i) => {
-              const state = i < activeStepIndex ? 'done' : i === activeStepIndex ? 'active' : 'pending';
-              return (
-                <div key={label} className="px-5 py-3">
-                  <div className={`h-[2px] mb-2 ${state === 'pending' ? 'bg-[#EDEAE2]' : 'bg-[#0B1526]'}`} />
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <span className="tabular-nums text-[#5B6B82]">{String(i + 1).padStart(2, '0')}</span>
-                    <span className={state === 'active' ? 'text-[#0B1526] font-medium' : state === 'done' ? 'text-[#0B1526]' : 'text-[#9AA5B4]'}>
-                      {label}
-                    </span>
-                    {state === 'done' && <CheckCircle className="w-3 h-3 text-[#1F6F4E] ml-0.5" />}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
           <div className="grid lg:grid-cols-5">
             {/* Ledger stub */}
             <div className="lg:col-span-2 px-6 md:px-8 py-8 border-b lg:border-b-0 lg:border-r border-dashed border-[#D8D4C9]">
@@ -708,18 +666,6 @@ export default function HostedCheckoutIntegration() {
               <div className="flex justify-between text-sm text-[#0B1526] py-2 border-t border-[#EDEAE2] tabular-nums">
                 <span className="text-[#5B6B82]">Total due</span>
                 <span className="font-medium">{currency} {amount.toFixed(2)}</span>
-              </div>
-
-              <p className="text-xs uppercase tracking-wide text-[#9AA5B4] mt-8 mb-3">Billed to</p>
-              <div className="text-sm text-[#0B1526] space-y-0.5">
-                <p className="font-medium">{customerName}</p>
-                <p className="text-[#5B6B82]">{customerEmail}</p>
-                <p className="text-[#5B6B82] tabular-nums">{customerPhone}</p>
-              </div>
-
-              <div className="flex items-center gap-2 text-xs text-[#5B6B82] mt-8 pt-5 border-t border-[#EDEAE2]">
-                <Lock size={12} className="text-[#1F6F4E]" />
-                Encrypted end-to-end and PCI-DSS compliant
               </div>
             </div>
 
