@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Smartphone, Send, Wallet, Info, Loader2, Radio } from 'lucide-react';
+import { Smartphone, Send, Wallet, Info, Loader2, Radio, AlertCircle } from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface FeeTier {
@@ -107,8 +107,8 @@ function FeeCard({ schedule }: { schedule: FeeSchedule }) {
         </span>
       </header>
 
-      {/* Tier grid — two columns so the schedule reads wide rather than tall */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-0 p-3">
+      {/* Tier list — single column, full-width rows */}
+      <div className="flex flex-col p-3">
         {schedule.tiers.map((tier, idx) => (
           <div
             key={idx}
@@ -210,18 +210,21 @@ export default function TransactionFeePage() {
         </div>
 
         {/* Info banner */}
-        <div className="mb-6 flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-[#0d1b32]">
+        <div className="mb-4 flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-[#0d1b32]">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-          <div className="text-sm text-slate-600 dark:text-slate-400">
-            <p>
-              Fees are deducted from your settlement balance and are inclusive of applicable taxes.
-              Bulk airtime is billed per top-up as a percentage of the recharge value. Contact
-              support for negotiated enterprise pricing.
-            </p>
-            <p className="mt-1.5 font-medium text-slate-700 dark:text-slate-300">
-              Failed transactions are not charged.
-            </p>
-          </div>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Fees are deducted from your settlement balance and are inclusive of applicable taxes.
+            Bulk airtime is billed per top-up as a percentage of the recharge value. Contact support
+            for negotiated enterprise pricing.
+          </p>
+        </div>
+
+        {/* Independent notice — failed transactions */}
+        <div className="mb-6 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-900/50 dark:bg-emerald-950/30">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+            Failed transactions are not charged.
+          </p>
         </div>
 
         {/* Fee schedules — single column */}
