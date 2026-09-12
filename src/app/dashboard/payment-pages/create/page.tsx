@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Link2,
@@ -11,11 +11,38 @@ import {
   ChevronUp,
   ArrowLeft,
 } from 'lucide-react';
-import { getStoredMerchant, getToken } from '@/lib/auth';
 
 export default function CreatePaymentLinkPage() {
   const router = useRouter();
-  const merchant = getStoredMerchant();
+
+  // ─── Auth + Merchant State ─────────────────────────────────────────
+  const [merchant, setMerchant] = useState<any>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // ─── Auth Guard — same pattern as PayBill / transactions page ──────
+  useEffect(() => {
+    let storedMerchant: any = null;
+    let id = '';
+
+    try {
+      const stored = localStorage.getItem('merchant');
+      if (stored) {
+        storedMerchant = JSON.parse(stored);
+        id = String(storedMerchant.merchant_id || storedMerchant.merchantId || '');
+      }
+    } catch (e) {
+      console.error('Failed to parse merchant data', e);
+    }
+
+    if (!storedMerchant || !id) {
+      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+      router.push('/login?session=expired');
+      return;
+    }
+
+    setMerchant(storedMerchant);
+    setAuthChecked(true);
+  }, [router]);
 
   // Basic Information
   const [title, setTitle] = useState('');
@@ -56,18 +83,18 @@ export default function CreatePaymentLinkPage() {
     setError(null);
 
     try {
-      const token = getToken();
       const merchantId = merchant?.merchant_id || merchant?.merchantId;
-      
+
       const res = await fetch('/v1/product-links', {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           merchantId: merchantId,
-          businessName: merchant?.business_name || merchant?.businessName || 'XecoFlow Store',
+          businessName:
+            merchant?.business_name || merchant?.businessName || 'XecoFlow Store',
           name: title.trim(),
           price: amountType === 'fixed' ? Number(amount) : 0,
           currency: 'KES',
@@ -85,7 +112,7 @@ export default function CreatePaymentLinkPage() {
       const slug = data.data?.slug || data.data?.description;
       const url = `${window.location.origin}/pay/${slug}`;
       setLink(url);
-      
+
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
@@ -115,6 +142,15 @@ export default function CreatePaymentLinkPage() {
     setExpiry('never');
     setShowAdvanced(false);
   };
+
+  // ─── Auth Loading Screen ───────────────────────────────────────────
+  if (!authChecked) {
+    return (
+      <div className="max-w-3xl mx-auto flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-10 h-10 animate-spin text-[#0a2540]" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -187,7 +223,9 @@ export default function CreatePaymentLinkPage() {
               <h2 className="text-[15px] font-semibold text-[#0a2540]">
                 Basic Information
               </h2>
-              <p className="text-[12px] text-gray-400 mt-0.5">Core setup for this payment link</p>
+              <p className="text-[12px] text-gray-400 mt-0.5">
+                Core setup for this payment link
+              </p>
             </div>
 
             <div className="p-5 sm:p-6 space-y-5">

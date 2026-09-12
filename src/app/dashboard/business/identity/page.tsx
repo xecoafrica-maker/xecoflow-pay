@@ -15,7 +15,6 @@ import {
   Globe,
   Calendar,
 } from 'lucide-react';
-import { getStoredMerchant, getToken } from '@/lib/auth';
 
 interface BusinessIdentityData {
   business_name: string;
@@ -50,24 +49,49 @@ export default function BusinessIdentityPage() {
   const [error, setError] = useState('');
   const [data, setData] = useState<BusinessIdentityData | null>(null);
 
+  // ─── Auth + Merchant State ─────────────────────────────────────────
+  const [merchantData, setMerchantData] = useState<any>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Building2 },
     { id: 'registration', label: 'Registration', icon: FileText },
     { id: 'contact', label: 'Contact & Address', icon: MapPin },
   ];
 
-  // ─── Load Data from New API ──────────────────────────────────────
+  // ─── Auth Guard — same pattern as PayBill / transactions page ──────
   useEffect(() => {
-    const fetchIdentity = async () => {
-      const token = getToken();
-      if (!token) {
-        router.push('/login');
-        return;
-      }
+    let storedMerchant: any = null;
+    let id = '';
 
+    try {
+      const stored = localStorage.getItem('merchant');
+      if (stored) {
+        storedMerchant = JSON.parse(stored);
+        id = String(storedMerchant.merchant_id || storedMerchant.merchantId || '');
+      }
+    } catch (e) {
+      console.error('Failed to parse merchant data', e);
+    }
+
+    if (!storedMerchant || !id) {
+      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+      router.push('/login?session=expired');
+      return;
+    }
+
+    setMerchantData(storedMerchant);
+    setAuthChecked(true);
+  }, [router]);
+
+  // ─── Load Data from API ──────────────────────────────────────────
+  useEffect(() => {
+    if (!authChecked || !merchantData) return;
+
+    const fetchIdentity = async () => {
       try {
         const res = await fetch('/v1/business-account/identity', {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
         });
         const json = await res.json();
 
@@ -83,7 +107,7 @@ export default function BusinessIdentityPage() {
     };
 
     fetchIdentity();
-  }, [router]);
+  }, [authChecked, merchantData]);
 
   // ─── Handle Save ──────────────────────────────────────────────────
   const handleSave = async (e: React.FormEvent) => {
@@ -92,18 +116,12 @@ export default function BusinessIdentityPage() {
     setError('');
     setSaved(false);
 
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
     try {
       const res = await fetch('/v1/business-account/identity', {
         method: 'PUT',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           phone: data?.phone,
@@ -139,7 +157,16 @@ export default function BusinessIdentityPage() {
     }
   };
 
-  // ─── Loading State ────────────────────────────────────────────────
+  // ─── Auth Loading State ───────────────────────────────────────────
+  if (!authChecked) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
+
+  // ─── Data Loading State ───────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -166,6 +193,10 @@ export default function BusinessIdentityPage() {
     });
   };
 
+  // ─── Merchant ID for display ─────────────────────────────────────
+  const displayMerchantId =
+    merchantData?.merchant_id || merchantData?.merchantId || '—';
+
   // ─── RENDER: OVERVIEW TAB ────────────────────────────────────────
   const renderOverviewTab = () => (
     <div className="space-y-6">
@@ -182,7 +213,7 @@ export default function BusinessIdentityPage() {
         </div>
         <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Merchant ID</p>
-          <p className="text-sm font-semibold text-gray-900 mt-1">{getStoredMerchant()?.merchantId || '—'}</p>
+          <p className="text-sm font-semibold text-gray-900 mt-1">{displayMerchantId}</p>
         </div>
         <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Industry</p>

@@ -31,7 +31,6 @@ import {
   MapPin,
   Globe,
 } from 'lucide-react';
-import { getToken, getStoredMerchant } from '@/lib/auth';
 import { createClient } from '@supabase/supabase-js';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
@@ -39,7 +38,7 @@ import { useActivityLogger } from '@/hooks/useActivityLogger';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || '';
 
-const supabase = supabaseUrl && supabaseKey 
+const supabase = supabaseUrl && supabaseKey
   ? createClient(supabaseUrl, supabaseKey)
   : null;
 
@@ -69,7 +68,7 @@ const extractLocation = (details: string): { city: string; country: string; full
       full: `${match[1].trim()}, ${match[2].trim()}`
     };
   }
-  
+
   const simpleMatch = details?.match(/Location: ([^)]+)/);
   if (simpleMatch) {
     const parts = simpleMatch[1].split(',');
@@ -86,7 +85,7 @@ const extractLocation = (details: string): { city: string; country: string; full
       full: simpleMatch[1].trim()
     };
   }
-  
+
   return null;
 };
 
@@ -135,7 +134,7 @@ const ActivityIcon = ({ action }: { action: string }) => {
 // ─── Location Badge Component ──────────────────────────────────────
 const LocationBadge = ({ city, country }: { city: string; country: string }) => {
   if (!city) return null;
-  
+
   const getCountryEmoji = (countryCode: string) => {
     const emojis: Record<string, string> = {
       'Kenya': '🇰🇪',
@@ -162,7 +161,7 @@ const LocationBadge = ({ city, country }: { city: string; country: string }) => 
   };
 
   const flag = getCountryEmoji(country);
-  
+
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
       <MapPin className="w-3 h-3" />
@@ -181,21 +180,44 @@ export default function ActivityLogsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [merchantId, setMerchantId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
+  // ─── Auth + Merchant State ─────────────────────────────────────────
+  const [merchantData, setMerchantData] = useState<any>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
+  // ─── Auth Guard — same pattern as PayBill / transactions page ──────
+  useEffect(() => {
+    let storedMerchant: any = null;
+    let id = '';
+
+    try {
+      const stored = localStorage.getItem('merchant');
+      if (stored) {
+        storedMerchant = JSON.parse(stored);
+        id = String(storedMerchant.merchant_id || storedMerchant.merchantId || '');
+      }
+    } catch (e) {
+      console.error('Failed to parse merchant data', e);
+    }
+
+    if (!storedMerchant || !id) {
+      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+      router.push('/login?session=expired');
+      return;
+    }
+
+    setMerchantData(storedMerchant);
+    setAuthChecked(true);
+  }, [router]);
+
   // ─── Fetch Activity Logs ──────────────────────────────────────────
-  const fetchLogs = async () => {
+  const fetchLogs = async (id: number) => {
     try {
       setLoading(true);
       setError(null);
-      
-      const token = getToken();
-      if (!token) {
-        router.push('/login');
-        return;
-      }
 
       if (!supabase) {
         setError('Supabase is not configured. Please check your .env file.');
@@ -203,18 +225,8 @@ export default function ActivityLogsPage() {
         return;
       }
 
-      const cached = getStoredMerchant();
-      let id = cached?.merchant_id || cached?.merchantId;
-      
-      if (!id) {
-        setError('No merchant ID found. Please log in again.');
-        setLoading(false);
-        return;
-      }
-
       setMerchantId(id);
 
-      // ✅ Already ordered by created_at DESC from the query
       const { data, error: supabaseError } = await supabase
         .from('activity_logs')
         .select('*')
@@ -239,21 +251,33 @@ export default function ActivityLogsPage() {
     }
   };
 
-  // ─── Log view only once ──────────────────────────────────────────
+  // ─── Trigger fetch + view log once auth is confirmed ─────────────
   useEffect(() => {
+    if (!authChecked || !merchantData) return;
+
+    const id = Number(
+      merchantData.merchant_id || merchantData.merchantId || 0
+    );
+
+    if (!id) {
+      setError('No merchant ID found. Please log in again.');
+      setLoading(false);
+      return;
+    }
+
+    // Fire fetch
+    fetchLogs(id);
+
+    // Log the view once
     const logView = async () => {
-      if (isLoggingView.current || hasLoggedView.current) {
-        return;
-      }
-      
+      if (isLoggingView.current || hasLoggedView.current) return;
+
       try {
         isLoggingView.current = true;
-        
-        const cached = getStoredMerchant();
-        if (cached?.merchant_id && supabase) {
+        if (supabase) {
           await log(
             ActivityActions.VIEW_ACTIVITY_LOGS,
-            `Viewed activity logs for ${cached.business_name || 'business'}`
+            `Viewed activity logs for ${merchantData.business_name || 'business'}`
           );
           hasLoggedView.current = true;
         }
@@ -263,10 +287,10 @@ export default function ActivityLogsPage() {
         isLoggingView.current = false;
       }
     };
-    
+
     logView();
-    fetchLogs();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, merchantData]);
 
   // ─── Search Filter ──────────────────────────────────────────────
   const filteredLogs = logs.filter(
@@ -280,32 +304,30 @@ export default function ActivityLogsPage() {
   // ─── Group Logs by Date ──────────────────────────────────────────
   const groupLogsByDate = (logs: ActivityLog[]): GroupedLogs => {
     const groups: GroupedLogs = {};
-    
+
     logs.forEach((log) => {
       const date = new Date(log.created_at);
-      const dateStr = date.toLocaleDateString('en-US', { 
-        weekday: 'short', 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric' 
+      const dateStr = date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
       });
-      
+
       if (!groups[dateStr]) {
         groups[dateStr] = [];
       }
       groups[dateStr].push(log);
     });
-    
+
     return groups;
   };
 
-  // ✅ Get dates sorted in descending order (most recent first)
   const sortedGroupedLogs = Object.entries(groupLogsByDate(filteredLogs))
     .sort(([dateA], [dateB]) => {
-      // Parse dates and compare
       const dateAObj = new Date(dateA);
       const dateBObj = new Date(dateB);
-      return dateBObj.getTime() - dateAObj.getTime(); // Descending (newest first)
+      return dateBObj.getTime() - dateAObj.getTime();
     });
 
   // ─── Format Time ──────────────────────────────────────────────────
@@ -314,24 +336,37 @@ export default function ActivityLogsPage() {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
-    
+
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins} min ago`;
-    
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
+
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: true 
+      hour12: true
     });
   };
 
   const handleRefresh = () => {
+    if (!merchantId) return;
     setIsRefreshing(true);
     hasLoggedView.current = false;
-    fetchLogs();
+    fetchLogs(merchantId);
   };
 
-  // ─── Loading State ──────────────────────────────────────────────
+  // ─── Auth Loading State ───────────────────────────────────────────
+  if (!authChecked) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-indigo-500 mx-auto" />
+          <p className="mt-4 text-gray-600">Checking session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Data Loading State ───────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -441,8 +476,8 @@ export default function ActivityLogsPage() {
                     {searchTerm ? 'No matching logs found' : 'No activity logs yet'}
                   </p>
                   <p className="text-sm text-gray-400 mt-1">
-                    {searchTerm 
-                      ? 'Try adjusting your search terms' 
+                    {searchTerm
+                      ? 'Try adjusting your search terms'
                       : 'User actions and system events will appear here'}
                   </p>
                 </div>
@@ -451,12 +486,10 @@ export default function ActivityLogsPage() {
           ) : (
             sortedGroupedLogs.map(([dateGroup, dateLogs]) => (
               <div key={dateGroup} className="mb-8 last:mb-0">
-                {/* ─── Date Header ─────────────────────────────────── */}
                 <h3 className="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-100">
                   {dateGroup}
                 </h3>
 
-                {/* ─── Log Items ───────────────────────────────────── */}
                 <div className="space-y-4">
                   {dateLogs.map((log) => {
                     const location = extractLocation(log.details);
@@ -504,7 +537,6 @@ export default function ActivityLogsPage() {
           )}
         </div>
 
-        {/* ─── Footer ────────────────────────────────────────────────── */}
         {filteredLogs.length > 0 && (
           <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
             <span className="text-xs text-gray-400">

@@ -23,12 +23,9 @@ import {
   Clock,
   Settings,
 } from 'lucide-react';
-import { getStoredMerchant, getToken } from '@/lib/auth';
-import OnboardingGuard, { useOnboarding } from '@/components/OnboardingGuard';
 
-function InnerCreateProductLink() {
+export default function CreateProductLinkPage() {
   const router = useRouter();
-  const { isOnboarded, isLoading } = useOnboarding();
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Form State ──────────────────────────────────────────────────────
@@ -38,7 +35,7 @@ function InnerCreateProductLink() {
   const [digitalFile, setDigitalFile] = useState<File | null>(null);
   const [digitalFileName, setDigitalFileName] = useState<string>('');
   const [linkExpiry, setLinkExpiry] = useState('24 Hours');
-  
+
   // ─── Advanced Options ──────────────────────────────────────────────
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -50,15 +47,41 @@ function InnerCreateProductLink() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ─── Auto-load Business Data ──────────────────────────────────────
-  const merchantData = getStoredMerchant();
+  // ─── Auth + Merchant State ─────────────────────────────────────────
+  const [merchantData, setMerchantData] = useState<any>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // ─── Auth Guard — same pattern as PayBill / transactions page ──────
+  useEffect(() => {
+    let storedMerchant: any = null;
+    let id = '';
+
+    try {
+      const stored = localStorage.getItem('merchant');
+      if (stored) {
+        storedMerchant = JSON.parse(stored);
+        id = String(storedMerchant.merchant_id || storedMerchant.merchantId || '');
+      }
+    } catch (e) {
+      console.error('Failed to parse merchant data', e);
+    }
+
+    if (!storedMerchant || !id) {
+      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+      router.push('/login?session=expired');
+      return;
+    }
+
+    setMerchantData(storedMerchant);
+    setAuthChecked(true);
+  }, [router]);
 
   // ─── Auto-focus on mount ──────────────────────────────────────────
   useEffect(() => {
-    if (!isLoading && isOnboarded) {
+    if (authChecked) {
       setTimeout(() => nameInputRef.current?.focus(), 200);
     }
-  }, [isLoading, isOnboarded]);
+  }, [authChecked]);
 
   // ─── Handle Digital File Upload ──────────────────────────────────
   const handleDigitalFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -82,8 +105,8 @@ function InnerCreateProductLink() {
   // ─── Get expiry days from selection ──────────────────────────────
   const getExpiryDays = (selection: string): number => {
     const map: Record<string, number> = {
-      '1 Hour': 1/24,
-      '6 Hours': 6/24,
+      '1 Hour': 1 / 24,
+      '6 Hours': 6 / 24,
       '24 Hours': 1,
       '3 Days': 3,
       '7 Days': 7,
@@ -115,18 +138,18 @@ function InnerCreateProductLink() {
     setError(null);
 
     try {
-      const token = getToken();
-      
+      const merchantId = merchantData?.merchant_id || merchantData?.merchantId;
+
       // ─── Upload digital file ──────────────────────────────────────
       let fileUrl = '';
       if (digitalFile) {
         const formData = new FormData();
         formData.append('file', digitalFile);
-        formData.append('merchantId', String(merchantData?.merchant_id || merchantData?.merchantId));
+        formData.append('merchantId', String(merchantId));
 
         const uploadRes = await fetch('/api/products/upload', {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
+          credentials: 'include',
           body: formData,
         });
 
@@ -141,12 +164,12 @@ function InnerCreateProductLink() {
       // ─── Create Product Link ──────────────────────────────────────
       const createRes = await fetch('/api/product-links', {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          merchantId: merchantData?.merchant_id || merchantData?.merchantId,
+          merchantId: merchantId,
           name: name.trim(),
           price: parseFloat(price),
           fulfillmentType: fulfillmentType,
@@ -185,28 +208,19 @@ function InnerCreateProductLink() {
 
   const shareToWhatsApp = () => {
     if (!productLink) return;
-    window.open(`https://wa.me/?text=${encodeURIComponent(`🛍️ Check this out!\n${productLink}`)}`, '_blank');
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(`🛍️ Check this out!\n${productLink}`)}`,
+      '_blank'
+    );
   };
 
   const isFormValid = name.trim() && price && parseFloat(price) > 0 && digitalFile;
 
-  // ─── ONBOARDING GUARD ──────────────────────────────────────────────
-  if (!isLoading && !isOnboarded) {
+  // ─── Auth Loading Screen ───────────────────────────────────────────
+  if (!authChecked) {
     return (
-      <div className="min-h-[400px] flex flex-col items-center justify-center text-center p-8">
-        <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mb-6">
-          <Lock className="w-10 h-10 text-amber-500" />
-        </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Setup Required</h2>
-        <p className="text-gray-500 max-w-md mb-6">
-          Complete your business details before creating product links.
-        </p>
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors"
-        >
-          Go to Dashboard
-        </button>
+      <div className="min-h-[400px] flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
       </div>
     );
   }
@@ -258,7 +272,9 @@ function InnerCreateProductLink() {
             Price (KES) <span className="text-red-500">*</span>
           </label>
           <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">KES</span>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">
+              KES
+            </span>
             <input
               type="number"
               value={price}
@@ -345,7 +361,11 @@ function InnerCreateProductLink() {
           >
             <Settings className="w-4 h-4" />
             Advanced Options
-            {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {showAdvanced ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
           </button>
 
           {showAdvanced && (
@@ -404,7 +424,9 @@ function InnerCreateProductLink() {
             <CheckCircle className="w-8 h-8 text-emerald-600" />
           </div>
           <h3 className="text-lg font-bold text-gray-900">🎉 Link Created!</h3>
-          <p className="text-sm text-gray-500 mt-1">Share this link with your customers</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Share this link with your customers
+          </p>
 
           <div className="mt-4 bg-white rounded-xl p-3 flex items-center gap-2 border border-emerald-200">
             <input
@@ -417,10 +439,16 @@ function InnerCreateProductLink() {
               onClick={copyToClipboard}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-gray-500" />}
+              {copied ? (
+                <Check className="w-4 h-4 text-emerald-500" />
+              ) : (
+                <Copy className="w-4 h-4 text-gray-500" />
+              )}
             </button>
           </div>
-          {copied && <p className="text-xs text-emerald-600 mt-1">✅ Copied to clipboard!</p>}
+          {copied && (
+            <p className="text-xs text-emerald-600 mt-1">✅ Copied to clipboard!</p>
+          )}
 
           <div className="mt-4 flex flex-col sm:flex-row gap-2">
             <button
@@ -462,14 +490,5 @@ function InnerCreateProductLink() {
         🔒 Secure by XecoFlow · Instant payment via M-PESA
       </p>
     </div>
-  );
-}
-
-// ─── Wrap with Onboarding Guard ──────────────────────────────────────
-export default function WrappedCreateProductLink() {
-  return (
-    <OnboardingGuard>
-      <InnerCreateProductLink />
-    </OnboardingGuard>
   );
 }
