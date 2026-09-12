@@ -17,9 +17,6 @@ import {
   WifiOff,
   Split,
   X,
-  MapPin,
-  Phone,
-  FileText,
 } from 'lucide-react';
 
 interface PaymentLinkData {
@@ -73,7 +70,7 @@ const METHOD_LOGOS: Record<PayMethod, { src: string; label: string; activeBorder
 interface Contributor {
   id: string;
   name: string;
-  identifier: string; // phone or email
+  identifier: string;
   amount: number;
   status: 'pending' | 'paid';
   isYou?: boolean;
@@ -823,52 +820,6 @@ export default function PaymentLinkPage() {
             )}
           </div>
 
-          {/* ─── Merchant info ───────────────────────────────────── */}
-          <div className="mt-8 rounded-xl border border-gray-200 bg-white p-4">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
-              Merchant info
-            </p>
-            <div className="space-y-2.5 text-[12px]">
-              <div className="flex items-start gap-2.5">
-                <MapPin className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
-                <span className="text-gray-600">
-                  Nairobi, Kenya
-                </span>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <Phone className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
-                <span className="text-gray-600">
-                  +254 700 000 000
-                </span>
-              </div>
-              {isVerified && (
-                <div className="flex items-start gap-2.5">
-                  <BadgeCheck className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
-                  <span className="text-emerald-700 font-medium">
-                    Verified merchant
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ─── Terms / policy snippet ──────────────────────────── */}
-          <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
-            <div className="flex items-start gap-2.5">
-              <FileText className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
-              <div className="text-[12px] text-gray-500 leading-relaxed">
-                <p>
-                  All payments are final. Refunds are subject to the merchant's refund policy.
-                  By paying, you agree to the{' '}
-                  <Link href="/terms" className="text-[#635bff] hover:underline">
-                    Terms of Service
-                  </Link>
-                  .
-                </p>
-              </div>
-            </div>
-          </div>
-
           <div className="mt-8 hidden lg:block">{poweredBy}</div>
         </div>
 
@@ -1129,7 +1080,6 @@ export default function PaymentLinkPage() {
             className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0a2540]">
@@ -1148,9 +1098,7 @@ export default function PaymentLinkPage() {
               </button>
             </div>
 
-            {/* Modal body */}
             <div className="px-5 py-5 space-y-5">
-              {/* Their phone or email */}
               <div>
                 <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
                   Their phone or email
@@ -1183,7 +1131,6 @@ export default function PaymentLinkPage() {
                 </div>
               </div>
 
-              {/* How much */}
               <div>
                 <label className="block text-[13px] font-medium text-gray-700 mb-2">
                   How much should they cover?
@@ -1228,7 +1175,6 @@ export default function PaymentLinkPage() {
                 </div>
               </div>
 
-              {/* Note */}
               <div>
                 <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
                   Add a note <span className="text-gray-400 font-normal">(optional)</span>
@@ -1243,7 +1189,6 @@ export default function PaymentLinkPage() {
               </div>
             </div>
 
-            {/* Modal footer */}
             <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
               <button
                 type="button"
