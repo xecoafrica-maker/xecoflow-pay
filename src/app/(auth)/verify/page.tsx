@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Mail } from 'lucide-react';
 
 export default function VerifyPage() {
   const [seconds, setSeconds] = useState(30);
@@ -27,7 +27,7 @@ export default function VerifyPage() {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-5xl flex flex-col lg:flex-row bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
-        
+
         {/* ── LEFT PANEL – Brand ── */}
         <div className="lg:w-1/2 bg-[#0a2540] p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden min-h-[400px]">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
@@ -85,9 +85,7 @@ export default function VerifyPage() {
 
             <div className="text-center space-y-6 py-4">
               <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto">
-                <svg className="w-10 h-10 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
+                <Mail className="w-10 h-10 text-indigo-600" />
               </div>
               <div>
                 <p className="text-sm text-gray-600 max-w-sm mx-auto">
