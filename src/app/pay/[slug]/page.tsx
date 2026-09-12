@@ -15,6 +15,7 @@ import {
   XCircle,
   Wifi,
   WifiOff,
+  Split,
 } from 'lucide-react';
 
 interface PaymentLinkData {
@@ -686,6 +687,19 @@ export default function PaymentLinkPage() {
                 </span>
               </div>
             </div>
+
+            {/* ─── Split this bill ─────────────────────────────────── */}
+            <button
+              type="button"
+              onClick={() => {
+                // Modal wiring comes later
+                console.log('Split this bill clicked');
+              }}
+              className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-transparent text-[14px] font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+            >
+              <Split className="w-4 h-4" />
+              Split this bill
+            </button>
           </div>
 
           <div className="mt-10 hidden lg:block">{poweredBy}</div>
