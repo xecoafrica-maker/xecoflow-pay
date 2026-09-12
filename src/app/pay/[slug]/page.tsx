@@ -16,6 +16,10 @@ import {
   Wifi,
   WifiOff,
   Split,
+  X,
+  MapPin,
+  Phone,
+  FileText,
 } from 'lucide-react';
 
 interface PaymentLinkData {
@@ -65,6 +69,16 @@ const METHOD_LOGOS: Record<PayMethod, { src: string; label: string; activeBorder
   },
 };
 
+// ─── Split types ────────────────────────────────────────────────────
+interface Contributor {
+  id: string;
+  name: string;
+  identifier: string; // phone or email
+  amount: number;
+  status: 'pending' | 'paid';
+  isYou?: boolean;
+}
+
 export default function PaymentLinkPage() {
   const params = useParams();
   const router = useRouter();
@@ -86,6 +100,15 @@ export default function PaymentLinkPage() {
   const [checkoutId, setCheckoutId] = useState<string | null>(null);
   const [pollingCount, setPollingCount] = useState(0);
   const [showRetry, setShowRetry] = useState(false);
+
+  // ─── Split Bill State ─────────────────────────────────────────────
+  const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
+  const [splitPhone, setSplitPhone] = useState('');
+  const [splitEmail, setSplitEmail] = useState('');
+  const [splitMode, setSplitMode] = useState<'full' | 'partial'>('full');
+  const [splitAmount, setSplitAmount] = useState('');
+  const [splitNote, setSplitNote] = useState('');
+  const [contributors, setContributors] = useState<Contributor[]>([]);
 
   // ─── WebSocket State ──────────────────────────────────────────────
   const [isSocketConnected, setIsSocketConnected] = useState(false);
@@ -148,7 +171,6 @@ export default function PaymentLinkPage() {
     let socketInstance: any = null;
 
     const initWebSocket = async () => {
-      // Prevent multiple connection attempts
       if (isConnectingRef.current) {
         console.log('⏳ WebSocket connection already in progress');
         return;
@@ -157,7 +179,6 @@ export default function PaymentLinkPage() {
       isConnectingRef.current = true;
 
       try {
-        // Use the same origin for WebSocket connection
         const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 
                        (typeof window !== 'undefined' && window.location.origin) ||
                        'wss://xecoflow-2gen.onrender.com';
@@ -177,7 +198,6 @@ export default function PaymentLinkPage() {
           autoConnect: true
         });
 
-        // ─── Connection Events ──────────────────────────────────────
         socketInstance.on('connect', () => {
           if (isMounted) {
             console.log('✅ [WS] Connected:', socketInstance.id);
@@ -198,7 +218,6 @@ export default function PaymentLinkPage() {
           console.warn('⚠️ [WS] Connection error:', error?.message);
           if (isMounted) {
             setIsSocketConnected(false);
-            // Don't mark as unavailable on first error, let it retry
           }
         });
 
@@ -209,7 +228,6 @@ export default function PaymentLinkPage() {
           }
         });
 
-        // ─── Payment Status Events ──────────────────────────────────
         socketInstance.on('payment:status', (data: any) => {
           console.log('📡 [WS] Payment status update:', data);
           
@@ -235,7 +253,6 @@ export default function PaymentLinkPage() {
           }
         });
 
-        // ─── Error Events ────────────────────────────────────────────
         socketInstance.on('error', (error: any) => {
           console.error('❌ [WS] Socket error:', error);
         });
@@ -252,7 +269,6 @@ export default function PaymentLinkPage() {
       }
     };
 
-    // Delay connection to allow page to load
     const timeoutId = setTimeout(() => {
       initWebSocket();
     }, 1000);
@@ -272,10 +288,8 @@ export default function PaymentLinkPage() {
     };
   }, []);
 
-  // ─── Register for Payment Updates ────────────────────────────────
   const registerForPaymentUpdates = (checkoutId: string, transactionId: string) => {
     try {
-      // Check if socket exists and is connected
       if (socketRef.current && socketRef.current.connected) {
         socketRef.current.emit('register:payment', {
           checkoutId: checkoutId,
@@ -296,7 +310,6 @@ export default function PaymentLinkPage() {
     return false;
   };
 
-  // ─── Poll Payment Status (Fallback) ──────────────────────────────
   const pollPaymentStatus = (txId: string) => {
     setPollingCount(0);
     setShowRetry(false);
@@ -357,7 +370,6 @@ export default function PaymentLinkPage() {
       maximumFractionDigits: 2,
     })}`;
 
-  // ─── Handle Payment ───────────────────────────────────────────────
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -426,7 +438,6 @@ export default function PaymentLinkPage() {
           setCheckoutId(ckId || null);
           setPaymentStatus('pending');
           
-          // ─── 🔥 TRY WEBSOCKET (non-blocking) ─────────────────────
           let wsRegistered = false;
           if (ckId && isWebSocketAvailable) {
             try {
@@ -436,7 +447,6 @@ export default function PaymentLinkPage() {
             }
           }
           
-          // ─── START POLLING (always) ─────────────────────────────
           pollPaymentStatus(txId);
           
           console.log(`📡 Payment initiated. WebSocket: ${wsRegistered ? '✅' : '❌'}, Polling: ✅`);
@@ -467,7 +477,68 @@ export default function PaymentLinkPage() {
     setPollingCount(0);
   };
 
-  // ─── Cleanup on unmount ───────────────────────────────────────────
+  // ─── Split Bill Handlers ──────────────────────────────────────────
+  const openSplitModal = () => {
+    setSplitPhone('');
+    setSplitEmail('');
+    setSplitMode('full');
+    setSplitAmount('');
+    setSplitNote('');
+    setIsSplitModalOpen(true);
+  };
+
+  const closeSplitModal = () => {
+    setIsSplitModalOpen(false);
+  };
+
+  const handleSendSplitRequest = () => {
+    if (!paymentLink) return;
+
+    const total = paymentLink.price;
+    const theirAmount = splitMode === 'full'
+      ? total
+      : Math.max(0, Math.min(Number(splitAmount) || 0, total));
+    const yourAmount = Math.max(0, total - theirAmount);
+
+    const identifier = splitPhone
+      ? `+254 ${splitPhone}`
+      : splitEmail || 'Not provided';
+
+    const newContributors: Contributor[] = [];
+
+    if (yourAmount > 0) {
+      newContributors.push({
+        id: 'you',
+        name: customerName || 'You',
+        identifier: email || phoneNumber || 'You',
+        amount: yourAmount,
+        status: 'pending',
+        isYou: true,
+      });
+    }
+
+    if (theirAmount > 0) {
+      newContributors.push({
+        id: `c_${Date.now()}`,
+        name: 'Requested payer',
+        identifier,
+        amount: theirAmount,
+        status: 'pending',
+      });
+    }
+
+    setContributors(newContributors);
+    setIsSplitModalOpen(false);
+  };
+
+  const collected = contributors
+    .filter((c) => c.status === 'paid')
+    .reduce((sum, c) => sum + c.amount, 0);
+
+  const total = paymentLink?.price || 0;
+  const remaining = Math.max(0, total - collected);
+  const hasSplit = contributors.length > 0;
+
   useEffect(() => {
     return () => {
       if (pollingIntervalRef.current) {
@@ -477,7 +548,6 @@ export default function PaymentLinkPage() {
     };
   }, []);
 
-  // ─── Payment Status Rendering ────────────────────────────────────
   const renderPaymentStatus = () => {
     if (paymentStatus === 'processing') {
       return (
@@ -568,7 +638,6 @@ export default function PaymentLinkPage() {
     return null;
   };
 
-  // ─── Loading State ─────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -577,7 +646,6 @@ export default function PaymentLinkPage() {
     );
   }
 
-  // ─── Error State ──────────────────────────────────────────────────
   if (error || !paymentLink) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white p-4">
@@ -680,6 +748,12 @@ export default function PaymentLinkPage() {
                   {formatPrice(displayAmount, paymentLink.currency)}
                 </span>
               </div>
+              <div className="flex justify-between text-[14px]">
+                <span className="text-gray-500">Tax</span>
+                <span className="text-gray-900 tabular-nums">
+                  {formatPrice(0, paymentLink.currency)}
+                </span>
+              </div>
               <div className="flex justify-between text-[15px] font-semibold">
                 <span className="text-gray-900">Total due</span>
                 <span className="text-gray-900 tabular-nums">
@@ -691,24 +765,116 @@ export default function PaymentLinkPage() {
             {/* ─── Split this bill ─────────────────────────────────── */}
             <button
               type="button"
-              onClick={() => {
-                // Modal wiring comes later
-                console.log('Split this bill clicked');
-              }}
+              onClick={openSplitModal}
               className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-transparent text-[14px] font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
             >
               <Split className="w-4 h-4" />
-              Split this bill
+              {hasSplit ? 'Change split' : 'Split this bill'}
             </button>
+
+            {/* ─── Contributors block (only when split is active) ──── */}
+            {hasSplit && (
+              <div className="mt-4 rounded-xl border border-gray-200 bg-white overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-gray-100">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                    Contributors
+                  </p>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {contributors.map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between gap-3 px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-medium text-gray-900 truncate">
+                          {c.name}
+                        </p>
+                        <p className="text-[11px] text-gray-400 truncate">{c.identifier}</p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-[13px] font-semibold text-gray-900 tabular-nums">
+                          {formatPrice(c.amount, paymentLink.currency)}
+                        </span>
+                        {c.status === 'paid' ? (
+                          <CheckCircle className="w-4 h-4 text-emerald-500" />
+                        ) : (
+                          <span className="text-[11px] font-medium text-amber-600">Pending</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 space-y-1.5">
+                  <div className="flex justify-between text-[12px]">
+                    <span className="text-gray-500">Collected</span>
+                    <span className="font-semibold text-emerald-600 tabular-nums">
+                      {formatPrice(collected, paymentLink.currency)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[12px]">
+                    <span className="text-gray-500">Remaining</span>
+                    <span className="font-semibold text-gray-900 tabular-nums">
+                      {formatPrice(remaining, paymentLink.currency)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="mt-10 hidden lg:block">{poweredBy}</div>
+          {/* ─── Merchant info ───────────────────────────────────── */}
+          <div className="mt-8 rounded-xl border border-gray-200 bg-white p-4">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
+              Merchant info
+            </p>
+            <div className="space-y-2.5 text-[12px]">
+              <div className="flex items-start gap-2.5">
+                <MapPin className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
+                <span className="text-gray-600">
+                  Nairobi, Kenya
+                </span>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <Phone className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
+                <span className="text-gray-600">
+                  +254 700 000 000
+                </span>
+              </div>
+              {isVerified && (
+                <div className="flex items-start gap-2.5">
+                  <BadgeCheck className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                  <span className="text-emerald-700 font-medium">
+                    Verified merchant
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ─── Terms / policy snippet ──────────────────────────── */}
+          <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
+            <div className="flex items-start gap-2.5">
+              <FileText className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
+              <div className="text-[12px] text-gray-500 leading-relaxed">
+                <p>
+                  All payments are final. Refunds are subject to the merchant's refund policy.
+                  By paying, you agree to the{' '}
+                  <Link href="/terms" className="text-[#635bff] hover:underline">
+                    Terms of Service
+                  </Link>
+                  .
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 hidden lg:block">{poweredBy}</div>
         </div>
 
         {/* ── RIGHT: Pay form ── */}
         <div className="px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col justify-center">
           <div className="w-full max-w-[420px] mx-auto">
-            {/* WebSocket Connection Status */}
             <div className="flex items-center justify-end gap-2 mb-3">
               {isSocketConnected ? (
                 <span className="flex items-center gap-1.5 text-[10px] text-emerald-600">
@@ -952,6 +1118,151 @@ export default function PaymentLinkPage() {
       <footer className="lg:hidden border-t border-gray-100 px-6 py-5">
         {poweredBy}
       </footer>
+
+      {/* ─── Split Bill Modal ─────────────────────────────────── */}
+      {isSplitModalOpen && paymentLink && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          onClick={closeSplitModal}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0a2540]">
+                  <Split className="w-4 h-4 text-white" />
+                </span>
+                <h3 className="text-[15px] font-semibold text-gray-900">
+                  Split this bill
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeSplitModal}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="px-5 py-5 space-y-5">
+              {/* Their phone or email */}
+              <div>
+                <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                  Their phone or email
+                </label>
+                <div className="grid grid-cols-1 gap-2">
+                  <div className="flex h-11 rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
+                    <span className="flex items-center gap-1.5 px-3 bg-gray-50 border-r border-gray-200 text-[13px] text-gray-500 shrink-0">
+                      <Smartphone className="w-4 h-4" />
+                      +254
+                    </span>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      value={splitPhone}
+                      onChange={(e) => setSplitPhone(e.target.value)}
+                      placeholder="712345678"
+                      className="flex-1 min-w-0 px-3 text-sm outline-none"
+                    />
+                  </div>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="email"
+                      value={splitEmail}
+                      onChange={(e) => setSplitEmail(e.target.value)}
+                      placeholder="Or their email"
+                      className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* How much */}
+              <div>
+                <label className="block text-[13px] font-medium text-gray-700 mb-2">
+                  How much should they cover?
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="splitMode"
+                      checked={splitMode === 'full'}
+                      onChange={() => setSplitMode('full')}
+                      className="w-4 h-4 accent-[#0a2540]"
+                    />
+                    <span className="text-[13px] text-gray-700">
+                      Full amount ({formatPrice(paymentLink.price, paymentLink.currency)})
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="splitMode"
+                      checked={splitMode === 'partial'}
+                      onChange={() => setSplitMode('partial')}
+                      className="w-4 h-4 accent-[#0a2540]"
+                    />
+                    <span className="text-[13px] text-gray-700">Part of it</span>
+                  </label>
+                  {splitMode === 'partial' && (
+                    <div className="pl-6.5 pt-1">
+                      <input
+                        type="number"
+                        value={splitAmount}
+                        onChange={(e) => setSplitAmount(e.target.value)}
+                        placeholder="0.00"
+                        min={1}
+                        max={paymentLink.price}
+                        step="0.01"
+                        className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                  Add a note <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={splitNote}
+                  onChange={(e) => setSplitNote(e.target.value)}
+                  placeholder='e.g. "For Sunday offering"'
+                  className="w-full h-11 px-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
+                />
+              </div>
+            </div>
+
+            {/* Modal footer */}
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
+              <button
+                type="button"
+                onClick={closeSplitModal}
+                className="px-4 py-2 rounded-lg text-[13px] font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendSplitRequest}
+                className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-[#0a2540] text-white hover:bg-[#152a45] transition-colors"
+              >
+                Send request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
