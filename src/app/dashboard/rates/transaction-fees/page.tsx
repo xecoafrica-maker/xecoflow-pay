@@ -132,7 +132,7 @@ function FeeCard({ schedule }: { schedule: FeeSchedule }) {
 // ─── Main Page ──────────────────────────────────────────────────────
 export default function TransactionFeePage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'stk' | 'b2c' | 'airtime'>('stk');
+  const [activeTab, setActiveTab] = useState<'stk' | 'b2c' | 'airtime'>('b2c');
   const [authChecked, setAuthChecked] = useState(false);
 
   // Auth guard — read merchant from localStorage (same pattern as transactions page)
