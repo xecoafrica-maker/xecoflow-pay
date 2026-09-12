@@ -18,8 +18,8 @@ import {
   Shield,
   Check,
   Loader2,
+  Mail,
 } from 'lucide-react';
-import { getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 // ─── Helper Functions ──────────────────────────────────────────────
@@ -56,37 +56,46 @@ const methodIcons = {
 export default function WithdrawFundPage() {
   const router = useRouter();
   const { log, ActivityActions } = useActivityLogger();
-  
+
   // ─── State ────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'withdraw' | 'deposit'>('withdraw');
   const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [withdrawPhone, setWithdrawPhone] = useState(''); 
+  const [withdrawPhone, setWithdrawPhone] = useState('');
   const [depositAmount, setDepositAmount] = useState('');
-  
+
   // Real Data State
   const [loading, setLoading] = useState(true);
   const [merchantData, setMerchantData] = useState<any>(null);
   const [settlementData, setSettlementData] = useState<any>(null);
   const [availableBalance, setAvailableBalance] = useState(0);
-  
+
   // UI State
   const [withdrawTo, setWithdrawTo] = useState<'mobile' | 'bank'>('mobile');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [transactionDetails, setTransactionDetails] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState('');
+
+  // ─── Authorization Flow State (NEW) ───────────────────────────────
+  const [showCodeModal, setShowCodeModal] = useState(false);
+  const [requestId, setRequestId] = useState('');
+  const [authorizationCode, setAuthorizationCode] = useState('');
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [codeError, setCodeError] = useState('');
+  const [codeAttemptsRemaining, setCodeAttemptsRemaining] = useState<number | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
 
   // ✅ Prevent duplicate logging
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
-  // ─── ✅ FIXED: Auth & Profile ──────────────────────────────────────
+  // ─── Auth & Profile ────────────────────────────────────────────────
   useEffect(() => {
-    // ✅ Read merchant data from localStorage
     let merchant = null;
     let id = '';
-    
+
     try {
       const stored = localStorage.getItem('merchant');
       if (stored) {
@@ -97,18 +106,15 @@ export default function WithdrawFundPage() {
       console.error('Failed to parse merchant data', e);
     }
 
-    // ❌ If no merchant data, redirect to login
     if (!merchant || !id) {
       console.warn('⚠️ No merchant found in localStorage, redirecting to login');
       router.push('/login?session=expired');
       return;
     }
 
-    // ✅ Merchant data found
     console.log('✅ Merchant data loaded:', merchant);
     setMerchantData(merchant);
 
-    // ─── Fetch REAL Data (Balance + Settlement) ─────────────────────
     const fetchData = async () => {
       try {
         const merchantId = merchant.merchant_id || merchant.merchantId;
@@ -120,7 +126,6 @@ export default function WithdrawFundPage() {
         const paddedId = String(merchantId).padStart(8, '0');
         const accountNumber = `1-1001-${paddedId}`;
 
-        // ✅ FIXED: Use API routes with credentials
         const [identityRes, balanceRes] = await Promise.all([
           fetch('/api/business-account/identity', {
             credentials: 'include',
@@ -163,7 +168,7 @@ export default function WithdrawFundPage() {
   useEffect(() => {
     const logView = async () => {
       if (isLoggingView.current || hasLoggedView.current || !merchantData) return;
-      
+
       try {
         isLoggingView.current = true;
         await log(
@@ -177,15 +182,22 @@ export default function WithdrawFundPage() {
         isLoggingView.current = false;
       }
     };
-    
+
     if (merchantData && !hasLoggedView.current) {
       logView();
     }
   }, [merchantData, log]);
 
+  // ─── Resend countdown timer ───────────────────────────────────────
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const timer = setTimeout(() => setResendCountdown(c => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCountdown]);
+
   // ─── Handlers ──────────────────────────────────────────────────────
 
-  const handleWithdraw = () => {
+  const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount);
     if (!amount || amount <= 0) {
       setError('Please enter a valid amount');
@@ -200,94 +212,156 @@ export default function WithdrawFundPage() {
       return;
     }
 
-    let recipient = '';
-    let method = '';
-
-    if (withdrawTo === 'mobile') {
-      recipient = `M-PESA - ${withdrawPhone}`;
-      method = 'M-PESA';
-    } else {
-      recipient = `Bank Transfer - ${maskAccountNumber(settlementData?.bank_account_number || '')}`;
-      method = 'Bank Transfer';
-    }
-
     setError('');
-    
-    const idempotencyKey = globalThis.crypto.randomUUID();
-
-    setTransactionDetails({
-      type: 'Withdrawal',
-      method: method,
-      amount: amount,
-      recipient: recipient,
-      reference: `WD-${Date.now().toString().slice(-6)}`,
-      withdrawTo: withdrawTo,
-      phoneNumber: withdrawPhone, 
-      idempotencyKey: idempotencyKey, 
-    });
-    setShowConfirmModal(true);
-  };
-
-  const confirmTransaction = async () => {
-    setIsProcessing(true);
-    setError('');
-    
-    // ✅ FIXED: Get merchant from localStorage
-    let merchant = null;
-    try {
-      const stored = localStorage.getItem('merchant');
-      if (stored) {
-        merchant = JSON.parse(stored);
-      }
-    } catch (e) {
-      console.error('Failed to parse merchant data', e);
-    }
-
-    if (!merchant || !merchant.merchant_id) {
-      router.push('/login?session=expired');
-      return;
-    }
+    setIsSendingCode(true);
 
     try {
-      // ✅ FIXED: Use API route with credentials
-      const res = await fetch('/api/payments/withdraw', {
+      const normalizedPhone = normalizeKenyanPhone(withdrawPhone);
+
+      const res = await fetch('/api/withdrawals/request-code', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phoneNumber: normalizeKenyanPhone(transactionDetails.phoneNumber),
-          amount: transactionDetails.amount,
-          remarks: 'Withdrawal from XecoFlow Dashboard',
-          idempotencyKey: transactionDetails.idempotencyKey,
+          amount,
+          phoneNumber: normalizedPhone,
+          withdrawTo,
         }),
       });
 
       const data = await res.json();
 
-      if (data.success) {
-        await log(
-          ActivityActions.CREATE_WITHDRAWAL,
-          `Withdrawal of KES ${transactionDetails.amount.toLocaleString()} via ${transactionDetails.method}`
-        );
-
-        setIsProcessing(false);
-        setShowConfirmModal(false);
-        setShowSuccessModal(true);
-        setWithdrawAmount('');
-        setWithdrawPhone('');
-        
-        setAvailableBalance(prev => prev - transactionDetails.amount);
-      } else {
-        throw new Error(data.error || 'Withdrawal failed');
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || data.error || 'Failed to send authorization code');
       }
 
+      // Store the transaction details for later
+      setTransactionDetails({
+        type: 'Withdrawal',
+        method: withdrawTo === 'mobile' ? 'M-PESA' : 'Bank Transfer',
+        amount,
+        recipient: `M-PESA - ${normalizedPhone}`,
+        reference: `WD-${Date.now().toString().slice(-6)}`,
+        withdrawTo,
+        phoneNumber: normalizedPhone,
+      });
+
+      // Store authorization state
+      setRequestId(data.data.requestId);
+      setMaskedEmail(data.data.maskedEmail);
+      setAuthorizationCode('');
+      setCodeError('');
+      setCodeAttemptsRemaining(null);
+      setResendCountdown(30); // 30s throttle
+      setShowCodeModal(true);
+
     } catch (err: any) {
-      setIsProcessing(false);
-      setShowConfirmModal(false);
-      setError(err.message || 'An error occurred while processing your withdrawal.');
+      setError(err.message || 'Failed to send authorization code');
+    } finally {
+      setIsSendingCode(false);
     }
+  };
+
+  const verifyCodeAndWithdraw = async () => {
+    if (!authorizationCode || authorizationCode.length !== 6) {
+      setCodeError('Please enter the 6-digit code');
+      return;
+    }
+
+    setIsVerifying(true);
+    setCodeError('');
+
+    try {
+      const res = await fetch('/api/withdrawals/confirm', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId,
+          code: authorizationCode.trim(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        // Check for attempts remaining
+        if (typeof data.attemptsRemaining === 'number') {
+          setCodeAttemptsRemaining(data.attemptsRemaining);
+        }
+
+        // If out of attempts, close modal and reset
+        if (data.attemptsRemaining === 0) {
+          setCodeError('Too many failed attempts. Please start a new withdrawal.');
+        } else {
+          setCodeError(data.message || 'Invalid code. Please try again.');
+        }
+        setAuthorizationCode('');
+        return;
+      }
+
+      // Success
+      await log(
+        ActivityActions.CREATE_WITHDRAWAL,
+        `Withdrawal of KES ${transactionDetails.amount.toLocaleString()} via ${transactionDetails.method}`
+      );
+
+      setShowCodeModal(false);
+      setShowSuccessModal(true);
+      setWithdrawAmount('');
+      setWithdrawPhone('');
+      setRequestId('');
+      setAuthorizationCode('');
+      setMaskedEmail('');
+      setAvailableBalance(prev => prev - transactionDetails.amount);
+
+    } catch (err: any) {
+      setCodeError(err.message || 'Failed to verify code');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const resendCode = async () => {
+    if (resendCountdown > 0) return;
+
+    setIsSendingCode(true);
+    setCodeError('');
+
+    try {
+      const res = await fetch('/api/withdrawals/resend-code', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to resend code');
+      }
+
+      setResendCountdown(30);
+      setCodeAttemptsRemaining(null);
+      setAuthorizationCode('');
+      setCodeError('');
+
+    } catch (err: any) {
+      setCodeError(err.message || 'Failed to resend code');
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
+  const cancelCodeModal = () => {
+    setShowCodeModal(false);
+    setRequestId('');
+    setAuthorizationCode('');
+    setCodeError('');
+    setMaskedEmail('');
+    setCodeAttemptsRemaining(null);
+    setResendCountdown(0);
   };
 
   const handleDeposit = () => {
@@ -325,8 +399,8 @@ export default function WithdrawFundPage() {
                 {activeTab === 'withdraw' ? 'Withdraw Funds' : 'Fund Wallet'}
               </h1>
               <p className="text-sm text-gray-500">
-                {activeTab === 'withdraw' 
-                  ? 'Transfer funds from your wallet to any M-PESA number' 
+                {activeTab === 'withdraw'
+                  ? 'Transfer funds from your wallet to any M-PESA number'
                   : 'Add funds to your wallet via various payment methods'}
               </p>
             </div>
@@ -384,7 +458,6 @@ export default function WithdrawFundPage() {
 
           {activeTab === 'withdraw' && (
             <div className="space-y-4">
-              {/* Withdraw To Selection */}
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1.5">
                   Withdraw To
@@ -421,7 +494,6 @@ export default function WithdrawFundPage() {
                 </div>
               </div>
 
-              {/* Withdraw Phone Input */}
               {withdrawTo === 'mobile' && (
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-1.5">
@@ -443,7 +515,6 @@ export default function WithdrawFundPage() {
                 </div>
               )}
 
-              {/* Amount Input */}
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1.5">
                   Amount (KES)
@@ -463,18 +534,26 @@ export default function WithdrawFundPage() {
                 </p>
               </div>
 
-              {/* Submit Button */}
               <button
                 onClick={handleWithdraw}
-                className="w-full py-3 bg-gradient-to-r from-rose-500 to-rose-600 hover:shadow-lg hover:shadow-rose-200 text-white rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2"
+                disabled={isSendingCode}
+                className="w-full py-3 bg-gradient-to-r from-rose-500 to-rose-600 hover:shadow-lg hover:shadow-rose-200 text-white rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-60"
               >
-                <Send className="w-4 h-4" />
-                Withdraw Funds
+                {isSendingCode ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Sending code...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Withdraw Funds
+                  </>
+                )}
               </button>
             </div>
           )}
 
-          {/* ─── Deposit Form ─────────────────────────────────────────── */}
           {activeTab === 'deposit' && (
             <div className="space-y-4">
               <div>
@@ -559,6 +638,7 @@ export default function WithdrawFundPage() {
                   <li>• You must have sufficient balance in your utility account.</li>
                   <li>• Minimum withdrawal is KES 10. Maximum is KES 250,000.</li>
                   <li>• Ensure the phone number is correct before sending.</li>
+                  <li>• An authorization code will be sent to your email.</li>
                 </ul>
               </div>
             </div>
@@ -566,65 +646,117 @@ export default function WithdrawFundPage() {
         </div>
       </div>
 
-      {/* ─── Confirm Modal ───────────────────────────────────────────── */}
-      {showConfirmModal && transactionDetails && (
+      {/* ─── Code Authorization Modal (NEW) ─────────────────────────── */}
+      {showCodeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="p-6">
               <div className="flex items-center justify-center mb-4">
-                <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center">
-                  <AlertCircle className="w-8 h-8 text-amber-500" />
+                <div className="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center">
+                  <Shield className="w-8 h-8 text-rose-500" />
                 </div>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 text-center">Confirm Transaction</h3>
+              <h3 className="text-xl font-bold text-gray-900 text-center">Verify Withdrawal</h3>
               <p className="text-sm text-gray-500 text-center mt-1">
-                Please review the details below before confirming
+                Enter the 6-digit authorization code
               </p>
 
-              <div className="mt-6 space-y-3 bg-gray-50 rounded-xl p-4">
+              {maskedEmail && (
+                <div className="mt-3 flex items-center justify-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg py-2 px-3">
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Code sent to <strong className="text-gray-700">{maskedEmail}</strong></span>
+                </div>
+              )}
+
+              <div className="mt-6 space-y-3 bg-gray-50 rounded-xl p-4 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Type</span>
-                  <span className="text-sm font-medium text-gray-900">{transactionDetails.type}</span>
+                  <span className="text-gray-500">Amount</span>
+                  <span className="text-lg font-bold text-rose-600">
+                    KES {transactionDetails?.amount?.toLocaleString()}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Method</span>
-                  <span className="text-sm font-medium text-gray-900">{transactionDetails.method}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Amount</span>
-                  <span className="text-xl font-bold text-rose-600">KES {transactionDetails.amount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Recipient</span>
-                  <span className="text-sm font-medium text-gray-900">{transactionDetails.recipient}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Reference</span>
-                  <span className="text-sm font-mono text-gray-600">{transactionDetails.reference}</span>
+                  <span className="text-gray-500">To</span>
+                  <span className="font-medium text-gray-900">
+                    {transactionDetails?.phoneNumber}
+                  </span>
                 </div>
               </div>
 
-              <div className="mt-6 flex gap-3">
+              {/* Code Input */}
+              <div className="mt-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
+                  Authorization Code
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  value={authorizationCode}
+                  onChange={(e) => {
+                    setAuthorizationCode(e.target.value.replace(/\D/g, ''));
+                    if (codeError) setCodeError('');
+                  }}
+                  placeholder="000000"
+                  autoFocus
+                  disabled={isVerifying}
+                  className="w-full text-center text-3xl font-mono tracking-[0.5em] py-3 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all disabled:opacity-60"
+                />
+                {codeError && (
+                  <div className="mt-2 flex items-center justify-center gap-2 text-sm text-red-600">
+                    <XCircle className="w-4 h-4" />
+                    <span>{codeError}</span>
+                  </div>
+                )}
+                {codeAttemptsRemaining !== null && codeAttemptsRemaining > 0 && (
+                  <p className="mt-1 text-xs text-amber-600 text-center">
+                    {codeAttemptsRemaining} attempt{codeAttemptsRemaining !== 1 ? 's' : ''} remaining
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-6 flex flex-col gap-2">
                 <button
-                  onClick={() => setShowConfirmModal(false)}
-                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all"
+                  onClick={verifyCodeAndWithdraw}
+                  disabled={isVerifying || authorizationCode.length !== 6}
+                  className="w-full px-4 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmTransaction}
-                  disabled={isProcessing}
-                  className="flex-1 px-4 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {isProcessing ? (
+                  {isVerifying ? (
                     <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Processing...
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Verifying...
                     </>
                   ) : (
-                    'Confirm'
+                    <>
+                      <Check className="w-4 h-4" />
+                      Verify & Withdraw
+                    </>
                   )}
                 </button>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={resendCode}
+                    disabled={resendCountdown > 0 || isSendingCode}
+                    className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSendingCode ? (
+                      'Sending...'
+                    ) : resendCountdown > 0 ? (
+                      `Resend in ${resendCountdown}s`
+                    ) : (
+                      'Resend code'
+                    )}
+                  </button>
+                  <button
+                    onClick={cancelCodeModal}
+                    disabled={isVerifying}
+                    className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -641,15 +773,21 @@ export default function WithdrawFundPage() {
                   <CheckCircle className="w-8 h-8 text-emerald-500" />
                 </div>
               </div>
-              <h3 className="text-xl font-bold text-gray-900">Transaction Initiated!</h3>
+              <h3 className="text-xl font-bold text-gray-900">Withdrawal Initiated!</h3>
               <p className="text-sm text-gray-500 mt-1">
-                Your {transactionDetails.type.toLowerCase()} is being processed.
+                A confirmation email has been sent.
               </p>
 
               <div className="mt-6 bg-gray-50 rounded-xl p-4 text-left space-y-2">
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-500">Amount</span>
-                  <span className="text-xl font-bold text-emerald-600">KES {transactionDetails.amount.toLocaleString()}</span>
+                  <span className="text-xl font-bold text-emerald-600">
+                    KES {transactionDetails.amount.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-500">To</span>
+                  <span className="text-sm font-medium text-gray-900">{transactionDetails.phoneNumber}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-500">Reference</span>
