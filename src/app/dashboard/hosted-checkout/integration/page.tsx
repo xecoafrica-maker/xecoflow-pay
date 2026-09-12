@@ -483,17 +483,22 @@ export default function HostedCheckoutIntegration() {
     setPollingCount(0);
   };
 
+  // ─────────────────────────────────────────────────────────────────
+  // UI ONLY — presentation layer restructured below. No state, effects,
+  // or handlers above this line were changed.
+  // ─────────────────────────────────────────────────────────────────
+
   const renderPaymentStatus = () => {
     if (paymentStatus === 'idle') return null;
-    
+
     if (paymentStatus === 'processing') {
       return (
-        <div className="border rounded-xl p-6 mb-6 bg-blue-50 border-blue-200">
+        <div className="border border-[#D8D4C9] bg-white px-5 py-4 mb-6">
           <div className="flex items-center gap-4">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <Loader2 className="w-5 h-5 animate-spin text-[#0B1526] shrink-0" />
             <div>
-              <h3 className="font-semibold text-blue-500">Processing your payment...</h3>
-              <p className="text-sm text-gray-600">Please wait while we initiate your payment</p>
+              <p className="text-sm font-medium text-[#0B1526]">Submitting your payment instruction</p>
+              <p className="text-xs text-[#5B6B82] mt-0.5">This will only take a moment.</p>
             </div>
           </div>
         </div>
@@ -501,50 +506,56 @@ export default function HostedCheckoutIntegration() {
     }
 
     if (paymentStatus === 'pending') {
+      const elapsedMin = Math.floor(pollingCount * 3 / 60);
+      const elapsedSec = (pollingCount * 3) % 60;
+      const progressPct = Math.min((pollingCount / MAX_POLLING_ATTEMPTS) * 100, 95);
+
       return (
-        <div className="border rounded-xl p-6 mb-6 bg-amber-50 border-amber-200">
-          <div className="flex items-center gap-4">
-            <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
-            <div className="flex-1">
-              <h3 className="font-semibold text-amber-700">Waiting for payment confirmation</h3>
-              <p className="text-sm text-amber-600">Please check your phone and enter your PIN</p>
+        <div className="border border-[#D8D4C9] bg-white mb-6">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-[#EDEAE2]">
+            <div className="flex items-center gap-2.5">
+              <Loader2 className="w-4 h-4 animate-spin text-[#8A6A2A]" />
+              <span className="text-sm font-medium text-[#0B1526]">Awaiting confirmation on your device</span>
             </div>
             {isSocketConnected ? (
-              <Wifi className="w-5 h-5 text-emerald-500 shrink-0" />
+              <Wifi className="w-4 h-4 text-[#1F6F4E]" aria-label="Live connection active" />
             ) : (
-              <WifiOff className="w-5 h-5 text-amber-400 shrink-0" />
+              <WifiOff className="w-4 h-4 text-[#8A6A2A]" aria-label="Checking status periodically" />
             )}
           </div>
-          <div className="mt-3">
-            <div className="flex justify-between text-xs text-amber-600">
-              <span>Processing...</span>
-              <span>{Math.min(Math.round(pollingCount * 3 / 60), 2)}m {pollingCount * 3 % 60}s</span>
+          <div className="px-5 py-4">
+            <p className="text-sm text-[#5B6B82] mb-3">
+              Check your phone and enter your PIN to authorize the transaction.
+            </p>
+            <div className="flex justify-between text-xs text-[#5B6B82] tabular-nums mb-1.5">
+              <span>Elapsed</span>
+              <span>{elapsedMin}m {elapsedSec}s</span>
             </div>
-            <div className="w-full h-1.5 bg-amber-200 rounded-full mt-1 overflow-hidden">
-              <div 
-                className="h-full bg-amber-500 rounded-full transition-all duration-1000"
-                style={{ width: `${Math.min((pollingCount / MAX_POLLING_ATTEMPTS) * 100, 95)}%` }}
+            <div className="w-full h-1 bg-[#EDEAE2]">
+              <div
+                className="h-full bg-[#8A6A2A] transition-all duration-1000"
+                style={{ width: `${progressPct}%` }}
               />
             </div>
+            {!isSocketConnected && (
+              <p className="text-xs text-[#8A6A2A] mt-2.5">
+                Live updates unavailable — status is being checked automatically.
+              </p>
+            )}
           </div>
-          {!isSocketConnected && (
-            <p className="text-xs text-amber-500 mt-2">
-              ⚡ Live updates unavailable - checking status automatically
-            </p>
-          )}
         </div>
       );
     }
 
     if (paymentStatus === 'success') {
       return (
-        <div className="border rounded-xl p-6 mb-6 bg-emerald-50 border-emerald-200">
-          <div className="flex items-center gap-4">
-            <CheckCircle className="w-8 h-8 text-emerald-500" />
+        <div className="border border-[#1F6F4E]/30 bg-[#F3F8F5] px-5 py-4 mb-6">
+          <div className="flex items-start gap-4">
+            <CheckCircle className="w-5 h-5 text-[#1F6F4E] shrink-0 mt-0.5" />
             <div>
-              <h3 className="font-semibold text-emerald-700">Payment Initiated!</h3>
-              <p className="text-sm text-gray-600">
-                Checkout ID: {paymentResponse?.data?.checkoutRequestId || 'N/A'}
+              <p className="text-sm font-medium text-[#123C2D]">Payment instruction confirmed</p>
+              <p className="text-xs text-[#5B6B82] mt-1 tabular-nums">
+                Checkout reference: {paymentResponse?.data?.checkoutRequestId || 'N/A'}
               </p>
             </div>
           </div>
@@ -554,18 +565,18 @@ export default function HostedCheckoutIntegration() {
 
     if (paymentStatus === 'error') {
       return (
-        <div className="border rounded-xl p-6 mb-6 bg-red-50 border-red-200">
+        <div className="border border-[#9B3232]/30 bg-[#FBF3F3] px-5 py-4 mb-6">
           <div className="flex items-start gap-4">
-            <XCircle className="w-8 h-8 text-red-500 flex-shrink-0" />
+            <XCircle className="w-5 h-5 text-[#9B3232] shrink-0 mt-0.5" />
             <div className="flex-1">
-              <h3 className="font-semibold text-red-700">Payment Failed</h3>
-              <p className="text-sm text-red-600">{errorMessage}</p>
+              <p className="text-sm font-medium text-[#6E2323]">Payment not completed</p>
+              <p className="text-sm text-[#5B6B82] mt-1">{errorMessage}</p>
               {showRetry && (
                 <button
                   onClick={retryPayment}
-                  className="mt-3 px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors"
+                  className="mt-3 text-xs font-medium text-[#9B3232] border border-[#9B3232]/40 px-3.5 py-1.5 hover:bg-[#9B3232] hover:text-white transition-colors"
                 >
-                  Try Again
+                  Try again
                 </button>
               )}
             </div>
@@ -579,10 +590,10 @@ export default function HostedCheckoutIntegration() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f2f2f2]">
+      <div className="min-h-screen flex items-center justify-center bg-[#F7F6F0]">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-[#8b1a1a] mx-auto" />
-          <p className="mt-4 text-gray-500">Loading checkout...</p>
+          <Loader2 className="w-8 h-8 animate-spin text-[#0B1526] mx-auto" />
+          <p className="mt-4 text-sm text-[#5B6B82]">Preparing your secure checkout…</p>
         </div>
       </div>
     );
@@ -590,190 +601,183 @@ export default function HostedCheckoutIntegration() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f2f2f2]">
-        <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-8 text-center">
-          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Checkout</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#F7F6F0] px-6">
+        <div className="max-w-sm w-full bg-white border border-[#D8D4C9] p-8 text-center">
+          <AlertCircle className="w-10 h-10 text-[#9B3232] mx-auto mb-4" />
+          <h2 className="text-lg font-serif text-[#0B1526] mb-2">We couldn't load this checkout</h2>
+          <p className="text-sm text-[#5B6B82] mb-6">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="bg-[#8b1a1a] hover:bg-[#701515] text-white px-6 py-2 rounded-lg"
+            className="bg-[#0B1526] hover:bg-[#16233B] text-white text-sm font-medium px-6 py-2.5 transition-colors"
           >
-            Try Again
+            Try again
           </button>
         </div>
       </div>
     );
   }
 
+  const stepLabels = ['Details', 'Authorize', 'Confirmed'];
+  const activeStepIndex = paymentStatus === 'success' ? 2 : paymentStatus === 'pending' || paymentStatus === 'processing' ? 1 : 0;
+
   return (
-    <div className="min-h-screen bg-[#f2f2f2]">
+    <div className="min-h-screen bg-[#F7F6F0]">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-              <Globe className="w-6 h-6 text-[#8b1a1a]" />
-              XecoFlow Checkout
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">Accept payments globally with XecoFlow</p>
+      <header className="bg-[#0B1526]">
+        <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 border border-[#3A4A63] flex items-center justify-center text-[#D9C48A] font-serif text-sm">X</div>
+            <div>
+              <p className="font-serif text-lg text-white leading-none">Xecoflow</p>
+              <p className="text-[11px] text-[#8FA0B8] mt-1">Secure payment terminal</p>
+            </div>
           </div>
-          <Link href="/developers/introduction" className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#8b1a1a] hover:bg-[#701515] text-white rounded-lg text-sm font-semibold transition-all shadow-sm">
-            Learn More <ArrowRight className="w-4 h-4" />
+          <Link
+            href="/developers/introduction"
+            className="hidden sm:inline-flex items-center gap-1.5 text-xs text-[#C9D2E0] hover:text-white transition-colors"
+          >
+            Developer docs <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
-      </div>
+      </header>
 
-      {/* Status Bar */}
-      <div className="max-w-7xl mx-auto px-6 py-4">
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-blue-800">Live Payment for {businessName}</p>
-              <p className="text-xs text-blue-600">Amount: {currency} {amount.toFixed(2)} | Merchant: {merchantName || businessName}</p>
-            </div>
+      <main className="max-w-5xl mx-auto px-6 py-10">
+        {/* Transaction docket */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border border-[#D8D4C9] bg-white px-5 py-3.5 mb-6">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-[#1F6F4E]" />
+            <span className="text-sm text-[#0B1526]">
+              Paying <span className="font-medium">{businessName}</span>
+            </span>
           </div>
-          {merchantId && <span className="text-xs bg-white px-3 py-1 rounded-full text-gray-600 border border-gray-200">Merchant: {merchantId}</span>}
-          {isReady && <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full border border-emerald-200">✅ API Ready</span>}
+          <div className="flex items-center gap-4 text-xs text-[#5B6B82]">
+            {merchantId && <span className="tabular-nums">Merchant ID {merchantId}</span>}
+            {isReady && (
+              <span className="text-[#1F6F4E] flex items-center gap-1">
+                <CheckCircle className="w-3.5 h-3.5" /> Credentials verified
+              </span>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Checkout */}
-      <div className="max-w-7xl mx-auto px-6 pb-10">
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-          {/* Checkout Header */}
-          <div className="bg-[#1a1a2e] px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded bg-[#8b1a1a] flex items-center justify-center text-white font-bold text-sm">X</div>
-              <span className="text-white font-semibold tracking-wide text-lg">Xecoflow <span className="text-[#e0b0b0] font-light">Gateway</span></span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-gray-300">
-              <ShieldCheck size={14} className="text-green-400" /> Secure Checkout
-            </div>
-          </div>
-
-          {/* Step Indicator */}
-          <div className="px-6 md:px-8 pt-6 pb-4 border-b border-gray-200">
-            <div className="flex items-center">
-              {['Enter Details', 'Make Payment', 'Confirmation'].map((label, i) => {
-                const isComplete = paymentStatus === 'success' && i < 2;
-                const isActive = i === 0 || (i === 1 && paymentStatus === 'processing');
-                const stepNumber = i + 1;
-                const status = isComplete ? 'complete' : isActive ? 'active' : 'inactive';
-                return (
-                  <div key={label} className="flex-1 flex items-center">
-                    <div className="flex flex-col items-center flex-shrink-0">
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${status === 'complete' ? 'bg-emerald-500 text-white' : status === 'active' ? 'bg-[#8b1a1a] text-white' : 'bg-gray-200 text-gray-500'}`}>
-                        {status === 'complete' ? <CheckCircle className="w-4 h-4" /> : stepNumber}
-                      </div>
-                      <span className={`mt-1.5 text-xs whitespace-nowrap ${status === 'active' ? 'text-[#8b1a1a] font-medium' : 'text-gray-400'}`}>{label}</span>
-                    </div>
-                    {i < 2 && <div className={`h-[2px] flex-1 mx-2 -mt-5 ${status === 'complete' || status === 'active' ? 'bg-[#8b1a1a]' : 'bg-gray-200'}`} />}
+        {/* Checkout document */}
+        <div className="border border-[#D8D4C9] bg-white">
+          {/* Step tracker */}
+          <div className="grid grid-cols-3 border-b border-[#D8D4C9]">
+            {stepLabels.map((label, i) => {
+              const state = i < activeStepIndex ? 'done' : i === activeStepIndex ? 'active' : 'pending';
+              return (
+                <div key={label} className="px-5 py-3">
+                  <div className={`h-[2px] mb-2 ${state === 'pending' ? 'bg-[#EDEAE2]' : 'bg-[#0B1526]'}`} />
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="tabular-nums text-[#5B6B82]">{String(i + 1).padStart(2, '0')}</span>
+                    <span className={state === 'active' ? 'text-[#0B1526] font-medium' : state === 'done' ? 'text-[#0B1526]' : 'text-[#9AA5B4]'}>
+                      {label}
+                    </span>
+                    {state === 'done' && <CheckCircle className="w-3 h-3 text-[#1F6F4E] ml-0.5" />}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
 
-          <div className="flex flex-col lg:grid lg:grid-cols-3 gap-0">
-            {/* Left Column */}
-            <div className="order-1 px-6 md:px-8 py-6 md:py-10 lg:border-r border-gray-200">
-              <h2 className="text-xl font-light text-gray-700 tracking-wide mb-5">PAYMENT DETAILS</h2>
-              <p className="text-sm text-gray-800 mb-4">Reference: {customerRef || '—'}</p>
-              
-              {/* Amount Input Field */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Enter Amount ({currency})
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">
-                    {currency}
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={userAmount}
-                    onChange={handleAmountChange}
-                    placeholder="0.00"
-                    disabled={isProcessing || paymentStatus === 'success'}
-                    className="w-full pl-12 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#8b1a1a] focus:border-transparent bg-gray-50 focus:bg-white transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  />
-                </div>
-                <p className="text-xs text-gray-400 mt-1.5">Enter the amount you wish to pay</p>
+          <div className="grid lg:grid-cols-5">
+            {/* Ledger stub */}
+            <div className="lg:col-span-2 px-6 md:px-8 py-8 border-b lg:border-b-0 lg:border-r border-dashed border-[#D8D4C9]">
+              <p className="text-xs uppercase tracking-wide text-[#9AA5B4] mb-1">Transaction record</p>
+              <p className="text-xs text-[#5B6B82] mb-6 tabular-nums">Ref. {customerRef || '—'}</p>
+
+              <label htmlFor="checkout-amount" className="block text-xs text-[#5B6B82] mb-1.5">
+                Amount to pay ({currency})
+              </label>
+              <div className="flex items-baseline border-b border-[#0B1526] pb-2 mb-1">
+                <span className="text-sm text-[#5B6B82] mr-2">{currency}</span>
+                <input
+                  id="checkout-amount"
+                  type="text"
+                  inputMode="decimal"
+                  value={userAmount}
+                  onChange={handleAmountChange}
+                  placeholder={amount.toFixed(2)}
+                  disabled={isProcessing || paymentStatus === 'success'}
+                  className="w-full bg-transparent text-2xl font-serif text-[#0B1526] tabular-nums outline-none disabled:opacity-60"
+                />
+              </div>
+              <p className="text-xs text-[#9AA5B4] mb-6">Leave blank to use the requested amount.</p>
+
+              <div className="flex justify-between text-sm text-[#0B1526] py-2 border-t border-[#EDEAE2] tabular-nums">
+                <span className="text-[#5B6B82]">Total due</span>
+                <span className="font-medium">{currency} {amount.toFixed(2)}</span>
               </div>
 
-              <div className="flex justify-between text-sm text-gray-700 mb-2">
-                <span>Amount</span>
-                <span>{currency} {amount.toFixed(2)}</span>
+              <p className="text-xs uppercase tracking-wide text-[#9AA5B4] mt-8 mb-3">Billed to</p>
+              <div className="text-sm text-[#0B1526] space-y-0.5">
+                <p className="font-medium">{customerName}</p>
+                <p className="text-[#5B6B82]">{customerEmail}</p>
+                <p className="text-[#5B6B82] tabular-nums">{customerPhone}</p>
               </div>
-              <div className="flex justify-between items-center bg-gray-100 px-4 py-2.5 rounded">
-                <span className="text-sm font-semibold text-gray-800">Total Amount</span>
-                <span className="text-sm font-semibold text-gray-800">{currency} {amount.toFixed(2)}</span>
-              </div>
-              <hr className="border-gray-200 my-5" />
-              <h3 className="text-sm font-bold text-gray-800 mb-3">CUSTOMER DETAILS</h3>
-              <div className="text-sm text-gray-700">
-                <p className="font-semibold">{customerName}</p>
-                <p>{customerEmail}</p>
-                <p>{customerPhone}</p>
-                {customerRef && <p className="text-xs text-gray-400 mt-1">Reference: {customerRef}</p>}
-              </div>
-              <hr className="border-gray-200 my-5" />
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <Lock size={12} className="text-green-600" /> Payments are encrypted and processed securely
+
+              <div className="flex items-center gap-2 text-xs text-[#5B6B82] mt-8 pt-5 border-t border-[#EDEAE2]">
+                <Lock size={12} className="text-[#1F6F4E]" />
+                Encrypted end-to-end and PCI-DSS compliant
               </div>
             </div>
 
-            {/* Right Column */}
-            <div className="order-2 lg:col-span-2 px-6 md:px-8 py-6 md:py-8 pb-8">
+            {/* Payment action panel */}
+            <div className="lg:col-span-3 px-6 md:px-8 py-8">
               {renderPaymentStatus()}
 
               {paymentStatus !== 'success' && paymentStatus !== 'pending' && (
                 <>
-                  <h2 className="font-semibold text-gray-800 mb-4">Select Payment Method</h2>
-                  <div className="flex flex-wrap gap-3 mb-5">
-                    {PAYMENT_METHODS.map((m) => {
+                  <p className="text-xs uppercase tracking-wide text-[#9AA5B4] mb-3">Payment method</p>
+                  <div className="border border-[#D8D4C9] mb-6">
+                    {PAYMENT_METHODS.map((m, idx) => {
                       const Icon = m.icon;
+                      const selected = method === m.id;
                       return (
-                        <label key={m.id} className={`flex items-center gap-2 border rounded px-4 py-2.5 cursor-pointer text-sm font-medium ${method === m.id ? 'border-[#8b1a1a] bg-[#fdf3f3]' : 'border-gray-300'}`}>
-                          <input type="radio" checked={method === m.id} onChange={() => setMethod(m.id)} className="accent-[#8b1a1a]" />
-                          <Icon size={14} /> {m.label}
+                        <label
+                          key={m.id}
+                          className={`flex items-center gap-3 px-4 py-3 cursor-pointer text-sm ${idx !== 0 ? 'border-t border-[#EDEAE2]' : ''} ${selected ? 'bg-[#F7F6F0]' : 'bg-white'}`}
+                        >
+                          <input
+                            type="radio"
+                            checked={selected}
+                            onChange={() => setMethod(m.id)}
+                            className="accent-[#0B1526]"
+                          />
+                          <Icon size={15} className="text-[#5B6B82]" />
+                          <span className={selected ? 'text-[#0B1526] font-medium' : 'text-[#0B1526]'}>{m.label}</span>
                         </label>
                       );
                     })}
                   </div>
 
-                  <p className="text-sm text-gray-800 mb-5">Pay <span className="italic font-semibold">"{businessName}"</span> <span className="font-semibold">{currency} {amount.toFixed(2)}</span></p>
+                  <p className="text-sm text-[#0B1526] mb-5">
+                    You're paying <span className="font-medium">{businessName}</span>{' '}
+                    <span className="font-medium tabular-nums">{currency} {amount.toFixed(2)}</span>
+                  </p>
 
                   {(method === 'mpesa' || method === 'airtel') && (
                     <>
-                      <ol className="text-sm text-gray-700 space-y-1 mb-5 list-decimal pl-5">
-                        <li>Provide your {method === 'mpesa' ? 'MPESA' : 'Airtel Money'} mobile number</li>
-                        <li>Click Proceed to receive a prompt on your phone</li>
-                        <li>Enter your PIN to confirm payment</li>
+                      <ol className="text-sm text-[#5B6B82] space-y-1 mb-5 list-decimal pl-5">
+                        <li>Confirm your {method === 'mpesa' ? 'M-PESA' : 'Airtel Money'} mobile number below</li>
+                        <li>Select "Send payment request" to trigger a prompt on your phone</li>
+                        <li>Enter your PIN on your device to authorize the payment</li>
                       </ol>
-                      <div className="border border-gray-300 rounded mb-5">
-                        <div className="flex items-center gap-2 border-b border-gray-300 px-4 py-3 bg-white">
-                          <Lock size={15} className="text-green-600" />
-                          <span className="text-sm font-semibold text-gray-800">Mobile Number</span>
-                        </div>
-                        <div className="flex">
-                          <div className="w-24 flex items-center justify-center gap-1 border-r border-gray-300 py-3 text-sm text-gray-700">
-                            <Smartphone size={14} /> +254
-                          </div>
-                          <input 
-                            type="tel" 
-                            value={phoneNumber || customerPhone} 
-                            onChange={handlePhoneChange} 
-                            className="flex-1 px-4 py-3 text-sm outline-none bg-gray-50 focus:bg-white transition-colors" 
-                            placeholder="708050827" 
-                            disabled={isProcessing} 
-                          />
-                        </div>
+
+                      <label className="block text-xs text-[#5B6B82] mb-1.5">Mobile number</label>
+                      <div className="flex border border-[#D8D4C9] mb-6">
+                        <span className="flex items-center gap-1.5 px-3.5 border-r border-[#D8D4C9] text-sm text-[#5B6B82] bg-[#F7F6F0]">
+                          <Smartphone size={13} /> +254
+                        </span>
+                        <input
+                          type="tel"
+                          value={phoneNumber || customerPhone}
+                          onChange={handlePhoneChange}
+                          className="flex-1 px-4 py-2.5 text-sm outline-none tabular-nums"
+                          placeholder="708050827"
+                          disabled={isProcessing}
+                        />
                       </div>
                     </>
                   )}
@@ -781,37 +785,36 @@ export default function HostedCheckoutIntegration() {
                   <button
                     onClick={handleProceed}
                     disabled={isProcessing}
-                    className={`bg-[#8b1a1a] hover:bg-[#701515] text-white text-sm font-medium px-8 py-2.5 rounded transition-colors ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`w-full sm:w-auto bg-[#0B1526] hover:bg-[#16233B] text-white text-sm font-medium px-8 py-3 transition-colors ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    {isProcessing ? 'Processing...' : 'Proceed'}
+                    {isProcessing ? 'Sending request…' : 'Send payment request'}
                   </button>
 
                   {errorMessage && paymentStatus === 'error' && (
-                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-                      <p className="text-sm text-red-600">{errorMessage}</p>
+                    <div className="mt-4 flex items-start gap-2 text-sm text-[#9B3232]">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <p>{errorMessage}</p>
                     </div>
                   )}
                 </>
               )}
 
               {paymentStatus === 'success' && (
-                <div className="mt-4">
-                  <Link href={returnUrl} className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-6 py-2.5 rounded transition-colors">
-                    <CheckCircle className="w-4 h-4" /> View Transactions
-                  </Link>
-                </div>
+                <Link
+                  href={returnUrl}
+                  className="inline-flex items-center gap-2 bg-[#1F6F4E] hover:bg-[#185C40] text-white text-sm font-medium px-6 py-2.5 transition-colors"
+                >
+                  <CheckCircle className="w-4 h-4" /> View transaction
+                </Link>
               )}
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="border-t border-gray-200 bg-white">
-        <div className="max-w-7xl mx-auto px-6 py-4 text-center text-xs text-gray-400">
-          Powered by XecoFlow · Secure &amp; PCI-DSS compliant
+        <div className="flex items-center justify-center gap-2 text-xs text-[#9AA5B4] mt-6">
+          <Globe className="w-3.5 h-3.5" /> Powered by Xecoflow · Secure and PCI-DSS compliant
         </div>
-      </div>
+      </main>
     </div>
   );
 }
