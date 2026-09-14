@@ -119,11 +119,11 @@ export default function PaymentLinkPage() {
   const [splitNote, setSplitNote] = useState('');
   const [delegates, setDelegates] = useState<DelegateDraft[]>([]);
   const [contributors, setContributors] = useState<Contributor[]>([]);
+  const [contributorsFullyPaid, setContributorsFullyPaid] = useState(false);
   const [splitSubmitting, setSplitSubmitting] = useState(false);
   const [splitError, setSplitError] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // ─── Accept / Reject state (only relevant for child pages) ────────
   const [childStatus, setChildStatus] = useState<string | null>(null);
   const [childActionLoading, setChildActionLoading] = useState(false);
 
@@ -134,6 +134,42 @@ export default function PaymentLinkPage() {
   const MAX_POLLING_ATTEMPTS = 30;
   const POLLING_INTERVAL = 3000;
   const isConnectingRef = useRef(false);
+
+  // ─── Reusable refresh helper ──────────────────────────────────────
+  const refreshLinkAndContributors = async () => {
+    try {
+      const [linkRes, cRes] = await Promise.all([
+        fetch(`/v1/payment-links/${slug}`),
+        fetch(`/v1/payment-links/${slug}/contributors`),
+      ]);
+      if (linkRes.ok) {
+        const linkJson = await linkRes.json();
+        if (linkJson.success) setPaymentLink(linkJson.data);
+      }
+      if (cRes.ok) {
+        const cJson = await cRes.json();
+        if (cJson.success) {
+          const list = (cJson.data.contributors || []).map((c: any) => ({
+            id: c.billId,
+            name: c.name,
+            identifier: c.identifier,
+            amount: c.amount,
+            status:
+              c.status === 'PAID' || c.status === 'COMPLETED' ? 'paid'
+              : c.status === 'ACCEPTED' ? 'accepted'
+              : c.status === 'REJECTED' ? 'rejected'
+              : 'pending',
+            isYou: c.isYou,
+            payLink: c.payLink,
+          }));
+          setContributors(list);
+          setContributorsFullyPaid(!!cJson.data.isFullyPaid);
+        }
+      }
+    } catch (e) {
+      console.warn('Refresh failed', e);
+    }
+  };
 
   useEffect(() => {
     if (!slug) return;
@@ -172,22 +208,22 @@ export default function PaymentLinkPage() {
         if (!res.ok) return;
         const json = await res.json();
         if (!json.success) return;
-        if (isMounted && json.data.contributors && json.data.contributors.length > 0) {
-          setContributors(
-            json.data.contributors.map((c: any) => ({
-              id: c.billId,
-              name: c.name,
-              identifier: c.identifier,
-              amount: c.amount,
-              status:
-                c.status === 'PAID' || c.status === 'COMPLETED' ? 'paid'
-                : c.status === 'ACCEPTED' ? 'accepted'
-                : c.status === 'REJECTED' ? 'rejected'
-                : 'pending',
-              isYou: c.isYou,
-              payLink: c.payLink,
-            }))
-          );
+        if (isMounted) {
+          const list = (json.data.contributors || []).map((c: any) => ({
+            id: c.billId,
+            name: c.name,
+            identifier: c.identifier,
+            amount: c.amount,
+            status:
+              c.status === 'PAID' || c.status === 'COMPLETED' ? 'paid'
+              : c.status === 'ACCEPTED' ? 'accepted'
+              : c.status === 'REJECTED' ? 'rejected'
+              : 'pending',
+            isYou: c.isYou,
+            payLink: c.payLink,
+          }));
+          setContributors(list);
+          setContributorsFullyPaid(!!json.data.isFullyPaid);
         }
       } catch {}
     };
@@ -234,6 +270,8 @@ export default function PaymentLinkPage() {
                 clearInterval(pollingIntervalRef.current);
                 pollingIntervalRef.current = null;
               }
+              // Refetch so parent's own payment reflects
+              setTimeout(() => { refreshLinkAndContributors(); }, 500);
             } else if (data.status === 'FAILED' || data.status === 'DECLINED') {
               setPaymentStatus('error');
               setErrorMessage(data.resultDesc || 'Payment failed. Please try again.');
@@ -304,6 +342,8 @@ export default function PaymentLinkPage() {
               pollingIntervalRef.current = null;
             }
             setPaymentStatus('success');
+            // Refetch so parent's own payment reflects
+            await refreshLinkAndContributors();
           } else if (status.status === 'FAILED' || status.status === 'DECLINED' || status.status === 'TERMINATED_BY_TIMEOUT') {
             if (pollingIntervalRef.current) {
               clearInterval(pollingIntervalRef.current);
@@ -341,11 +381,6 @@ export default function PaymentLinkPage() {
     const amountToPay = Number(amount);
     if (!amountToPay || amountToPay <= 0) {
       setErrorMessage('Please enter a valid amount');
-      setPaymentStatus('error');
-      return;
-    }
-    if (paymentLink?.price && paymentLink.price > 0 && amountToPay !== paymentLink.price) {
-      setErrorMessage(`Amount must be exactly ${formatPrice(paymentLink.price, paymentLink.currency)}`);
       setPaymentStatus('error');
       return;
     }
@@ -474,27 +509,7 @@ export default function PaymentLinkPage() {
         setSplitError(json.error || 'Failed to create split');
         return;
       }
-      const refresh = await fetch(`/v1/payment-links/${slug}/contributors`);
-      if (refresh.ok) {
-        const refreshJson = await refresh.json();
-        if (refreshJson.success) {
-          setContributors(
-            (refreshJson.data.contributors || []).map((c: any) => ({
-              id: c.billId,
-              name: c.name,
-              identifier: c.identifier,
-              amount: c.amount,
-              status:
-                c.status === 'PAID' || c.status === 'COMPLETED' ? 'paid'
-                : c.status === 'ACCEPTED' ? 'accepted'
-                : c.status === 'REJECTED' ? 'rejected'
-                : 'pending',
-              isYou: c.isYou,
-              payLink: c.payLink,
-            }))
-          );
-        }
-      }
+      await refreshLinkAndContributors();
       setIsSplitModalOpen(false);
     } catch (err: any) {
       setSplitError(err.message || 'Something went wrong');
@@ -513,7 +528,6 @@ export default function PaymentLinkPage() {
     } catch {}
   };
 
-  // ─── Child accept / reject ─────────────────────────────────────────
   const handleAccept = async () => {
     if (!slug) return;
     setChildActionLoading(true);
@@ -554,14 +568,19 @@ export default function PaymentLinkPage() {
     }
   };
 
-  const collected = contributors
+  // ─── Derived totals ───────────────────────────────────────────────
+  const childrenCollected = contributors
     .filter((c) => c.status === 'paid')
     .reduce((sum, c) => sum + c.amount, 0);
-  const acceptedForParent = contributors
-    .filter((c) => c.status === 'paid' || c.status === 'accepted')
-    .reduce((sum, c) => sum + c.amount, 0);
+
   const total = paymentLink?.price || 0;
+  const isParentPaid = paymentLink?.status === 'PAID' || paymentLink?.status === 'COMPLETED';
+  const parentPaidAmount = isParentPaid
+    ? Math.max(0, total - childrenCollected)
+    : 0;
+  const collected = Number((childrenCollected + parentPaidAmount).toFixed(2));
   const remaining = Math.max(0, total - collected);
+  const isFullyPaid = isParentPaid || contributorsFullyPaid || collected >= total;
   const hasSplit = contributors.length > 0;
   const progressPct = total > 0 ? Math.min(100, Math.round((collected / total) * 100)) : 0;
 
@@ -733,7 +752,6 @@ export default function PaymentLinkPage() {
             </div>
           </div>
 
-          {/* ─── Child banner: 3 states ─── */}
           {isChildPending && (
             <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-4">
               <div className="flex items-start gap-2.5">
@@ -824,12 +842,19 @@ export default function PaymentLinkPage() {
               </div>
             </div>
 
-            {!isChildBill && (
+            {!isChildBill && !isFullyPaid && (
               <button type="button" onClick={openSplitModal}
                 className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-transparent text-[14px] font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">
                 <Split className="w-4 h-4" />
                 {hasSplit ? 'Change split' : 'Split this bill'}
               </button>
+            )}
+
+            {!isChildBill && isFullyPaid && (
+              <div className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[13px] font-medium text-emerald-700">
+                <CheckCircle className="w-4 h-4" />
+                Bill fully paid
+              </div>
             )}
 
             {hasSplit && !isChildBill && (
