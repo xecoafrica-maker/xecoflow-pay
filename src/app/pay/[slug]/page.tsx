@@ -17,6 +17,10 @@ import {
   WifiOff,
   Split,
   X,
+  Plus,
+  Trash2,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 interface PaymentLinkData {
@@ -66,7 +70,7 @@ const METHOD_LOGOS: Record<PayMethod, { src: string; label: string; activeBorder
   },
 };
 
-// ─── Split types ────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────
 interface Contributor {
   id: string;
   name: string;
@@ -74,7 +78,18 @@ interface Contributor {
   amount: number;
   status: 'pending' | 'paid';
   isYou?: boolean;
+  payLink?: string;
 }
+
+interface DelegateDraft {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  amount: string;
+}
+
+const MAX_DELEGATES = 4;
 
 export default function PaymentLinkPage() {
   const params = useParams();
@@ -100,14 +115,13 @@ export default function PaymentLinkPage() {
 
   // ─── Split Bill State ─────────────────────────────────────────────
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
-  const [splitPhone, setSplitPhone] = useState('');
-  const [splitEmail, setSplitEmail] = useState('');
-  const [splitMode, setSplitMode] = useState<'full' | 'partial'>('full');
-  const [splitAmount, setSplitAmount] = useState('');
   const [splitNote, setSplitNote] = useState('');
+  const [yourShare, setYourShare] = useState('');
+  const [delegates, setDelegates] = useState<DelegateDraft[]>([]);
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [splitSubmitting, setSplitSubmitting] = useState(false);
   const [splitError, setSplitError] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // ─── WebSocket State ──────────────────────────────────────────────
   const [isSocketConnected, setIsSocketConnected] = useState(false);
@@ -162,7 +176,7 @@ export default function PaymentLinkPage() {
     };
   }, [slug]);
 
-  // ─── 1b. FETCH EXISTING CONTRIBUTORS (if this bill was split) ────
+  // ─── 1b. FETCH EXISTING CONTRIBUTORS ─────────────────────────────
   useEffect(() => {
     if (!slug) return;
 
@@ -188,6 +202,7 @@ export default function PaymentLinkPage() {
                   ? 'paid'
                   : 'pending',
               isYou: c.isYou,
+              payLink: c.payLink,
             }))
           );
         }
@@ -211,11 +226,7 @@ export default function PaymentLinkPage() {
     let socketInstance: any = null;
 
     const initWebSocket = async () => {
-      if (isConnectingRef.current) {
-        console.log('⏳ WebSocket connection already in progress');
-        return;
-      }
-
+      if (isConnectingRef.current) return;
       isConnectingRef.current = true;
 
       try {
@@ -256,16 +267,11 @@ export default function PaymentLinkPage() {
 
         socketInstance.on('connect_error', (error: any) => {
           console.warn('⚠️ [WS] Connection error:', error?.message);
-          if (isMounted) {
-            setIsSocketConnected(false);
-          }
+          if (isMounted) setIsSocketConnected(false);
         });
 
         socketInstance.on('connect_timeout', () => {
-          console.warn('⏰ [WS] Connection timeout');
-          if (isMounted) {
-            setIsSocketConnected(false);
-          }
+          if (isMounted) setIsSocketConnected(false);
         });
 
         socketInstance.on('payment:status', (data: any) => {
@@ -277,9 +283,6 @@ export default function PaymentLinkPage() {
               if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current);
                 pollingIntervalRef.current = null;
-              }
-              if (data.mpesaReceipt) {
-                console.log('📋 Receipt:', data.mpesaReceipt);
               }
             } else if (data.status === 'FAILED' || data.status === 'DECLINED') {
               setPaymentStatus('error');
@@ -293,14 +296,10 @@ export default function PaymentLinkPage() {
           }
         });
 
-        socketInstance.on('error', (error: any) => {
-          console.error('❌ [WS] Socket error:', error);
-        });
-
         socketRef.current = socketInstance;
 
       } catch (error) {
-        console.warn('⚠️ [WS] WebSocket not available, using polling fallback only');
+        console.warn('⚠️ [WS] WebSocket not available');
         if (isMounted) {
           setIsWebSocketAvailable(false);
           setIsSocketConnected(false);
@@ -337,16 +336,10 @@ export default function PaymentLinkPage() {
         });
         console.log(`📡 [WS] Registered for checkout: ${checkoutId}, transaction: ${transactionId}`);
         return true;
-      } else {
-        console.warn('⚠️ [WS] Socket not connected, state:', {
-          hasSocket: !!socketRef.current,
-          connected: socketRef.current?.connected || false
-        });
       }
     } catch (error) {
-      console.warn('⚠️ [WS] Registration failed (non-blocking):', error);
+      console.warn('⚠️ [WS] Registration failed:', error);
     }
-    console.warn('⚠️ [WS] Using polling fallback');
     return false;
   };
 
@@ -361,7 +354,6 @@ export default function PaymentLinkPage() {
     pollingIntervalRef.current = setInterval(async () => {
       setPollingCount((prev) => {
         const newCount = prev + 1;
-        
         if (newCount >= MAX_POLLING_ATTEMPTS) {
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
@@ -478,18 +470,15 @@ export default function PaymentLinkPage() {
           setCheckoutId(ckId || null);
           setPaymentStatus('pending');
           
-          let wsRegistered = false;
           if (ckId && isWebSocketAvailable) {
             try {
-              wsRegistered = registerForPaymentUpdates(ckId, txId);
+              registerForPaymentUpdates(ckId, txId);
             } catch (wsError) {
-              console.warn('WebSocket registration failed, using polling');
+              console.warn('WebSocket registration failed');
             }
           }
           
           pollPaymentStatus(txId);
-          
-          console.log(`📡 Payment initiated. WebSocket: ${wsRegistered ? '✅' : '❌'}, Polling: ✅`);
         } else {
           setPaymentStatus('error');
           setErrorMessage('No transaction ID received. Please try again.');
@@ -519,12 +508,18 @@ export default function PaymentLinkPage() {
 
   // ─── Split Bill Handlers ──────────────────────────────────────────
   const openSplitModal = () => {
-    setSplitPhone('');
-    setSplitEmail('');
-    setSplitMode('full');
-    setSplitAmount('');
     setSplitNote('');
     setSplitError('');
+    setYourShare('');
+    setDelegates([
+      {
+        id: `d_${Date.now()}`,
+        name: '',
+        phone: '',
+        email: '',
+        amount: '',
+      },
+    ]);
     setIsSplitModalOpen(true);
   };
 
@@ -532,31 +527,77 @@ export default function PaymentLinkPage() {
     setIsSplitModalOpen(false);
   };
 
+  const addDelegate = () => {
+    if (delegates.length >= MAX_DELEGATES) return;
+    setDelegates((prev) => [
+      ...prev,
+      {
+        id: `d_${Date.now()}_${prev.length}`,
+        name: '',
+        phone: '',
+        email: '',
+        amount: '',
+      },
+    ]);
+  };
+
+  const removeDelegate = (id: string) => {
+    setDelegates((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  const updateDelegate = (id: string, field: keyof DelegateDraft, value: string) => {
+    setDelegates((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, [field]: value } : d))
+    );
+  };
+
+  const delegatesTotal = delegates.reduce(
+    (sum, d) => sum + (Number(d.amount) || 0),
+    0
+  );
+  const yourShareNum = Number(yourShare) || 0;
+  const combinedTotal = Number((yourShareNum + delegatesTotal).toFixed(2));
+  const parentTotal = paymentLink?.price || 0;
+  const splitRemaining = Number((parentTotal - combinedTotal).toFixed(2));
+
   const handleSendSplitRequest = async () => {
     if (!paymentLink) return;
 
     setSplitError('');
 
-    // ─── Validate inputs ──────────────────────────────────────────
-    if (!splitPhone && !splitEmail) {
-      setSplitError('Enter their phone or email');
+    if (delegates.length === 0) {
+      setSplitError('Add at least one person');
       return;
     }
 
-    const total = paymentLink.price;
-    const delegateAmt =
-      splitMode === 'full'
-        ? total
-        : Math.max(0, Math.min(Number(splitAmount) || 0, total));
-    const yourAmt = Math.max(0, total - delegateAmt);
-
-    if (delegateAmt <= 0) {
-      setSplitError('Delegate amount must be greater than 0');
+    if (delegates.length > MAX_DELEGATES) {
+      setSplitError(`Maximum ${MAX_DELEGATES} people`);
       return;
     }
 
-    if (yourAmt + delegateAmt !== total) {
-      setSplitError('Shares must add up to the total');
+    // Validate each delegate
+    for (let i = 0; i < delegates.length; i++) {
+      const d = delegates[i];
+      const num = i + 1;
+      if (!d.name.trim()) {
+        setSplitError(`Person ${num}: name is required`);
+        return;
+      }
+      if (!d.phone && !d.email) {
+        setSplitError(`Person ${num}: phone or email is required`);
+        return;
+      }
+      const amt = Number(d.amount);
+      if (!amt || amt <= 0) {
+        setSplitError(`Person ${num}: amount must be greater than 0`);
+        return;
+      }
+    }
+
+    if (combinedTotal !== Number(parentTotal.toFixed(2))) {
+      setSplitError(
+        `Shares total (${combinedTotal}) must equal bill amount (${parentTotal})`
+      );
       return;
     }
 
@@ -567,13 +608,13 @@ export default function PaymentLinkPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          delegate: {
-            name: customerName || 'Requested payer',
-            phone: splitPhone || undefined,
-            email: splitEmail || undefined,
-          },
-          yourShare: yourAmt,
-          delegateShare: delegateAmt,
+          delegates: delegates.map((d) => ({
+            name: d.name.trim(),
+            phone: d.phone || undefined,
+            email: d.email || undefined,
+            amount: Number(d.amount),
+          })),
+          yourShare: yourShareNum,
           note: splitNote || undefined,
         }),
       });
@@ -585,7 +626,6 @@ export default function PaymentLinkPage() {
         return;
       }
 
-      // ─── Update with real contributors from backend ────────────
       setContributors(
         json.data.contributors.map((c: any) => ({
           id: c.billId,
@@ -594,6 +634,7 @@ export default function PaymentLinkPage() {
           amount: c.amount,
           status: 'pending' as const,
           isYou: c.isYou,
+          payLink: c.payLink,
         }))
       );
 
@@ -605,6 +646,18 @@ export default function PaymentLinkPage() {
     }
   };
 
+  const copyPayLink = async (contributorId: string, payLink?: string) => {
+    if (!payLink) return;
+    const fullUrl = `${window.location.origin}${payLink}`;
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      setCopiedId(contributorId);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.warn('Copy failed', err);
+    }
+  };
+
   const collected = contributors
     .filter((c) => c.status === 'paid')
     .reduce((sum, c) => sum + c.amount, 0);
@@ -612,6 +665,7 @@ export default function PaymentLinkPage() {
   const total = paymentLink?.price || 0;
   const remaining = Math.max(0, total - collected);
   const hasSplit = contributors.length > 0;
+  const progressPct = total > 0 ? Math.min(100, Math.round((collected / total) * 100)) : 0;
 
   useEffect(() => {
     return () => {
@@ -846,40 +900,74 @@ export default function PaymentLinkPage() {
               {hasSplit ? 'Change split' : 'Split this bill'}
             </button>
 
-            {/* ─── Contributors block (only when split is active) ──── */}
+            {/* ─── Contributors block ──────────────────────────────── */}
             {hasSplit && (
               <div className="mt-4 rounded-xl border border-gray-200 bg-white overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-gray-100">
+                <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
                   <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
                     Contributors
                   </p>
+                  <span className="text-[11px] font-semibold text-gray-400">
+                    {contributors.length}/{contributors.length}
+                  </span>
                 </div>
+
                 <div className="divide-y divide-gray-100">
-                  {contributors.map((c) => (
+                  {contributors.map((c, idx) => (
                     <div
                       key={c.id}
                       className="flex items-center justify-between gap-3 px-4 py-3"
                     >
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium text-gray-900 truncate">
+                          <span className="text-gray-400 mr-1">{idx + 1}.</span>
                           {c.name}
                         </p>
                         <p className="text-[11px] text-gray-400 truncate">{c.identifier}</p>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0">
                         <span className="text-[13px] font-semibold text-gray-900 tabular-nums">
                           {formatPrice(c.amount, paymentLink.currency)}
                         </span>
                         {c.status === 'paid' ? (
                           <CheckCircle className="w-4 h-4 text-emerald-500" />
                         ) : (
-                          <span className="text-[11px] font-medium text-amber-600">Pending</span>
+                          <>
+                            <span className="text-[11px] font-medium text-amber-600">Pending</span>
+                            {!c.isYou && c.payLink && (
+                              <button
+                                type="button"
+                                onClick={() => copyPayLink(c.id, c.payLink)}
+                                className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                                title="Copy payment link"
+                              >
+                                {copiedId === c.id ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 space-y-1.5">
+
+                {/* Progress bar */}
+                <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 space-y-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                    <span className="text-[11px] font-semibold text-gray-700 tabular-nums min-w-[36px] text-right">
+                      {progressPct}%
+                    </span>
+                  </div>
                   <div className="flex justify-between text-[12px]">
                     <span className="text-gray-500">Collected</span>
                     <span className="font-semibold text-emerald-600 tabular-nums">
@@ -1154,10 +1242,10 @@ export default function PaymentLinkPage() {
           onClick={closeSplitModal}
         >
           <div
-            className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
+            className="w-full max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0a2540]">
                   <Split className="w-4 h-4 text-white" />
@@ -1175,83 +1263,140 @@ export default function PaymentLinkPage() {
               </button>
             </div>
 
-            <div className="px-5 py-5 space-y-5">
+            <div className="px-5 py-5 space-y-4 overflow-y-auto flex-1">
+              {/* Your share */}
               <div>
                 <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                  Their phone or email
+                  Your share
                 </label>
-                <div className="grid grid-cols-1 gap-2">
-                  <div className="flex h-11 rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
-                    <span className="flex items-center gap-1.5 px-3 bg-gray-50 border-r border-gray-200 text-[13px] text-gray-500 shrink-0">
-                      <Smartphone className="w-4 h-4" />
-                      +254
-                    </span>
-                    <input
-                      type="tel"
-                      inputMode="numeric"
-                      value={splitPhone}
-                      onChange={(e) => setSplitPhone(e.target.value)}
-                      placeholder="712345678"
-                      className="flex-1 min-w-0 px-3 text-sm outline-none"
-                    />
-                  </div>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="email"
-                      value={splitEmail}
-                      onChange={(e) => setSplitEmail(e.target.value)}
-                      placeholder="Or their email"
-                      className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
-                    />
-                  </div>
-                </div>
+                <input
+                  type="number"
+                  value={yourShare}
+                  onChange={(e) => setYourShare(e.target.value)}
+                  placeholder="0.00"
+                  min={0}
+                  max={paymentLink.price}
+                  step="0.01"
+                  className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Leave 0 if the other person covers everything
+                </p>
               </div>
 
-              <div>
-                <label className="block text-[13px] font-medium text-gray-700 mb-2">
-                  How much should they cover?
-                </label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2.5 cursor-pointer">
+              {/* Delegates list */}
+              <div className="space-y-4">
+                {delegates.map((d, idx) => (
+                  <div key={d.id} className="rounded-xl border border-gray-200 p-3.5 space-y-2.5 bg-gray-50/50">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[12px] font-semibold text-gray-700">
+                        Person {idx + 1}
+                      </p>
+                      {delegates.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeDelegate(d.id)}
+                          className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
                     <input
-                      type="radio"
-                      name="splitMode"
-                      checked={splitMode === 'full'}
-                      onChange={() => setSplitMode('full')}
-                      className="w-4 h-4 accent-[#0a2540]"
+                      type="text"
+                      value={d.name}
+                      onChange={(e) => updateDelegate(d.id, 'name', e.target.value)}
+                      placeholder="Full name"
+                      className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
                     />
-                    <span className="text-[13px] text-gray-700">
-                      Full amount ({formatPrice(paymentLink.price, paymentLink.currency)})
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-2.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="splitMode"
-                      checked={splitMode === 'partial'}
-                      onChange={() => setSplitMode('partial')}
-                      className="w-4 h-4 accent-[#0a2540]"
-                    />
-                    <span className="text-[13px] text-gray-700">Part of it</span>
-                  </label>
-                  {splitMode === 'partial' && (
-                    <div className="pl-6.5 pt-1">
+
+                    <div className="flex h-10 rounded-lg border border-gray-300 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
+                      <span className="flex items-center gap-1.5 px-2.5 bg-gray-50 border-r border-gray-200 text-[12px] text-gray-500 shrink-0">
+                        <Smartphone className="w-3.5 h-3.5" />
+                        +254
+                      </span>
                       <input
-                        type="number"
-                        value={splitAmount}
-                        onChange={(e) => setSplitAmount(e.target.value)}
-                        placeholder="0.00"
-                        min={1}
-                        max={paymentLink.price}
-                        step="0.01"
-                        className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
+                        type="tel"
+                        inputMode="numeric"
+                        value={d.phone}
+                        onChange={(e) => updateDelegate(d.id, 'phone', e.target.value)}
+                        placeholder="712345678"
+                        className="flex-1 min-w-0 px-2.5 text-sm outline-none"
                       />
                     </div>
-                  )}
-                </div>
+
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="email"
+                        value={d.email}
+                        onChange={(e) => updateDelegate(d.id, 'email', e.target.value)}
+                        placeholder="Or their email"
+                        className="w-full h-10 pl-10 pr-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
+                      />
+                    </div>
+
+                    <input
+                      type="number"
+                      value={d.amount}
+                      onChange={(e) => updateDelegate(d.id, 'amount', e.target.value)}
+                      placeholder="Amount they will cover (KES)"
+                      min={1}
+                      step="0.01"
+                      className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
+                    />
+                  </div>
+                ))}
+
+                {delegates.length < MAX_DELEGATES && (
+                  <button
+                    type="button"
+                    onClick={addDelegate}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-dashed border-gray-300 text-[13px] font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add another person ({delegates.length}/{MAX_DELEGATES})
+                  </button>
+                )}
               </div>
 
+              {/* Totals summary */}
+              <div className="rounded-lg bg-gray-50 border border-gray-200 px-3.5 py-3 space-y-1.5">
+                <div className="flex justify-between text-[12px]">
+                  <span className="text-gray-500">Your share</span>
+                  <span className="text-gray-900 tabular-nums">
+                    {formatPrice(yourShareNum, paymentLink.currency)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-[12px]">
+                  <span className="text-gray-500">Others total</span>
+                  <span className="text-gray-900 tabular-nums">
+                    {formatPrice(delegatesTotal, paymentLink.currency)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-[13px] font-semibold pt-1.5 border-t border-gray-200">
+                  <span className="text-gray-900">Combined</span>
+                  <span
+                    className={`tabular-nums ${
+                      combinedTotal === Number(paymentLink.price.toFixed(2))
+                        ? 'text-emerald-600'
+                        : 'text-amber-600'
+                    }`}
+                  >
+                    {formatPrice(combinedTotal, paymentLink.currency)}
+                  </span>
+                </div>
+                {combinedTotal !== Number(paymentLink.price.toFixed(2)) && (
+                  <p className="text-[11px] text-amber-600 pt-1">
+                    {splitRemaining > 0
+                      ? `${formatPrice(splitRemaining, paymentLink.currency)} unassigned`
+                      : `${formatPrice(Math.abs(splitRemaining), paymentLink.currency)} over the total`}
+                  </p>
+                )}
+              </div>
+
+              {/* Note */}
               <div>
                 <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
                   Add a note <span className="text-gray-400 font-normal">(optional)</span>
@@ -1266,7 +1411,7 @@ export default function PaymentLinkPage() {
               </div>
             </div>
 
-            <div className="px-5 py-4 border-t border-gray-100 bg-gray-50 space-y-3">
+            <div className="px-5 py-4 border-t border-gray-100 bg-gray-50 space-y-3 shrink-0">
               {splitError && (
                 <div className="flex items-start gap-2 text-[12px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                   <XCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
