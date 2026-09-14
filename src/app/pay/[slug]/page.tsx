@@ -70,7 +70,6 @@ const METHOD_LOGOS: Record<PayMethod, { src: string; label: string; activeBorder
   },
 };
 
-// ─── Types ──────────────────────────────────────────────────────────
 interface Contributor {
   id: string;
   name: string;
@@ -113,7 +112,6 @@ export default function PaymentLinkPage() {
   const [pollingCount, setPollingCount] = useState(0);
   const [showRetry, setShowRetry] = useState(false);
 
-  // ─── Split Bill State ─────────────────────────────────────────────
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
   const [splitNote, setSplitNote] = useState('');
   const [delegates, setDelegates] = useState<DelegateDraft[]>([]);
@@ -122,7 +120,6 @@ export default function PaymentLinkPage() {
   const [splitError, setSplitError] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // ─── WebSocket State ──────────────────────────────────────────────
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [isWebSocketAvailable, setIsWebSocketAvailable] = useState(true);
   const socketRef = useRef<any>(null);
@@ -131,32 +128,21 @@ export default function PaymentLinkPage() {
   const POLLING_INTERVAL = 3000;
   const isConnectingRef = useRef(false);
 
-  // ─── 1. FETCH PAYMENT LINK DATA ──────────────────────────────────
   useEffect(() => {
     if (!slug) return;
-
     let isMounted = true;
-
     const fetchPaymentLink = async () => {
       try {
         setLoading(true);
         console.log('🔍 Fetching payment link for slug:', slug);
-
         const res = await fetch(`/v1/payment-links/${slug}`);
-        console.log('📡 Response status:', res.status);
-
         const data = await res.json();
-        console.log('📦 Response data:', data);
-
         if (!res.ok || !data.success) {
           throw new Error(data.error || 'Payment link not found');
         }
-
         if (isMounted) {
           setPaymentLink(data.data);
-          if (data.data.price > 0) {
-            setAmount(data.data.price.toString());
-          }
+          if (data.data.price > 0) setAmount(data.data.price.toString());
           setLoading(false);
         }
       } catch (err: any) {
@@ -167,28 +153,19 @@ export default function PaymentLinkPage() {
         }
       }
     };
-
     fetchPaymentLink();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [slug]);
 
-  // ─── 1b. FETCH EXISTING CONTRIBUTORS ─────────────────────────────
   useEffect(() => {
     if (!slug) return;
-
     let isMounted = true;
-
     const loadContributors = async () => {
       try {
         const res = await fetch(`/v1/payment-links/${slug}/contributors`);
         if (!res.ok) return;
-
         const json = await res.json();
         if (!json.success) return;
-
         if (isMounted && json.data.contributors && json.data.contributors.length > 0) {
           setContributors(
             json.data.contributors.map((c: any) => ({
@@ -196,10 +173,7 @@ export default function PaymentLinkPage() {
               name: c.name,
               identifier: c.identifier,
               amount: c.amount,
-              status:
-                c.status === 'PAID' || c.status === 'COMPLETED'
-                  ? 'paid'
-                  : 'pending',
+              status: c.status === 'PAID' || c.status === 'COMPLETED' ? 'paid' : 'pending',
               isYou: c.isYou,
               payLink: c.payLink,
             }))
@@ -209,34 +183,22 @@ export default function PaymentLinkPage() {
         console.warn('Failed to load contributors (non-blocking):', err);
       }
     };
-
     loadContributors();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [slug]);
 
-  // ─── 2. WEBSOCKET CONNECTION ─────────────────────────────────────
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
     let isMounted = true;
     let socketInstance: any = null;
-
     const initWebSocket = async () => {
       if (isConnectingRef.current) return;
       isConnectingRef.current = true;
-
       try {
         const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 
                        (typeof window !== 'undefined' && window.location.origin) ||
                        'wss://xecoflow-2gen.onrender.com';
-
-        console.log('🔌 [WS] Connecting to:', WS_URL);
-
         const { io } = await import('socket.io-client');
-
         socketInstance = io(WS_URL, {
           transports: ['websocket', 'polling'],
           withCredentials: true,
@@ -247,35 +209,20 @@ export default function PaymentLinkPage() {
           timeout: 10000,
           autoConnect: true
         });
-
         socketInstance.on('connect', () => {
           if (isMounted) {
-            console.log('✅ [WS] Connected:', socketInstance.id);
             setIsSocketConnected(true);
             setIsWebSocketAvailable(true);
             isConnectingRef.current = false;
           }
         });
-
-        socketInstance.on('disconnect', (reason: string) => {
-          if (isMounted) {
-            console.log('❌ [WS] Disconnected:', reason);
-            setIsSocketConnected(false);
-          }
-        });
-
-        socketInstance.on('connect_error', (error: any) => {
-          console.warn('⚠️ [WS] Connection error:', error?.message);
+        socketInstance.on('disconnect', () => {
           if (isMounted) setIsSocketConnected(false);
         });
-
-        socketInstance.on('connect_timeout', () => {
+        socketInstance.on('connect_error', () => {
           if (isMounted) setIsSocketConnected(false);
         });
-
         socketInstance.on('payment:status', (data: any) => {
-          console.log('📡 [WS] Payment status update:', data);
-          
           if (isMounted) {
             if (data.status === 'COMPLETED' || data.status === 'SETTLED') {
               setPaymentStatus('success');
@@ -294,11 +241,8 @@ export default function PaymentLinkPage() {
             }
           }
         });
-
         socketRef.current = socketInstance;
-
       } catch (error) {
-        console.warn('⚠️ [WS] WebSocket not available');
         if (isMounted) {
           setIsWebSocketAvailable(false);
           setIsSocketConnected(false);
@@ -306,34 +250,20 @@ export default function PaymentLinkPage() {
         }
       }
     };
-
-    const timeoutId = setTimeout(() => {
-      initWebSocket();
-    }, 1000);
-
+    const timeoutId = setTimeout(() => { initWebSocket(); }, 1000);
     return () => {
       isMounted = false;
       clearTimeout(timeoutId);
       isConnectingRef.current = false;
-      if (socketInstance) {
-        socketInstance.disconnect();
-        socketInstance = null;
-      }
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      if (socketInstance) { socketInstance.disconnect(); socketInstance = null; }
+      if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
     };
   }, []);
 
   const registerForPaymentUpdates = (checkoutId: string, transactionId: string) => {
     try {
       if (socketRef.current && socketRef.current.connected) {
-        socketRef.current.emit('register:payment', {
-          checkoutId: checkoutId,
-          transactionId: transactionId,
-        });
-        console.log(`📡 [WS] Registered for checkout: ${checkoutId}, transaction: ${transactionId}`);
+        socketRef.current.emit('register:payment', { checkoutId, transactionId });
         return true;
       }
     } catch (error) {
@@ -345,11 +275,7 @@ export default function PaymentLinkPage() {
   const pollPaymentStatus = (txId: string) => {
     setPollingCount(0);
     setShowRetry(false);
-    
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
-
+    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     pollingIntervalRef.current = setInterval(async () => {
       setPollingCount((prev) => {
         const newCount = prev + 1;
@@ -365,14 +291,11 @@ export default function PaymentLinkPage() {
         }
         return newCount;
       });
-
       try {
         const res = await fetch(`/v1/product-links/status/${txId}`);
         const data = await res.json();
-
         if (data.success && data.data) {
           const status = data.data;
-          
           if (status.status === 'SETTLED' || status.status === 'COMPLETED') {
             if (pollingIntervalRef.current) {
               clearInterval(pollingIntervalRef.current);
@@ -403,49 +326,33 @@ export default function PaymentLinkPage() {
 
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
-
     let phone = phoneNumber.replace(/\D/g, '');
-    
-    if (phone.startsWith('0')) {
-      phone = '254' + phone.slice(1);
-    } else if (phone.startsWith('254')) {
-      phone = phone;
-    } else if (phone.length === 9 || phone.length === 10) {
-      if (phone.length === 9) {
-        phone = '254' + phone;
-      } else {
-        phone = '254' + phone.slice(-9);
-      }
-    } else {
-      phone = '254' + phone;
-    }
-    
+    if (phone.startsWith('0')) phone = '254' + phone.slice(1);
+    else if (phone.startsWith('254')) phone = phone;
+    else if (phone.length === 9 || phone.length === 10) {
+      phone = phone.length === 9 ? '254' + phone : '254' + phone.slice(-9);
+    } else phone = '254' + phone;
     phone = phone.replace(/\D/g, '');
-    
     if (!phone || phone.length < 12) {
       setErrorMessage('Enter a valid 9-digit phone number (e.g., 712345678)');
       setPaymentStatus('error');
       return;
     }
-
     const amountToPay = Number(amount);
     if (!amountToPay || amountToPay <= 0) {
       setErrorMessage('Please enter a valid amount');
       setPaymentStatus('error');
       return;
     }
-
     if (paymentLink?.price && paymentLink.price > 0 && amountToPay !== paymentLink.price) {
       setErrorMessage(`Amount must be exactly ${formatPrice(paymentLink.price, paymentLink.currency)}`);
       setPaymentStatus('error');
       return;
     }
-
     setIsProcessing(true);
     setPaymentStatus('processing');
     setErrorMessage('');
     setShowRetry(false);
-
     try {
       const res = await fetch('/v1/product-links/pay', {
         method: 'POST',
@@ -457,26 +364,17 @@ export default function PaymentLinkPage() {
           customerName: customerName || 'Customer',
         }),
       });
-
       const data = await res.json();
-
       if (res.ok && data.success) {
         const txId = data.data?.transactionId;
         const ckId = data.data?.checkoutRequestId;
-        
         if (txId) {
           setTransactionId(txId);
           setCheckoutId(ckId || null);
           setPaymentStatus('pending');
-          
           if (ckId && isWebSocketAvailable) {
-            try {
-              registerForPaymentUpdates(ckId, txId);
-            } catch (wsError) {
-              console.warn('WebSocket registration failed');
-            }
+            try { registerForPaymentUpdates(ckId, txId); } catch {}
           }
-          
           pollPaymentStatus(txId);
         } else {
           setPaymentStatus('error');
@@ -505,18 +403,11 @@ export default function PaymentLinkPage() {
     setPollingCount(0);
   };
 
-  // ─── Split Bill Handlers ──────────────────────────────────────────
   const openSplitModal = () => {
     setSplitNote('');
     setSplitError('');
     setDelegates([
-      {
-        id: `d_${Date.now()}`,
-        name: '',
-        phone: '',
-        email: '',
-        amount: '',
-      },
+      { id: `d_${Date.now()}`, name: '', phone: '', email: '', amount: '' },
     ]);
     setIsSplitModalOpen(true);
   };
@@ -529,13 +420,7 @@ export default function PaymentLinkPage() {
     if (delegates.length >= MAX_DELEGATES) return;
     setDelegates((prev) => [
       ...prev,
-      {
-        id: `d_${Date.now()}_${prev.length}`,
-        name: '',
-        phone: '',
-        email: '',
-        amount: '',
-      },
+      { id: `d_${Date.now()}_${prev.length}`, name: '', phone: '', email: '', amount: '' },
     ]);
   };
 
@@ -544,9 +429,7 @@ export default function PaymentLinkPage() {
   };
 
   const updateDelegate = (id: string, field: keyof DelegateDraft, value: string) => {
-    setDelegates((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, [field]: value } : d))
-    );
+    setDelegates((prev) => prev.map((d) => (d.id === id ? { ...d, [field]: value } : d)));
   };
 
   const delegatesTotal = Number(
@@ -557,20 +440,15 @@ export default function PaymentLinkPage() {
 
   const handleSendSplitRequest = async () => {
     if (!paymentLink) return;
-
     setSplitError('');
-
     if (delegates.length === 0) {
       setSplitError('Add at least one person');
       return;
     }
-
     if (delegates.length > MAX_DELEGATES) {
       setSplitError(`Maximum ${MAX_DELEGATES} people`);
       return;
     }
-
-    // Validate each delegate
     for (let i = 0; i < delegates.length; i++) {
       const d = delegates[i];
       const num = i + 1;
@@ -588,16 +466,14 @@ export default function PaymentLinkPage() {
         return;
       }
     }
-
-    if (delegatesTotal !== Number(parentTotal.toFixed(2))) {
+    // ✅ NEW: allow under-assignment, but not over
+    if (delegatesTotal > Number(parentTotal.toFixed(2))) {
       setSplitError(
-        `Shares total (${delegatesTotal}) must equal bill amount (${parentTotal})`
+        `Shares total (${delegatesTotal}) cannot exceed bill amount (${parentTotal})`
       );
       return;
     }
-
     setSplitSubmitting(true);
-
     try {
       const res = await fetch(`/v1/payment-links/${slug}/split`, {
         method: 'POST',
@@ -613,14 +489,11 @@ export default function PaymentLinkPage() {
           note: splitNote || undefined,
         }),
       });
-
       const json = await res.json();
-
       if (!res.ok || !json.success) {
         setSplitError(json.error || 'Failed to create split');
         return;
       }
-
       setContributors(
         json.data.contributors.map((c: any) => ({
           id: c.billId,
@@ -632,7 +505,6 @@ export default function PaymentLinkPage() {
           payLink: c.payLink,
         }))
       );
-
       setIsSplitModalOpen(false);
     } catch (err: any) {
       setSplitError(err.message || 'Something went wrong');
@@ -656,7 +528,6 @@ export default function PaymentLinkPage() {
   const collected = contributors
     .filter((c) => c.status === 'paid')
     .reduce((sum, c) => sum + c.amount, 0);
-
   const total = paymentLink?.price || 0;
   const remaining = Math.max(0, total - collected);
   const hasSplit = contributors.length > 0;
@@ -683,7 +554,6 @@ export default function PaymentLinkPage() {
         </div>
       );
     }
-
     if (paymentStatus === 'pending') {
       return (
         <div className="flex flex-col items-start gap-2.5 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-3">
@@ -691,9 +561,7 @@ export default function PaymentLinkPage() {
             <Loader2 className="w-4 h-4 animate-spin shrink-0 text-amber-600" />
             <div className="flex-1">
               <p className="font-medium text-[13px]">Waiting for payment confirmation</p>
-              <p className="text-amber-600 text-[12px] mt-0.5">
-                Please check your phone and enter your PIN
-              </p>
+              <p className="text-amber-600 text-[12px] mt-0.5">Please check your phone and enter your PIN</p>
             </div>
             {isSocketConnected ? (
               <Wifi className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -707,10 +575,8 @@ export default function PaymentLinkPage() {
               <span>{Math.min(Math.round(pollingCount * 3 / 60), 2)}m {pollingCount * 3 % 60}s</span>
             </div>
             <div className="w-full h-1 bg-amber-200 rounded-full mt-1 overflow-hidden">
-              <div 
-                className="h-full bg-amber-500 rounded-full transition-all duration-1000"
-                style={{ width: `${Math.min((pollingCount / MAX_POLLING_ATTEMPTS) * 100, 95)}%` }}
-              />
+              <div className="h-full bg-amber-500 rounded-full transition-all duration-1000"
+                style={{ width: `${Math.min((pollingCount / MAX_POLLING_ATTEMPTS) * 100, 95)}%` }} />
             </div>
           </div>
           {!isSocketConnected && (
@@ -721,7 +587,6 @@ export default function PaymentLinkPage() {
         </div>
       );
     }
-
     if (paymentStatus === 'error') {
       return (
         <div className="flex flex-col gap-2.5 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3.5 py-3">
@@ -733,17 +598,14 @@ export default function PaymentLinkPage() {
             </div>
           </div>
           {showRetry && (
-            <button
-              onClick={retryPayment}
-              className="mt-1 px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors self-start"
-            >
+            <button onClick={retryPayment}
+              className="mt-1 px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors self-start">
               Try Again
             </button>
           )}
         </div>
       );
     }
-
     if (paymentStatus === 'success') {
       return (
         <div className="flex items-start gap-3 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
@@ -757,7 +619,6 @@ export default function PaymentLinkPage() {
         </div>
       );
     }
-
     return null;
   };
 
@@ -778,10 +639,8 @@ export default function PaymentLinkPage() {
           <p className="text-sm text-gray-500 mt-2">
             {error || 'This payment link may have expired.'}
           </p>
-          <button
-            onClick={() => router.push('/')}
-            className="mt-5 text-sm font-medium text-[#635bff] hover:underline"
-          >
+          <button onClick={() => router.push('/')}
+            className="mt-5 text-sm font-medium text-[#635bff] hover:underline">
             Go home
           </button>
         </div>
@@ -805,30 +664,21 @@ export default function PaymentLinkPage() {
         <span className="text-[#10B981]">Flow</span>
       </span>
       <span className="mx-1.5">·</span>
-      <Link href="/terms" className="hover:text-gray-600">
-        Terms
-      </Link>
+      <Link href="/terms" className="hover:text-gray-600">Terms</Link>
       <span className="mx-1.5">·</span>
-      <Link href="/privacy" className="hover:text-gray-600">
-        Privacy
-      </Link>
+      <Link href="/privacy" className="hover:text-gray-600">Privacy</Link>
     </p>
   );
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <div className="flex-1 grid lg:grid-cols-2">
-        {/* ── LEFT: Merchant + summary ── */}
         <div className="bg-[#f6f9fc] px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col">
           <div className="mb-8">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-full bg-[#0a2540] flex items-center justify-center shrink-0 overflow-hidden shadow-sm ring-2 ring-white">
                 {paymentLink.logoUrl ? (
-                  <img
-                    src={paymentLink.logoUrl}
-                    alt={merchantName}
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={paymentLink.logoUrl} alt={merchantName} className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-sm font-bold text-white">
                     {merchantName.slice(0, 2).toUpperCase()}
@@ -836,13 +686,10 @@ export default function PaymentLinkPage() {
                 )}
               </div>
               <div className="min-w-0">
-                <p className="text-[15px] font-semibold text-gray-900 truncate">
-                  {merchantName}
-                </p>
+                <p className="text-[15px] font-semibold text-gray-900 truncate">{merchantName}</p>
                 {isVerified ? (
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 mt-0.5">
-                    <BadgeCheck className="w-3.5 h-3.5" />
-                    Verified merchant
+                    <BadgeCheck className="w-3.5 h-3.5" /> Verified merchant
                   </span>
                 ) : (
                   <span className="text-[11px] text-gray-400 mt-0.5 block">Merchant</span>
@@ -885,34 +732,24 @@ export default function PaymentLinkPage() {
               </div>
             </div>
 
-            {/* ─── Split this bill ─────────────────────────────────── */}
-            <button
-              type="button"
-              onClick={openSplitModal}
-              className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-transparent text-[14px] font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
-            >
+            <button type="button" onClick={openSplitModal}
+              className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-transparent text-[14px] font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">
               <Split className="w-4 h-4" />
               {hasSplit ? 'Change split' : 'Split this bill'}
             </button>
 
-            {/* ─── Contributors block ──────────────────────────────── */}
             {hasSplit && (
               <div className="mt-4 rounded-xl border border-gray-200 bg-white overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
                   <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
                     Contributors
                   </p>
-                  <span className="text-[11px] font-semibold text-gray-400">
-                    {contributors.length}
-                  </span>
+                  <span className="text-[11px] font-semibold text-gray-400">{contributors.length}</span>
                 </div>
 
                 <div className="divide-y divide-gray-100">
                   {contributors.map((c, idx) => (
-                    <div
-                      key={c.id}
-                      className="flex items-center justify-between gap-3 px-4 py-3"
-                    >
+                    <div key={c.id} className="flex items-center justify-between gap-3 px-4 py-3">
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium text-gray-900 truncate">
                           <span className="text-gray-400 mr-1">{idx + 1}.</span>
@@ -930,12 +767,9 @@ export default function PaymentLinkPage() {
                           <>
                             <span className="text-[11px] font-medium text-amber-600">Pending</span>
                             {!c.isYou && c.payLink && (
-                              <button
-                                type="button"
-                                onClick={() => copyPayLink(c.id, c.payLink)}
+                              <button type="button" onClick={() => copyPayLink(c.id, c.payLink)}
                                 className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                                title="Copy payment link"
-                              >
+                                title="Copy payment link">
                                 {copiedId === c.id ? (
                                   <Check className="w-3.5 h-3.5 text-emerald-500" />
                                 ) : (
@@ -950,14 +784,11 @@ export default function PaymentLinkPage() {
                   ))}
                 </div>
 
-                {/* Progress bar */}
                 <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 space-y-2.5">
                   <div className="flex items-center gap-2.5">
                     <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                        style={{ width: `${progressPct}%` }}
-                      />
+                      <div className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                        style={{ width: `${progressPct}%` }} />
                     </div>
                     <span className="text-[11px] font-semibold text-gray-700 tabular-nums min-w-[36px] text-right">
                       {progressPct}%
@@ -983,19 +814,16 @@ export default function PaymentLinkPage() {
           <div className="mt-8 hidden lg:block">{poweredBy}</div>
         </div>
 
-        {/* ── RIGHT: Pay form ── */}
         <div className="px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col justify-center">
           <div className="w-full max-w-[420px] mx-auto">
             <div className="flex items-center justify-end gap-2 mb-3">
               {isSocketConnected ? (
                 <span className="flex items-center gap-1.5 text-[10px] text-emerald-600">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Live
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
                 </span>
               ) : (
                 <span className="flex items-center gap-1.5 text-[10px] text-amber-600">
-                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                  Polling
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Polling
                 </span>
               )}
             </div>
@@ -1026,41 +854,20 @@ export default function PaymentLinkPage() {
                       const active = method === id;
                       const broken = brokenLogos[id];
                       return (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => {
-                            setMethod(id);
-                            setPaymentStatus('idle');
-                            setErrorMessage('');
-                          }}
+                        <button key={id} type="button"
+                          onClick={() => { setMethod(id); setPaymentStatus('idle'); setErrorMessage(''); }}
                           className={`flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl border-2 transition-all ${
-                            active
-                              ? `${m.activeBorder} bg-white shadow-sm`
-                              : 'border-gray-200 hover:border-gray-300 bg-white'
-                          }`}
-                        >
+                            active ? `${m.activeBorder} bg-white shadow-sm` : 'border-gray-200 hover:border-gray-300 bg-white'
+                          }`}>
                           <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center overflow-hidden">
                             {!broken ? (
-                              <img
-                                src={m.src}
-                                alt={m.label}
-                                className="w-7 h-7 object-contain"
-                                onError={() =>
-                                  setBrokenLogos((prev) => ({ ...prev, [id]: true }))
-                                }
-                              />
+                              <img src={m.src} alt={m.label} className="w-7 h-7 object-contain"
+                                onError={() => setBrokenLogos((prev) => ({ ...prev, [id]: true }))} />
                             ) : (
-                              <span className="text-[10px] font-bold text-gray-600">
-                                {m.label.slice(0, 2)}
-                              </span>
+                              <span className="text-[10px] font-bold text-gray-600">{m.label.slice(0, 2)}</span>
                             )}
                           </div>
-                          <span
-                            className={`text-[10px] font-semibold ${
-                              active ? 'text-gray-900' : 'text-gray-500'
-                            }`}
-                          >
+                          <span className={`text-[10px] font-semibold ${active ? 'text-gray-900' : 'text-gray-500'}`}>
                             {m.label}
                           </span>
                         </button>
@@ -1075,46 +882,25 @@ export default function PaymentLinkPage() {
                   <>
                     {!isFixedAmount && (
                       <div>
-                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                          Amount
-                        </label>
-                        <input
-                          type="number"
-                          value={amount}
-                          onChange={(e) => setAmount(e.target.value)}
-                          placeholder="0.00"
-                          min={1}
-                          step="0.01"
-                          required
-                          disabled={isProcessing}
-                          className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                        />
+                        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Amount</label>
+                        <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
+                          placeholder="0.00" min={1} step="0.01" required disabled={isProcessing}
+                          className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60" />
                       </div>
                     )}
 
                     {isMobileMoney && (
                       <div>
                         <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                          {method === 'mpesa'
-                            ? 'M-PESA number'
-                            : method === 'airtel'
-                            ? 'Airtel Money number'
-                            : 'T-Kash number'}
+                          {method === 'mpesa' ? 'M-PESA number' : method === 'airtel' ? 'Airtel Money number' : 'T-Kash number'}
                         </label>
                         <div className="flex h-11 rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
                           <span className="flex items-center gap-1.5 px-3 bg-gray-50 border-r border-gray-200 text-[13px] text-gray-500 shrink-0">
-                            <Smartphone className="w-4 h-4" />
-                            +254
+                            <Smartphone className="w-4 h-4" /> +254
                           </span>
-                          <input
-                            type="tel"
-                            inputMode="numeric"
-                            value={phoneNumber}
-                            onChange={(e) => setPhoneNumber(e.target.value)}
-                            placeholder="712071385"
-                            disabled={isProcessing}
-                            className="flex-1 min-w-0 px-3 text-sm outline-none disabled:opacity-60"
-                          />
+                          <input type="tel" inputMode="numeric" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)}
+                            placeholder="712071385" disabled={isProcessing}
+                            className="flex-1 min-w-0 px-3 text-sm outline-none disabled:opacity-60" />
                         </div>
                       </div>
                     )}
@@ -1122,38 +908,20 @@ export default function PaymentLinkPage() {
                     {method === 'card' && (
                       <div className="space-y-3">
                         <div>
-                          <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                            Card number
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="4242 4242 4242 4242"
-                            disabled={isProcessing}
-                            className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                          />
+                          <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Card number</label>
+                          <input type="text" placeholder="4242 4242 4242 4242" disabled={isProcessing}
+                            className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60" />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                              Expiry
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="MM / YY"
-                              disabled={isProcessing}
-                              className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                            />
+                            <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Expiry</label>
+                            <input type="text" placeholder="MM / YY" disabled={isProcessing}
+                              className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60" />
                           </div>
                           <div>
-                            <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                              CVC
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="123"
-                              disabled={isProcessing}
-                              className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                            />
+                            <label className="block text-[13px] font-medium text-gray-700 mb-1.5">CVC</label>
+                            <input type="text" placeholder="123" disabled={isProcessing}
+                              className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60" />
                           </div>
                         </div>
                       </div>
@@ -1166,19 +934,12 @@ export default function PaymentLinkPage() {
                     )}
 
                     <div>
-                      <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                        Email
-                      </label>
+                      <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Email</label>
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="you@example.com"
-                          disabled={isProcessing}
-                          className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                        />
+                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                          placeholder="you@example.com" disabled={isProcessing}
+                          className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60" />
                       </div>
                     </div>
 
@@ -1188,26 +949,17 @@ export default function PaymentLinkPage() {
                       </label>
                       <div className="relative">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                          type="text"
-                          value={customerName}
-                          onChange={(e) => setCustomerName(e.target.value)}
-                          placeholder="Full name"
-                          disabled={isProcessing}
-                          className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60"
-                        />
+                        <input type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)}
+                          placeholder="Full name" disabled={isProcessing}
+                          className="w-full h-11 pl-10 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff] disabled:opacity-60" />
                       </div>
                     </div>
 
-                    <button
-                      type="submit"
-                      disabled={isProcessing}
-                      className="w-full h-11 bg-[#0a2540] hover:bg-[#152a45] text-white rounded-lg font-semibold text-[15px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                    >
+                    <button type="submit" disabled={isProcessing}
+                      className="w-full h-11 bg-[#0a2540] hover:bg-[#152a45] text-white rounded-lg font-semibold text-[15px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
                       {isProcessing ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Processing…
+                          <Loader2 className="w-4 h-4 animate-spin" /> Processing…
                         </>
                       ) : (
                         <>Pay {formatPrice(displayAmount, paymentLink.currency)}</>
@@ -1215,8 +967,7 @@ export default function PaymentLinkPage() {
                     </button>
 
                     <p className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
-                      <Shield className="w-3 h-3 text-emerald-500" />
-                      Secure payment
+                      <Shield className="w-3 h-3 text-emerald-500" /> Secure payment
                     </p>
                   </>
                 )}
@@ -1226,34 +977,22 @@ export default function PaymentLinkPage() {
         </div>
       </div>
 
-      <footer className="lg:hidden border-t border-gray-100 px-6 py-5">
-        {poweredBy}
-      </footer>
+      <footer className="lg:hidden border-t border-gray-100 px-6 py-5">{poweredBy}</footer>
 
-      {/* ─── Split Bill Modal ─────────────────────────────────── */}
       {isSplitModalOpen && paymentLink && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-          onClick={closeSplitModal}
-        >
-          <div
-            className="w-full max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          onClick={closeSplitModal}>
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0a2540]">
                   <Split className="w-4 h-4 text-white" />
                 </span>
-                <h3 className="text-[15px] font-semibold text-gray-900">
-                  Split this bill
-                </h3>
+                <h3 className="text-[15px] font-semibold text-gray-900">Split this bill</h3>
               </div>
-              <button
-                type="button"
-                onClick={closeSplitModal}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-              >
+              <button type="button" onClick={closeSplitModal}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1262,84 +1001,62 @@ export default function PaymentLinkPage() {
               {delegates.map((d, idx) => (
                 <div key={d.id} className="rounded-xl border border-gray-200 p-3.5 space-y-2.5 bg-gray-50/50">
                   <div className="flex items-center justify-between">
-                    <p className="text-[12px] font-semibold text-gray-700">
-                      Person {idx + 1}
-                    </p>
+                    <p className="text-[12px] font-semibold text-gray-700">Person {idx + 1}</p>
                     {delegates.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeDelegate(d.id)}
-                        className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                      >
+                      <button type="button" onClick={() => removeDelegate(d.id)}
+                        className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
 
-                  <input
-                    type="text"
-                    value={d.name}
-                    onChange={(e) => updateDelegate(d.id, 'name', e.target.value)}
+                  <input type="text" value={d.name} onChange={(e) => updateDelegate(d.id, 'name', e.target.value)}
                     placeholder="Full name"
-                    className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
-                  />
+                    className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]" />
 
                   <div className="flex h-10 rounded-lg border border-gray-300 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
                     <span className="flex items-center gap-1.5 px-2.5 bg-gray-50 border-r border-gray-200 text-[12px] text-gray-500 shrink-0">
-                      <Smartphone className="w-3.5 h-3.5" />
-                      +254
+                      <Smartphone className="w-3.5 h-3.5" /> +254
                     </span>
-                    <input
-                      type="tel"
-                      inputMode="numeric"
-                      value={d.phone}
+                    <input type="tel" inputMode="numeric" value={d.phone}
                       onChange={(e) => updateDelegate(d.id, 'phone', e.target.value)}
                       placeholder="712345678"
-                      className="flex-1 min-w-0 px-2.5 text-sm outline-none"
-                    />
+                      className="flex-1 min-w-0 px-2.5 text-sm outline-none" />
                   </div>
 
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="email"
-                      value={d.email}
+                    <input type="email" value={d.email}
                       onChange={(e) => updateDelegate(d.id, 'email', e.target.value)}
                       placeholder="Or their email"
-                      className="w-full h-10 pl-10 pr-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
-                    />
+                      className="w-full h-10 pl-10 pr-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]" />
                   </div>
 
-                  <input
-                    type="number"
-                    value={d.amount}
+                  <input type="number" value={d.amount}
                     onChange={(e) => updateDelegate(d.id, 'amount', e.target.value)}
                     placeholder="Amount they will cover (KES)"
-                    min={1}
-                    step="0.01"
-                    className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
-                  />
+                    min={1} step="0.01"
+                    className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]" />
                 </div>
               ))}
 
               {delegates.length < MAX_DELEGATES && (
-                <button
-                  type="button"
-                  onClick={addDelegate}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-dashed border-gray-300 text-[13px] font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors"
-                >
+                <button type="button" onClick={addDelegate}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-dashed border-gray-300 text-[13px] font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors">
                   <Plus className="w-4 h-4" />
                   Add another person ({delegates.length}/{MAX_DELEGATES})
                 </button>
               )}
 
-              {/* Totals summary */}
+              {/* ✅ Totals summary — relaxed rule */}
               <div className="rounded-lg bg-gray-50 border border-gray-200 px-3.5 py-3">
                 <div className="flex justify-between text-[13px] font-semibold">
-                  <span className="text-gray-900">Total</span>
+                  <span className="text-gray-900">Total assigned</span>
                   <span
                     className={`tabular-nums ${
-                      delegatesTotal === Number(paymentLink.price.toFixed(2))
+                      delegatesTotal > Number(paymentLink.price.toFixed(2))
+                        ? 'text-red-600'
+                        : delegatesTotal === Number(paymentLink.price.toFixed(2))
                         ? 'text-emerald-600'
                         : 'text-amber-600'
                     }`}
@@ -1350,27 +1067,26 @@ export default function PaymentLinkPage() {
                     </span>
                   </span>
                 </div>
-                {delegatesTotal !== Number(paymentLink.price.toFixed(2)) && (
+                {delegatesTotal < Number(paymentLink.price.toFixed(2)) && (
                   <p className="text-[11px] text-amber-600 mt-1.5">
-                    {splitRemaining > 0
-                      ? `${formatPrice(splitRemaining, paymentLink.currency)} unassigned`
-                      : `${formatPrice(Math.abs(splitRemaining), paymentLink.currency)} over the total`}
+                    {formatPrice(splitRemaining, paymentLink.currency)} still unassigned — you can invite more people later
+                  </p>
+                )}
+                {delegatesTotal > Number(paymentLink.price.toFixed(2)) && (
+                  <p className="text-[11px] text-red-600 mt-1.5">
+                    Total exceeds bill by {formatPrice(Math.abs(splitRemaining), paymentLink.currency)}
                   </p>
                 )}
               </div>
 
-              {/* Note */}
               <div>
                 <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
                   Add a note <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
-                <input
-                  type="text"
-                  value={splitNote}
+                <input type="text" value={splitNote}
                   onChange={(e) => setSplitNote(e.target.value)}
                   placeholder='e.g. "For Sunday offering"'
-                  className="w-full h-11 px-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
-                />
+                  className="w-full h-11 px-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]" />
               </div>
             </div>
 
@@ -1382,24 +1098,15 @@ export default function PaymentLinkPage() {
                 </div>
               )}
               <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={closeSplitModal}
-                  disabled={splitSubmitting}
-                  className="px-4 py-2 rounded-lg text-[13px] font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50"
-                >
+                <button type="button" onClick={closeSplitModal} disabled={splitSubmitting}
+                  className="px-4 py-2 rounded-lg text-[13px] font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50">
                   Cancel
                 </button>
-                <button
-                  type="button"
-                  onClick={handleSendSplitRequest}
-                  disabled={splitSubmitting}
-                  className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-[#0a2540] text-white hover:bg-[#152a45] transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
+                <button type="button" onClick={handleSendSplitRequest} disabled={splitSubmitting}
+                  className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-[#0a2540] text-white hover:bg-[#152a45] transition-colors disabled:opacity-50 flex items-center gap-2">
                   {splitSubmitting ? (
                     <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Sending…
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…
                     </>
                   ) : (
                     'Send request'
