@@ -38,6 +38,8 @@ interface PaymentLinkData {
   linkType: string;
   verified?: boolean;
   logoUrl?: string;
+  parentBillId?: string | null;
+  isChild?: boolean;
 }
 
 type PayMethod = 'mpesa' | 'airtel' | 'tkash' | 'card' | 'paypal';
@@ -466,7 +468,6 @@ export default function PaymentLinkPage() {
         return;
       }
     }
-    // ✅ NEW: allow under-assignment, but not over
     if (delegatesTotal > Number(parentTotal.toFixed(2))) {
       setSplitError(
         `Shares total (${delegatesTotal}) cannot exceed bill amount (${parentTotal})`
@@ -494,17 +495,24 @@ export default function PaymentLinkPage() {
         setSplitError(json.error || 'Failed to create split');
         return;
       }
-      setContributors(
-        json.data.contributors.map((c: any) => ({
-          id: c.billId,
-          name: c.name,
-          identifier: c.identifier,
-          amount: c.amount,
-          status: 'pending' as const,
-          isYou: c.isYou,
-          payLink: c.payLink,
-        }))
-      );
+      // Reload all contributors from the server so we get old + new
+      const refresh = await fetch(`/v1/payment-links/${slug}/contributors`);
+      if (refresh.ok) {
+        const refreshJson = await refresh.json();
+        if (refreshJson.success) {
+          setContributors(
+            (refreshJson.data.contributors || []).map((c: any) => ({
+              id: c.billId,
+              name: c.name,
+              identifier: c.identifier,
+              amount: c.amount,
+              status: c.status === 'PAID' || c.status === 'COMPLETED' ? 'paid' : 'pending',
+              isYou: c.isYou,
+              payLink: c.payLink,
+            }))
+          );
+        }
+      }
       setIsSplitModalOpen(false);
     } catch (err: any) {
       setSplitError(err.message || 'Something went wrong');
@@ -654,6 +662,7 @@ export default function PaymentLinkPage() {
   const displayAmount = Number(amount || paymentLink.price || 0);
   const merchantName = paymentLink.businessName || 'Merchant';
   const isVerified = paymentLink.verified === true;
+  const isChildBill = !!(paymentLink.parentBillId || paymentLink.isChild);
   const isMobileMoney = method === 'mpesa' || method === 'airtel' || method === 'tkash';
 
   const poweredBy = (
@@ -698,6 +707,17 @@ export default function PaymentLinkPage() {
             </div>
           </div>
 
+          {isChildBill && (
+            <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3.5 py-2.5">
+              <p className="text-[12px] text-amber-800 font-medium">
+                You were invited to pay this share
+              </p>
+              <p className="text-[11px] text-amber-700 mt-0.5">
+                This is part of a split bill from {merchantName}
+              </p>
+            </div>
+          )}
+
           <p className="text-sm text-gray-500 mb-1">Pay {merchantName}</p>
           <p className="text-[36px] sm:text-[40px] font-semibold text-gray-900 tracking-tight leading-none">
             {formatPrice(displayAmount, paymentLink.currency)}
@@ -732,13 +752,15 @@ export default function PaymentLinkPage() {
               </div>
             </div>
 
-            <button type="button" onClick={openSplitModal}
-              className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-transparent text-[14px] font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">
-              <Split className="w-4 h-4" />
-              {hasSplit ? 'Change split' : 'Split this bill'}
-            </button>
+            {!isChildBill && (
+              <button type="button" onClick={openSplitModal}
+                className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-300 bg-transparent text-[14px] font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                <Split className="w-4 h-4" />
+                {hasSplit ? 'Change split' : 'Split this bill'}
+              </button>
+            )}
 
-            {hasSplit && (
+            {hasSplit && !isChildBill && (
               <div className="mt-4 rounded-xl border border-gray-200 bg-white overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
                   <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
@@ -749,15 +771,26 @@ export default function PaymentLinkPage() {
 
                 <div className="divide-y divide-gray-100">
                   {contributors.map((c, idx) => (
-                    <div key={c.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                    <div key={c.id} className="flex items-start justify-between gap-3 px-4 py-3">
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium text-gray-900 truncate">
                           <span className="text-gray-400 mr-1">{idx + 1}.</span>
                           {c.name}
                         </p>
                         <p className="text-[11px] text-gray-400 truncate">{c.identifier}</p>
+                        {c.status !== 'paid' && c.payLink && (
+                          <button
+                            type="button"
+                            onClick={() => copyPayLink(c.id, c.payLink)}
+                            className="text-[11px] text-[#0a2540] hover:text-[#635bff] font-mono truncate mt-1 block text-left underline underline-offset-2 max-w-full"
+                            title="Click to copy"
+                          >
+                            {typeof window !== 'undefined' ? window.location.origin : ''}
+                            {c.payLink}
+                          </button>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0 pt-0.5">
                         <span className="text-[13px] font-semibold text-gray-900 tabular-nums">
                           {formatPrice(c.amount, paymentLink.currency)}
                         </span>
@@ -766,7 +799,7 @@ export default function PaymentLinkPage() {
                         ) : (
                           <>
                             <span className="text-[11px] font-medium text-amber-600">Pending</span>
-                            {!c.isYou && c.payLink && (
+                            {c.payLink && (
                               <button type="button" onClick={() => copyPayLink(c.id, c.payLink)}
                                 className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
                                 title="Copy payment link">
@@ -1048,7 +1081,6 @@ export default function PaymentLinkPage() {
                 </button>
               )}
 
-              {/* ✅ Totals summary — relaxed rule */}
               <div className="rounded-lg bg-gray-50 border border-gray-200 px-3.5 py-3">
                 <div className="flex justify-between text-[13px] font-semibold">
                   <span className="text-gray-900">Total assigned</span>
