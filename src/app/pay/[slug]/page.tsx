@@ -40,6 +40,7 @@ interface PaymentLinkData {
   logoUrl?: string;
   parentBillId?: string | null;
   isChild?: boolean;
+  childStatus?: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'PAID' | 'COMPLETED' | null;
 }
 
 type PayMethod = 'mpesa' | 'airtel' | 'tkash' | 'card' | 'paypal';
@@ -77,7 +78,7 @@ interface Contributor {
   name: string;
   identifier: string;
   amount: number;
-  status: 'pending' | 'paid';
+  status: 'pending' | 'paid' | 'accepted' | 'rejected';
   isYou?: boolean;
   payLink?: string;
 }
@@ -122,6 +123,10 @@ export default function PaymentLinkPage() {
   const [splitError, setSplitError] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // ─── Accept / Reject state (only relevant for child pages) ────────
+  const [childStatus, setChildStatus] = useState<string | null>(null);
+  const [childActionLoading, setChildActionLoading] = useState(false);
+
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [isWebSocketAvailable, setIsWebSocketAvailable] = useState(true);
   const socketRef = useRef<any>(null);
@@ -136,7 +141,6 @@ export default function PaymentLinkPage() {
     const fetchPaymentLink = async () => {
       try {
         setLoading(true);
-        console.log('🔍 Fetching payment link for slug:', slug);
         const res = await fetch(`/v1/payment-links/${slug}`);
         const data = await res.json();
         if (!res.ok || !data.success) {
@@ -145,10 +149,10 @@ export default function PaymentLinkPage() {
         if (isMounted) {
           setPaymentLink(data.data);
           if (data.data.price > 0) setAmount(data.data.price.toString());
+          if (data.data.childStatus) setChildStatus(data.data.childStatus);
           setLoading(false);
         }
       } catch (err: any) {
-        console.error('❌ Error loading payment link:', err.message);
         if (isMounted) {
           setError(err.message || 'Failed to load payment link');
           setLoading(false);
@@ -175,15 +179,17 @@ export default function PaymentLinkPage() {
               name: c.name,
               identifier: c.identifier,
               amount: c.amount,
-              status: c.status === 'PAID' || c.status === 'COMPLETED' ? 'paid' : 'pending',
+              status:
+                c.status === 'PAID' || c.status === 'COMPLETED' ? 'paid'
+                : c.status === 'ACCEPTED' ? 'accepted'
+                : c.status === 'REJECTED' ? 'rejected'
+                : 'pending',
               isYou: c.isYou,
               payLink: c.payLink,
             }))
           );
         }
-      } catch (err) {
-        console.warn('Failed to load contributors (non-blocking):', err);
-      }
+      } catch {}
     };
     loadContributors();
     return () => { isMounted = false; };
@@ -218,12 +224,8 @@ export default function PaymentLinkPage() {
             isConnectingRef.current = false;
           }
         });
-        socketInstance.on('disconnect', () => {
-          if (isMounted) setIsSocketConnected(false);
-        });
-        socketInstance.on('connect_error', () => {
-          if (isMounted) setIsSocketConnected(false);
-        });
+        socketInstance.on('disconnect', () => { if (isMounted) setIsSocketConnected(false); });
+        socketInstance.on('connect_error', () => { if (isMounted) setIsSocketConnected(false); });
         socketInstance.on('payment:status', (data: any) => {
           if (isMounted) {
             if (data.status === 'COMPLETED' || data.status === 'SETTLED') {
@@ -244,7 +246,7 @@ export default function PaymentLinkPage() {
           }
         });
         socketRef.current = socketInstance;
-      } catch (error) {
+      } catch {
         if (isMounted) {
           setIsWebSocketAvailable(false);
           setIsSocketConnected(false);
@@ -268,9 +270,7 @@ export default function PaymentLinkPage() {
         socketRef.current.emit('register:payment', { checkoutId, transactionId });
         return true;
       }
-    } catch (error) {
-      console.warn('⚠️ [WS] Registration failed:', error);
-    }
+    } catch {}
     return false;
   };
 
@@ -314,9 +314,7 @@ export default function PaymentLinkPage() {
             setShowRetry(true);
           }
         }
-      } catch (error) {
-        console.error('Status polling error:', error);
-      }
+      } catch {}
     }, POLLING_INTERVAL);
   };
 
@@ -414,9 +412,7 @@ export default function PaymentLinkPage() {
     setIsSplitModalOpen(true);
   };
 
-  const closeSplitModal = () => {
-    setIsSplitModalOpen(false);
-  };
+  const closeSplitModal = () => setIsSplitModalOpen(false);
 
   const addDelegate = () => {
     if (delegates.length >= MAX_DELEGATES) return;
@@ -443,35 +439,18 @@ export default function PaymentLinkPage() {
   const handleSendSplitRequest = async () => {
     if (!paymentLink) return;
     setSplitError('');
-    if (delegates.length === 0) {
-      setSplitError('Add at least one person');
-      return;
-    }
-    if (delegates.length > MAX_DELEGATES) {
-      setSplitError(`Maximum ${MAX_DELEGATES} people`);
-      return;
-    }
+    if (delegates.length === 0) { setSplitError('Add at least one person'); return; }
+    if (delegates.length > MAX_DELEGATES) { setSplitError(`Maximum ${MAX_DELEGATES} people`); return; }
     for (let i = 0; i < delegates.length; i++) {
       const d = delegates[i];
       const num = i + 1;
-      if (!d.name.trim()) {
-        setSplitError(`Person ${num}: name is required`);
-        return;
-      }
-      if (!d.phone && !d.email) {
-        setSplitError(`Person ${num}: phone or email is required`);
-        return;
-      }
+      if (!d.name.trim()) { setSplitError(`Person ${num}: name is required`); return; }
+      if (!d.phone && !d.email) { setSplitError(`Person ${num}: phone or email is required`); return; }
       const amt = Number(d.amount);
-      if (!amt || amt <= 0) {
-        setSplitError(`Person ${num}: amount must be greater than 0`);
-        return;
-      }
+      if (!amt || amt <= 0) { setSplitError(`Person ${num}: amount must be greater than 0`); return; }
     }
     if (delegatesTotal > Number(parentTotal.toFixed(2))) {
-      setSplitError(
-        `Shares total (${delegatesTotal}) cannot exceed bill amount (${parentTotal})`
-      );
+      setSplitError(`Shares total (${delegatesTotal}) cannot exceed bill amount (${parentTotal})`);
       return;
     }
     setSplitSubmitting(true);
@@ -495,7 +474,6 @@ export default function PaymentLinkPage() {
         setSplitError(json.error || 'Failed to create split');
         return;
       }
-      // Reload all contributors from the server so we get old + new
       const refresh = await fetch(`/v1/payment-links/${slug}/contributors`);
       if (refresh.ok) {
         const refreshJson = await refresh.json();
@@ -506,7 +484,11 @@ export default function PaymentLinkPage() {
               name: c.name,
               identifier: c.identifier,
               amount: c.amount,
-              status: c.status === 'PAID' || c.status === 'COMPLETED' ? 'paid' : 'pending',
+              status:
+                c.status === 'PAID' || c.status === 'COMPLETED' ? 'paid'
+                : c.status === 'ACCEPTED' ? 'accepted'
+                : c.status === 'REJECTED' ? 'rejected'
+                : 'pending',
               isYou: c.isYou,
               payLink: c.payLink,
             }))
@@ -528,13 +510,55 @@ export default function PaymentLinkPage() {
       await navigator.clipboard.writeText(fullUrl);
       setCopiedId(contributorId);
       setTimeout(() => setCopiedId(null), 2000);
-    } catch (err) {
-      console.warn('Copy failed', err);
+    } catch {}
+  };
+
+  // ─── Child accept / reject ─────────────────────────────────────────
+  const handleAccept = async () => {
+    if (!slug) return;
+    setChildActionLoading(true);
+    try {
+      const res = await fetch(`/v1/payment-links/${slug}/accept`, { method: 'POST' });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setChildStatus('ACCEPTED');
+      } else {
+        setErrorMessage(json.error || 'Failed to accept');
+        setPaymentStatus('error');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Something went wrong');
+      setPaymentStatus('error');
+    } finally {
+      setChildActionLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!slug) return;
+    setChildActionLoading(true);
+    try {
+      const res = await fetch(`/v1/payment-links/${slug}/reject`, { method: 'POST' });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setChildStatus('REJECTED');
+      } else {
+        setErrorMessage(json.error || 'Failed to reject');
+        setPaymentStatus('error');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Something went wrong');
+      setPaymentStatus('error');
+    } finally {
+      setChildActionLoading(false);
     }
   };
 
   const collected = contributors
     .filter((c) => c.status === 'paid')
+    .reduce((sum, c) => sum + c.amount, 0);
+  const acceptedForParent = contributors
+    .filter((c) => c.status === 'paid' || c.status === 'accepted')
     .reduce((sum, c) => sum + c.amount, 0);
   const total = paymentLink?.price || 0;
   const remaining = Math.max(0, total - collected);
@@ -571,11 +595,7 @@ export default function PaymentLinkPage() {
               <p className="font-medium text-[13px]">Waiting for payment confirmation</p>
               <p className="text-amber-600 text-[12px] mt-0.5">Please check your phone and enter your PIN</p>
             </div>
-            {isSocketConnected ? (
-              <Wifi className="w-4 h-4 text-emerald-500 shrink-0" />
-            ) : (
-              <WifiOff className="w-4 h-4 text-amber-400 shrink-0" />
-            )}
+            {isSocketConnected ? <Wifi className="w-4 h-4 text-emerald-500 shrink-0" /> : <WifiOff className="w-4 h-4 text-amber-400 shrink-0" />}
           </div>
           <div className="w-full mt-1">
             <div className="flex justify-between text-[10px] text-amber-600">
@@ -588,9 +608,7 @@ export default function PaymentLinkPage() {
             </div>
           </div>
           {!isSocketConnected && (
-            <p className="text-[10px] text-amber-500 mt-0.5">
-              ⚡ Live updates unavailable - checking status automatically
-            </p>
+            <p className="text-[10px] text-amber-500 mt-0.5">⚡ Live updates unavailable - checking status automatically</p>
           )}
         </div>
       );
@@ -630,6 +648,13 @@ export default function PaymentLinkPage() {
     return null;
   };
 
+  const contributorStatusLabel = (status: Contributor['status']) => {
+    if (status === 'paid') return { text: 'Paid', cls: 'text-emerald-600' };
+    if (status === 'accepted') return { text: 'Accepted', cls: 'text-blue-600' };
+    if (status === 'rejected') return { text: 'Rejected', cls: 'text-gray-500' };
+    return { text: 'Waiting', cls: 'text-amber-600' };
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -644,9 +669,7 @@ export default function PaymentLinkPage() {
         <div className="max-w-sm w-full text-center">
           <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
           <h1 className="text-lg font-semibold text-gray-900">Link unavailable</h1>
-          <p className="text-sm text-gray-500 mt-2">
-            {error || 'This payment link may have expired.'}
-          </p>
+          <p className="text-sm text-gray-500 mt-2">{error || 'This payment link may have expired.'}</p>
           <button onClick={() => router.push('/')}
             className="mt-5 text-sm font-medium text-[#635bff] hover:underline">
             Go home
@@ -664,6 +687,9 @@ export default function PaymentLinkPage() {
   const isVerified = paymentLink.verified === true;
   const isChildBill = !!(paymentLink.parentBillId || paymentLink.isChild);
   const isMobileMoney = method === 'mpesa' || method === 'airtel' || method === 'tkash';
+  const isChildPending = isChildBill && childStatus === 'PENDING';
+  const isChildAccepted = isChildBill && childStatus === 'ACCEPTED';
+  const isChildRejected = isChildBill && childStatus === 'REJECTED';
 
   const poweredBy = (
     <p className="text-[12px] text-gray-400 text-center lg:text-left">
@@ -707,14 +733,66 @@ export default function PaymentLinkPage() {
             </div>
           </div>
 
-          {isChildBill && (
-            <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3.5 py-2.5">
-              <p className="text-[12px] text-amber-800 font-medium">
-                You were invited to pay this share
-              </p>
-              <p className="text-[11px] text-amber-700 mt-0.5">
-                This is part of a split bill from {merchantName}
-              </p>
+          {/* ─── Child banner: 3 states ─── */}
+          {isChildPending && (
+            <div className="mb-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-4">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] text-amber-900 font-semibold">
+                    You were invited to pay this share
+                  </p>
+                  <p className="text-[12px] text-amber-700 mt-1 leading-relaxed">
+                    This is part of a split bill from {merchantName}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleReject}
+                  disabled={childActionLoading}
+                  className="flex-1 h-9 rounded-lg border border-amber-300 bg-white text-[13px] font-medium text-amber-800 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                >
+                  Reject
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAccept}
+                  disabled={childActionLoading}
+                  className="flex-1 h-9 rounded-lg bg-[#0a2540] text-white text-[13px] font-semibold hover:bg-[#152a45] transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {childActionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Accept'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isChildAccepted && (
+            <div className="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 px-3.5 py-2.5">
+              <div className="flex items-start gap-2.5">
+                <CheckCircle className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[12px] text-emerald-800 font-medium">You accepted this split</p>
+                  <p className="text-[11px] text-emerald-700 mt-0.5">
+                    Pay {formatPrice(displayAmount, paymentLink.currency)} to complete your share.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isChildRejected && (
+            <div className="mb-4 rounded-lg bg-gray-100 border border-gray-200 px-3.5 py-2.5">
+              <div className="flex items-start gap-2.5">
+                <XCircle className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[12px] text-gray-700 font-medium">You rejected this invitation</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Contact {merchantName} if this was a mistake.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -734,21 +812,15 @@ export default function PaymentLinkPage() {
             <div className="border-t border-gray-200 pt-4 space-y-3">
               <div className="flex justify-between text-[14px]">
                 <span className="text-gray-500">Subtotal</span>
-                <span className="text-gray-900 tabular-nums">
-                  {formatPrice(displayAmount, paymentLink.currency)}
-                </span>
+                <span className="text-gray-900 tabular-nums">{formatPrice(displayAmount, paymentLink.currency)}</span>
               </div>
               <div className="flex justify-between text-[14px]">
                 <span className="text-gray-500">Tax</span>
-                <span className="text-gray-900 tabular-nums">
-                  {formatPrice(0, paymentLink.currency)}
-                </span>
+                <span className="text-gray-900 tabular-nums">{formatPrice(0, paymentLink.currency)}</span>
               </div>
               <div className="flex justify-between text-[15px] font-semibold">
                 <span className="text-gray-900">Total due</span>
-                <span className="text-gray-900 tabular-nums">
-                  {formatPrice(displayAmount, paymentLink.currency)}
-                </span>
+                <span className="text-gray-900 tabular-nums">{formatPrice(displayAmount, paymentLink.currency)}</span>
               </div>
             </div>
 
@@ -763,58 +835,54 @@ export default function PaymentLinkPage() {
             {hasSplit && !isChildBill && (
               <div className="mt-4 rounded-xl border border-gray-200 bg-white overflow-hidden">
                 <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                    Contributors
-                  </p>
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Contributors</p>
                   <span className="text-[11px] font-semibold text-gray-400">{contributors.length}</span>
                 </div>
 
                 <div className="divide-y divide-gray-100">
-                  {contributors.map((c, idx) => (
-                    <div key={c.id} className="flex items-start justify-between gap-3 px-4 py-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-medium text-gray-900 truncate">
-                          <span className="text-gray-400 mr-1">{idx + 1}.</span>
-                          {c.name}
-                        </p>
-                        <p className="text-[11px] text-gray-400 truncate">{c.identifier}</p>
-                        {c.status !== 'paid' && c.payLink && (
-                          <button
-                            type="button"
-                            onClick={() => copyPayLink(c.id, c.payLink)}
-                            className="text-[11px] text-[#0a2540] hover:text-[#635bff] font-mono truncate mt-1 block text-left underline underline-offset-2 max-w-full"
-                            title="Click to copy"
-                          >
-                            {typeof window !== 'undefined' ? window.location.origin : ''}
-                            {c.payLink}
-                          </button>
-                        )}
+                  {contributors.map((c, idx) => {
+                    const label = contributorStatusLabel(c.status);
+                    return (
+                      <div key={c.id} className="flex items-start justify-between gap-3 px-4 py-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13px] font-medium text-gray-900 truncate">
+                            <span className="text-gray-400 mr-1">{idx + 1}.</span>
+                            {c.name}
+                          </p>
+                          <p className="text-[11px] text-gray-400 truncate">{c.identifier}</p>
+                          {c.status !== 'paid' && c.payLink && (
+                            <button
+                              type="button"
+                              onClick={() => copyPayLink(c.id, c.payLink)}
+                              className="text-[11px] text-[#0a2540] hover:text-[#635bff] font-mono truncate mt-1 block text-left underline underline-offset-2 max-w-full"
+                              title="Click to copy"
+                            >
+                              {typeof window !== 'undefined' ? window.location.origin : ''}{c.payLink}
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                          <span className="text-[13px] font-semibold text-gray-900 tabular-nums">
+                            {formatPrice(c.amount, paymentLink.currency)}
+                          </span>
+                          {c.status === 'paid' ? (
+                            <CheckCircle className="w-4 h-4 text-emerald-500" />
+                          ) : (
+                            <>
+                              <span className={`text-[11px] font-medium ${label.cls}`}>{label.text}</span>
+                              {c.payLink && (
+                                <button type="button" onClick={() => copyPayLink(c.id, c.payLink)}
+                                  className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                                  title="Copy payment link">
+                                  {copiedId === c.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0 pt-0.5">
-                        <span className="text-[13px] font-semibold text-gray-900 tabular-nums">
-                          {formatPrice(c.amount, paymentLink.currency)}
-                        </span>
-                        {c.status === 'paid' ? (
-                          <CheckCircle className="w-4 h-4 text-emerald-500" />
-                        ) : (
-                          <>
-                            <span className="text-[11px] font-medium text-amber-600">Pending</span>
-                            {c.payLink && (
-                              <button type="button" onClick={() => copyPayLink(c.id, c.payLink)}
-                                className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                                title="Copy payment link">
-                                {copiedId === c.id ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 space-y-2.5">
@@ -869,6 +937,22 @@ export default function PaymentLinkPage() {
                 <h2 className="text-xl font-semibold text-gray-900">Payment successful</h2>
                 <p className="text-sm text-gray-500 mt-2">
                   {formatPrice(displayAmount, paymentLink.currency)} paid to {merchantName}
+                </p>
+              </div>
+            ) : isChildPending ? (
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-5 py-6 text-center">
+                <AlertCircle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
+                <h2 className="text-base font-semibold text-gray-900">Action required</h2>
+                <p className="text-sm text-gray-600 mt-1.5 leading-relaxed">
+                  Please accept or reject this split invitation to continue.
+                </p>
+              </div>
+            ) : isChildRejected ? (
+              <div className="rounded-xl bg-gray-50 border border-gray-200 px-5 py-6 text-center">
+                <XCircle className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                <h2 className="text-base font-semibold text-gray-900">Invitation rejected</h2>
+                <p className="text-sm text-gray-600 mt-1.5 leading-relaxed">
+                  You declined this share. Nothing to pay.
                 </p>
               </div>
             ) : isExpired ? (
@@ -991,9 +1075,7 @@ export default function PaymentLinkPage() {
                     <button type="submit" disabled={isProcessing}
                       className="w-full h-11 bg-[#0a2540] hover:bg-[#152a45] text-white rounded-lg font-semibold text-[15px] flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
                       {isProcessing ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" /> Processing…
-                        </>
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</>
                       ) : (
                         <>Pay {formatPrice(displayAmount, paymentLink.currency)}</>
                       )}
@@ -1042,11 +1124,9 @@ export default function PaymentLinkPage() {
                       </button>
                     )}
                   </div>
-
                   <input type="text" value={d.name} onChange={(e) => updateDelegate(d.id, 'name', e.target.value)}
                     placeholder="Full name"
                     className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]" />
-
                   <div className="flex h-10 rounded-lg border border-gray-300 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
                     <span className="flex items-center gap-1.5 px-2.5 bg-gray-50 border-r border-gray-200 text-[12px] text-gray-500 shrink-0">
                       <Smartphone className="w-3.5 h-3.5" /> +254
@@ -1056,7 +1136,6 @@ export default function PaymentLinkPage() {
                       placeholder="712345678"
                       className="flex-1 min-w-0 px-2.5 text-sm outline-none" />
                   </div>
-
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input type="email" value={d.email}
@@ -1064,7 +1143,6 @@ export default function PaymentLinkPage() {
                       placeholder="Or their email"
                       className="w-full h-10 pl-10 pr-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]" />
                   </div>
-
                   <input type="number" value={d.amount}
                     onChange={(e) => updateDelegate(d.id, 'amount', e.target.value)}
                     placeholder="Amount they will cover (KES)"
@@ -1084,15 +1162,13 @@ export default function PaymentLinkPage() {
               <div className="rounded-lg bg-gray-50 border border-gray-200 px-3.5 py-3">
                 <div className="flex justify-between text-[13px] font-semibold">
                   <span className="text-gray-900">Total assigned</span>
-                  <span
-                    className={`tabular-nums ${
-                      delegatesTotal > Number(paymentLink.price.toFixed(2))
-                        ? 'text-red-600'
-                        : delegatesTotal === Number(paymentLink.price.toFixed(2))
-                        ? 'text-emerald-600'
-                        : 'text-amber-600'
-                    }`}
-                  >
+                  <span className={`tabular-nums ${
+                    delegatesTotal > Number(paymentLink.price.toFixed(2))
+                      ? 'text-red-600'
+                      : delegatesTotal === Number(paymentLink.price.toFixed(2))
+                      ? 'text-emerald-600'
+                      : 'text-amber-600'
+                  }`}>
                     {formatPrice(delegatesTotal, paymentLink.currency)}
                     <span className="text-gray-400 font-normal ml-1">
                       / {formatPrice(paymentLink.price, paymentLink.currency)}
@@ -1137,12 +1213,8 @@ export default function PaymentLinkPage() {
                 <button type="button" onClick={handleSendSplitRequest} disabled={splitSubmitting}
                   className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-[#0a2540] text-white hover:bg-[#152a45] transition-colors disabled:opacity-50 flex items-center gap-2">
                   {splitSubmitting ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…
-                    </>
-                  ) : (
-                    'Send request'
-                  )}
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…</>
+                  ) : 'Send request'}
                 </button>
               </div>
             </div>
