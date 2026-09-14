@@ -116,7 +116,6 @@ export default function PaymentLinkPage() {
   // ─── Split Bill State ─────────────────────────────────────────────
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
   const [splitNote, setSplitNote] = useState('');
-  const [yourShare, setYourShare] = useState('');
   const [delegates, setDelegates] = useState<DelegateDraft[]>([]);
   const [contributors, setContributors] = useState<Contributor[]>([]);
   const [splitSubmitting, setSplitSubmitting] = useState(false);
@@ -510,7 +509,6 @@ export default function PaymentLinkPage() {
   const openSplitModal = () => {
     setSplitNote('');
     setSplitError('');
-    setYourShare('');
     setDelegates([
       {
         id: `d_${Date.now()}`,
@@ -551,14 +549,11 @@ export default function PaymentLinkPage() {
     );
   };
 
-  const delegatesTotal = delegates.reduce(
-    (sum, d) => sum + (Number(d.amount) || 0),
-    0
+  const delegatesTotal = Number(
+    delegates.reduce((sum, d) => sum + (Number(d.amount) || 0), 0).toFixed(2)
   );
-  const yourShareNum = Number(yourShare) || 0;
-  const combinedTotal = Number((yourShareNum + delegatesTotal).toFixed(2));
   const parentTotal = paymentLink?.price || 0;
-  const splitRemaining = Number((parentTotal - combinedTotal).toFixed(2));
+  const splitRemaining = Number((parentTotal - delegatesTotal).toFixed(2));
 
   const handleSendSplitRequest = async () => {
     if (!paymentLink) return;
@@ -594,9 +589,9 @@ export default function PaymentLinkPage() {
       }
     }
 
-    if (combinedTotal !== Number(parentTotal.toFixed(2))) {
+    if (delegatesTotal !== Number(parentTotal.toFixed(2))) {
       setSplitError(
-        `Shares total (${combinedTotal}) must equal bill amount (${parentTotal})`
+        `Shares total (${delegatesTotal}) must equal bill amount (${parentTotal})`
       );
       return;
     }
@@ -614,7 +609,7 @@ export default function PaymentLinkPage() {
             email: d.email || undefined,
             amount: Number(d.amount),
           })),
-          yourShare: yourShareNum,
+          yourShare: 0,
           note: splitNote || undefined,
         }),
       });
@@ -908,7 +903,7 @@ export default function PaymentLinkPage() {
                     Contributors
                   </p>
                   <span className="text-[11px] font-semibold text-gray-400">
-                    {contributors.length}/{contributors.length}
+                    {contributors.length}
                   </span>
                 </div>
 
@@ -1264,131 +1259,99 @@ export default function PaymentLinkPage() {
             </div>
 
             <div className="px-5 py-5 space-y-4 overflow-y-auto flex-1">
-              {/* Your share */}
-              <div>
-                <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
-                  Your share
-                </label>
-                <input
-                  type="number"
-                  value={yourShare}
-                  onChange={(e) => setYourShare(e.target.value)}
-                  placeholder="0.00"
-                  min={0}
-                  max={paymentLink.price}
-                  step="0.01"
-                  className="w-full h-11 px-3.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
-                />
-                <p className="text-[11px] text-gray-400 mt-1">
-                  Leave 0 if the other person covers everything
-                </p>
-              </div>
+              {delegates.map((d, idx) => (
+                <div key={d.id} className="rounded-xl border border-gray-200 p-3.5 space-y-2.5 bg-gray-50/50">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[12px] font-semibold text-gray-700">
+                      Person {idx + 1}
+                    </p>
+                    {delegates.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeDelegate(d.id)}
+                        className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
 
-              {/* Delegates list */}
-              <div className="space-y-4">
-                {delegates.map((d, idx) => (
-                  <div key={d.id} className="rounded-xl border border-gray-200 p-3.5 space-y-2.5 bg-gray-50/50">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[12px] font-semibold text-gray-700">
-                        Person {idx + 1}
-                      </p>
-                      {delegates.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeDelegate(d.id)}
-                          className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
+                  <input
+                    type="text"
+                    value={d.name}
+                    onChange={(e) => updateDelegate(d.id, 'name', e.target.value)}
+                    placeholder="Full name"
+                    className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
+                  />
 
+                  <div className="flex h-10 rounded-lg border border-gray-300 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
+                    <span className="flex items-center gap-1.5 px-2.5 bg-gray-50 border-r border-gray-200 text-[12px] text-gray-500 shrink-0">
+                      <Smartphone className="w-3.5 h-3.5" />
+                      +254
+                    </span>
                     <input
-                      type="text"
-                      value={d.name}
-                      onChange={(e) => updateDelegate(d.id, 'name', e.target.value)}
-                      placeholder="Full name"
-                      className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
-                    />
-
-                    <div className="flex h-10 rounded-lg border border-gray-300 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-[#635bff]/30 focus-within:border-[#635bff]">
-                      <span className="flex items-center gap-1.5 px-2.5 bg-gray-50 border-r border-gray-200 text-[12px] text-gray-500 shrink-0">
-                        <Smartphone className="w-3.5 h-3.5" />
-                        +254
-                      </span>
-                      <input
-                        type="tel"
-                        inputMode="numeric"
-                        value={d.phone}
-                        onChange={(e) => updateDelegate(d.id, 'phone', e.target.value)}
-                        placeholder="712345678"
-                        className="flex-1 min-w-0 px-2.5 text-sm outline-none"
-                      />
-                    </div>
-
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="email"
-                        value={d.email}
-                        onChange={(e) => updateDelegate(d.id, 'email', e.target.value)}
-                        placeholder="Or their email"
-                        className="w-full h-10 pl-10 pr-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
-                      />
-                    </div>
-
-                    <input
-                      type="number"
-                      value={d.amount}
-                      onChange={(e) => updateDelegate(d.id, 'amount', e.target.value)}
-                      placeholder="Amount they will cover (KES)"
-                      min={1}
-                      step="0.01"
-                      className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
+                      type="tel"
+                      inputMode="numeric"
+                      value={d.phone}
+                      onChange={(e) => updateDelegate(d.id, 'phone', e.target.value)}
+                      placeholder="712345678"
+                      className="flex-1 min-w-0 px-2.5 text-sm outline-none"
                     />
                   </div>
-                ))}
 
-                {delegates.length < MAX_DELEGATES && (
-                  <button
-                    type="button"
-                    onClick={addDelegate}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-dashed border-gray-300 text-[13px] font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add another person ({delegates.length}/{MAX_DELEGATES})
-                  </button>
-                )}
-              </div>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="email"
+                      value={d.email}
+                      onChange={(e) => updateDelegate(d.id, 'email', e.target.value)}
+                      placeholder="Or their email"
+                      className="w-full h-10 pl-10 pr-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
+                    />
+                  </div>
+
+                  <input
+                    type="number"
+                    value={d.amount}
+                    onChange={(e) => updateDelegate(d.id, 'amount', e.target.value)}
+                    placeholder="Amount they will cover (KES)"
+                    min={1}
+                    step="0.01"
+                    className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/30 focus:border-[#635bff]"
+                  />
+                </div>
+              ))}
+
+              {delegates.length < MAX_DELEGATES && (
+                <button
+                  type="button"
+                  onClick={addDelegate}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-dashed border-gray-300 text-[13px] font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add another person ({delegates.length}/{MAX_DELEGATES})
+                </button>
+              )}
 
               {/* Totals summary */}
-              <div className="rounded-lg bg-gray-50 border border-gray-200 px-3.5 py-3 space-y-1.5">
-                <div className="flex justify-between text-[12px]">
-                  <span className="text-gray-500">Your share</span>
-                  <span className="text-gray-900 tabular-nums">
-                    {formatPrice(yourShareNum, paymentLink.currency)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-[12px]">
-                  <span className="text-gray-500">Others total</span>
-                  <span className="text-gray-900 tabular-nums">
-                    {formatPrice(delegatesTotal, paymentLink.currency)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-[13px] font-semibold pt-1.5 border-t border-gray-200">
-                  <span className="text-gray-900">Combined</span>
+              <div className="rounded-lg bg-gray-50 border border-gray-200 px-3.5 py-3">
+                <div className="flex justify-between text-[13px] font-semibold">
+                  <span className="text-gray-900">Total</span>
                   <span
                     className={`tabular-nums ${
-                      combinedTotal === Number(paymentLink.price.toFixed(2))
+                      delegatesTotal === Number(paymentLink.price.toFixed(2))
                         ? 'text-emerald-600'
                         : 'text-amber-600'
                     }`}
                   >
-                    {formatPrice(combinedTotal, paymentLink.currency)}
+                    {formatPrice(delegatesTotal, paymentLink.currency)}
+                    <span className="text-gray-400 font-normal ml-1">
+                      / {formatPrice(paymentLink.price, paymentLink.currency)}
+                    </span>
                   </span>
                 </div>
-                {combinedTotal !== Number(paymentLink.price.toFixed(2)) && (
-                  <p className="text-[11px] text-amber-600 pt-1">
+                {delegatesTotal !== Number(paymentLink.price.toFixed(2)) && (
+                  <p className="text-[11px] text-amber-600 mt-1.5">
                     {splitRemaining > 0
                       ? `${formatPrice(splitRemaining, paymentLink.currency)} unassigned`
                       : `${formatPrice(Math.abs(splitRemaining), paymentLink.currency)} over the total`}
