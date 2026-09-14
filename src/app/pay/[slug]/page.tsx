@@ -106,6 +106,8 @@ export default function PaymentLinkPage() {
   const [splitAmount, setSplitAmount] = useState('');
   const [splitNote, setSplitNote] = useState('');
   const [contributors, setContributors] = useState<Contributor[]>([]);
+  const [splitSubmitting, setSplitSubmitting] = useState(false);
+  const [splitError, setSplitError] = useState('');
 
   // ─── WebSocket State ──────────────────────────────────────────────
   const [isSocketConnected, setIsSocketConnected] = useState(false);
@@ -154,6 +156,47 @@ export default function PaymentLinkPage() {
     };
 
     fetchPaymentLink();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [slug]);
+
+  // ─── 1b. FETCH EXISTING CONTRIBUTORS (if this bill was split) ────
+  useEffect(() => {
+    if (!slug) return;
+
+    let isMounted = true;
+
+    const loadContributors = async () => {
+      try {
+        const res = await fetch(`/v1/payment-links/${slug}/contributors`);
+        if (!res.ok) return;
+
+        const json = await res.json();
+        if (!json.success) return;
+
+        if (isMounted && json.data.contributors && json.data.contributors.length > 0) {
+          setContributors(
+            json.data.contributors.map((c: any) => ({
+              id: c.billId,
+              name: c.name,
+              identifier: c.identifier,
+              amount: c.amount,
+              status:
+                c.status === 'PAID' || c.status === 'COMPLETED'
+                  ? 'paid'
+                  : 'pending',
+              isYou: c.isYou,
+            }))
+          );
+        }
+      } catch (err) {
+        console.warn('Failed to load contributors (non-blocking):', err);
+      }
+    };
+
+    loadContributors();
 
     return () => {
       isMounted = false;
@@ -481,6 +524,7 @@ export default function PaymentLinkPage() {
     setSplitMode('full');
     setSplitAmount('');
     setSplitNote('');
+    setSplitError('');
     setIsSplitModalOpen(true);
   };
 
@@ -488,44 +532,77 @@ export default function PaymentLinkPage() {
     setIsSplitModalOpen(false);
   };
 
-  const handleSendSplitRequest = () => {
+  const handleSendSplitRequest = async () => {
     if (!paymentLink) return;
 
+    setSplitError('');
+
+    // ─── Validate inputs ──────────────────────────────────────────
+    if (!splitPhone && !splitEmail) {
+      setSplitError('Enter their phone or email');
+      return;
+    }
+
     const total = paymentLink.price;
-    const theirAmount = splitMode === 'full'
-      ? total
-      : Math.max(0, Math.min(Number(splitAmount) || 0, total));
-    const yourAmount = Math.max(0, total - theirAmount);
+    const delegateAmt =
+      splitMode === 'full'
+        ? total
+        : Math.max(0, Math.min(Number(splitAmount) || 0, total));
+    const yourAmt = Math.max(0, total - delegateAmt);
 
-    const identifier = splitPhone
-      ? `+254 ${splitPhone}`
-      : splitEmail || 'Not provided';
-
-    const newContributors: Contributor[] = [];
-
-    if (yourAmount > 0) {
-      newContributors.push({
-        id: 'you',
-        name: customerName || 'You',
-        identifier: email || phoneNumber || 'You',
-        amount: yourAmount,
-        status: 'pending',
-        isYou: true,
-      });
+    if (delegateAmt <= 0) {
+      setSplitError('Delegate amount must be greater than 0');
+      return;
     }
 
-    if (theirAmount > 0) {
-      newContributors.push({
-        id: `c_${Date.now()}`,
-        name: 'Requested payer',
-        identifier,
-        amount: theirAmount,
-        status: 'pending',
-      });
+    if (yourAmt + delegateAmt !== total) {
+      setSplitError('Shares must add up to the total');
+      return;
     }
 
-    setContributors(newContributors);
-    setIsSplitModalOpen(false);
+    setSplitSubmitting(true);
+
+    try {
+      const res = await fetch(`/v1/payment-links/${slug}/split`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          delegate: {
+            name: customerName || 'Requested payer',
+            phone: splitPhone || undefined,
+            email: splitEmail || undefined,
+          },
+          yourShare: yourAmt,
+          delegateShare: delegateAmt,
+          note: splitNote || undefined,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json.success) {
+        setSplitError(json.error || 'Failed to create split');
+        return;
+      }
+
+      // ─── Update with real contributors from backend ────────────
+      setContributors(
+        json.data.contributors.map((c: any) => ({
+          id: c.billId,
+          name: c.name,
+          identifier: c.identifier,
+          amount: c.amount,
+          status: 'pending' as const,
+          isYou: c.isYou,
+        }))
+      );
+
+      setIsSplitModalOpen(false);
+    } catch (err: any) {
+      setSplitError(err.message || 'Something went wrong');
+    } finally {
+      setSplitSubmitting(false);
+    }
   };
 
   const collected = contributors
@@ -1189,21 +1266,38 @@ export default function PaymentLinkPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
-              <button
-                type="button"
-                onClick={closeSplitModal}
-                className="px-4 py-2 rounded-lg text-[13px] font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSendSplitRequest}
-                className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-[#0a2540] text-white hover:bg-[#152a45] transition-colors"
-              >
-                Send request
-              </button>
+            <div className="px-5 py-4 border-t border-gray-100 bg-gray-50 space-y-3">
+              {splitError && (
+                <div className="flex items-start gap-2 text-[12px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <XCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>{splitError}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeSplitModal}
+                  disabled={splitSubmitting}
+                  className="px-4 py-2 rounded-lg text-[13px] font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendSplitRequest}
+                  disabled={splitSubmitting}
+                  className="px-4 py-2 rounded-lg text-[13px] font-semibold bg-[#0a2540] text-white hover:bg-[#152a45] transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {splitSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Sending…
+                    </>
+                  ) : (
+                    'Send request'
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
