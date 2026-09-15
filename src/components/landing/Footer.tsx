@@ -5,18 +5,18 @@ import Link from 'next/link';
 
 export default function Footer() {
   return (
-    <footer className="relative bg-[#0a2540] text-[#adbbca] pt-24 pb-12 overflow-hidden antialiased">
+    <footer className="relative bg-[#0a2540] text-[#adbbca] pt-12 pb-8 overflow-hidden antialiased">
       {/* Decorative glows */}
       <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute top-0 left-0 w-[400px] h-[400px] bg-sky-500/5 rounded-full blur-[100px] pointer-events-none" />
 
       <div className="max-w-[1350px] mx-auto px-8 relative z-10">
         {/* ── Main Grid ──────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-12 gap-10 lg:gap-12 mb-20">
+        <div className="grid grid-cols-2 md:grid-cols-12 gap-8 lg:gap-10 mb-10">
           {/* About Us */}
           <div className="col-span-1 md:col-span-3">
-            <h4 className="text-white font-semibold text-[15px] tracking-wide mb-5">About Us</h4>
-            <ul className="space-y-3.5 text-[15px]">
+            <h4 className="text-white font-semibold text-[15px] tracking-wide mb-4">About Us</h4>
+            <ul className="space-y-2.5 text-[15px]">
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Who we are</Link></li>
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Our Partners</Link></li>
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Privacy Policy</Link></li>
@@ -26,8 +26,8 @@ export default function Footer() {
 
           {/* Products */}
           <div className="col-span-1 md:col-span-3">
-            <h4 className="text-white font-semibold text-[15px] tracking-wide mb-5">Products</h4>
-            <ul className="space-y-3.5 text-[15px]">
+            <h4 className="text-white font-semibold text-[15px] tracking-wide mb-4">Products</h4>
+            <ul className="space-y-2.5 text-[15px]">
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Payments Links</Link></li>
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">STK Push</Link></li>
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">B2C Disbursement</Link></li>
@@ -38,8 +38,8 @@ export default function Footer() {
 
           {/* Resources */}
           <div className="col-span-1 md:col-span-3">
-            <h4 className="text-white font-semibold text-[15px] tracking-wide mb-5">Resources</h4>
-            <ul className="space-y-3.5 text-[15px]">
+            <h4 className="text-white font-semibold text-[15px] tracking-wide mb-4">Resources</h4>
+            <ul className="space-y-2.5 text-[15px]">
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">API Reference</Link></li>
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Documentation</Link></li>
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">SDKs and Libraries</Link></li>
@@ -50,11 +50,11 @@ export default function Footer() {
 
           {/* Get in Touch */}
           <div className="col-span-1 md:col-span-3">
-            <h4 className="text-white font-semibold text-[15px] tracking-wide mb-5">Get in Touch</h4>
-            <p className="text-[14px] text-[#adbbca]/80 mb-4 leading-relaxed">
+            <h4 className="text-white font-semibold text-[15px] tracking-wide mb-4">Get in Touch</h4>
+            <p className="text-[14px] text-[#adbbca]/80 mb-3 leading-relaxed">
               If you have any feedback or complaint, please talk to us on:
             </p>
-            <ul className="space-y-3 text-[14px]">
+            <ul className="space-y-2 text-[14px]">
               <li className="flex items-start gap-2">
                 <svg className="w-4 h-4 text-[#10B981] mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
@@ -76,7 +76,7 @@ export default function Footer() {
             </ul>
 
             {/* Social Media Icons */}
-            <div className="flex flex-wrap items-center gap-2.5 mt-6">
+            <div className="flex flex-wrap items-center gap-2 mt-4">
               <a href="#" aria-label="Facebook" className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.06] border border-white/[0.08] text-[#adbbca]/80 hover:text-white hover:bg-white/[0.1] transition-colors">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
@@ -117,7 +117,7 @@ export default function Footer() {
         </div>
 
         {/* ── Bottom Bar ──────────────────────────────────────────────── */}
-        <div className="border-t border-white/[0.08] pt-8 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+        <div className="border-t border-white/[0.08] pt-5 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
           {/* Copyright */}
           <div className="space-y-1.5 max-w-2xl">
             <p className="text-[13px] text-[#adbbca]/60">
