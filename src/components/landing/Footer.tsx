@@ -13,37 +13,8 @@ export default function Footer() {
       <div className="max-w-[1350px] mx-auto px-8 relative z-10">
         {/* ── Main Grid ──────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 md:grid-cols-12 gap-10 lg:gap-12 mb-20">
-          {/* Brand Column */}
-          <div className="col-span-2 md:col-span-4 flex flex-col justify-between">
-            <div>
-              <Link href="/" className="inline-flex items-center gap-1.5 font-bold text-[26px] tracking-tight mb-5">
-                <span className="text-white">Xeco</span>
-                <span className="text-[#10B981]">Flow</span>
-              </Link>
-              <p className="text-[15px] text-[#adbbca]/80 max-w-[300px] mb-6 leading-relaxed">
-                Payment infrastructure for Africa. Accept M‑PESA, Airtel, Visa, and more — all through one integrated platform.
-              </p>
-
-              {/* Trust Badges */}
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-white/70 bg-white/[0.06] border border-white/[0.08] px-3 py-1.5 rounded-full backdrop-blur-sm">
-                  <svg className="w-3.5 h-3.5 text-[#10B981]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                  PCI DSS Level 1
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-white/70 bg-white/[0.06] border border-white/[0.08] px-3 py-1.5 rounded-full backdrop-blur-sm">
-                  <svg className="w-3.5 h-3.5 text-[#10B981]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                  SSL / TLS 1.3
-                </span>
-              </div>
-            </div>
-          </div>
-
           {/* About Us */}
-          <div className="col-span-1 md:col-span-2">
+          <div className="col-span-1 md:col-span-3">
             <h4 className="text-white font-semibold text-[15px] tracking-wide mb-5">About Us</h4>
             <ul className="space-y-3.5 text-[15px]">
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Who we are</Link></li>
@@ -54,7 +25,7 @@ export default function Footer() {
           </div>
 
           {/* Products */}
-          <div className="col-span-1 md:col-span-2">
+          <div className="col-span-1 md:col-span-3">
             <h4 className="text-white font-semibold text-[15px] tracking-wide mb-5">Products</h4>
             <ul className="space-y-3.5 text-[15px]">
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Payments Links</Link></li>
@@ -66,7 +37,7 @@ export default function Footer() {
           </div>
 
           {/* Resources */}
-          <div className="col-span-1 md:col-span-2">
+          <div className="col-span-1 md:col-span-3">
             <h4 className="text-white font-semibold text-[15px] tracking-wide mb-5">Resources</h4>
             <ul className="space-y-3.5 text-[15px]">
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">API Reference</Link></li>
@@ -78,7 +49,7 @@ export default function Footer() {
           </div>
 
           {/* Get in Touch */}
-          <div className="col-span-1 md:col-span-2">
+          <div className="col-span-1 md:col-span-3">
             <h4 className="text-white font-semibold text-[15px] tracking-wide mb-5">Get in Touch</h4>
             <p className="text-[14px] text-[#adbbca]/80 mb-4 leading-relaxed">
               If you have any feedback or complaint, please talk to us on:
