@@ -43,7 +43,7 @@ export default function Footer() {
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">API Reference</Link></li>
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Documentation</Link></li>
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">SDKs and Libraries</Link></li>
-              <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Release Notes</Link></li>
+              <li><Link href="/release-notes" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Release Notes</Link></li>
               <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Guides</Link></li>
             </ul>
           </div>
