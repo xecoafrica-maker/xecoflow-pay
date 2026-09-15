@@ -103,14 +103,15 @@ export default function ReleaseNotesPage() {
 
         {/* ── Header ──────────────────────────────────────────────── */}
         <p className="text-[12px] font-medium tracking-[0.18em] text-gray-400 uppercase mb-4">
-          Living Changelog
+          Shipping Log
         </p>
         <h1 className="text-[44px] sm:text-[52px] font-bold leading-[1.05] tracking-tight text-[#0a2540] mb-5">
-          Product changelog
+          Releases &amp; updates
         </h1>
         <p className="text-[17px] leading-relaxed text-gray-600 mb-10">
-          The updates that matter to merchants and developers building on XecoFlow. Newest changes
-          first — use the pager to browse older releases.
+          A running record of everything we&apos;ve shipped on XecoFlow — new capabilities,
+          refinements, bug fixes, and security patches. The most recent entries sit at the top;
+          move through the pages below to look back at earlier work.
         </p>
 
         <hr className="border-gray-200 mb-10" />
@@ -159,7 +160,7 @@ export default function ReleaseNotesPage() {
           ))}
         </div>
 
-        {/* ── Pager (optional) ────────────────────────────────────── */}
+        {/* ── Pager ───────────────────────────────────────────────── */}
         <div className="flex items-center justify-between mt-12 pt-8 border-t border-gray-200">
           <button
             disabled
