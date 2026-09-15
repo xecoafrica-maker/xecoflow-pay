@@ -92,7 +92,7 @@ const releases: Release[] = [
 export default function ReleaseNotesPage() {
   return (
     <main className="bg-white text-[#0a2540] antialiased">
-      <div className="max-w-[820px] mx-auto px-6 sm:px-8 py-12 sm:py-16">
+      <div className="max-w-[1200px] mx-auto px-6 sm:px-8 py-12 sm:py-16">
 
         {/* ── Breadcrumb ──────────────────────────────────────────── */}
         <nav className="flex items-center gap-1.5 text-[14px] text-gray-500 mb-10">
@@ -108,7 +108,7 @@ export default function ReleaseNotesPage() {
         <h1 className="text-[44px] sm:text-[52px] font-bold leading-[1.05] tracking-tight text-[#0a2540] mb-5">
           Releases &amp; updates
         </h1>
-        <p className="text-[17px] leading-relaxed text-gray-600 mb-10">
+        <p className="text-[17px] leading-relaxed text-gray-600 mb-10 max-w-[720px]">
           A running record of everything we&apos;ve shipped on XecoFlow — new capabilities,
           refinements, bug fixes, and security patches. The most recent entries sit at the top;
           move through the pages below to look back at earlier work.
@@ -116,12 +116,12 @@ export default function ReleaseNotesPage() {
 
         <hr className="border-gray-200 mb-10" />
 
-        {/* ── Release Cards ───────────────────────────────────────── */}
-        <div className="space-y-6">
+        {/* ── Release Cards (2 per row) ───────────────────────────── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {releases.map((release, i) => (
             <article
               key={i}
-              className="border border-gray-200 rounded-2xl p-6 sm:p-7 hover:border-gray-300 transition-colors"
+              className="border border-gray-200 rounded-2xl p-6 sm:p-7 hover:border-gray-300 transition-colors flex flex-col"
             >
               {/* Badge + meta */}
               <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -147,7 +147,7 @@ export default function ReleaseNotesPage() {
 
               {/* Bullet points */}
               {release.points && (
-                <ul className="space-y-2">
+                <ul className="space-y-2 mt-auto">
                   {release.points.map((point, j) => (
                     <li key={j} className="flex items-start gap-3 text-[15px] text-gray-600">
                       <span className="text-gray-400 mt-[2px] select-none">—</span>
