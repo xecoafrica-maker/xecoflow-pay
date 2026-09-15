@@ -1,126 +1,267 @@
-// src/components/landing/Footer.tsx
-'use client';
-
+// src/app/release-notes/page.tsx
 import Link from 'next/link';
 
-export default function Footer() {
+type ChangeType = 'New' | 'Enhanced' | 'Fixed' | 'Security';
+
+interface Release {
+  type: ChangeType;
+  date: string;
+  product: string;
+  title: string;
+  summary: string;
+  details?: string[];
+}
+
+const typeStyles: Record<ChangeType, string> = {
+  New: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+  Enhanced: 'bg-sky-50 text-sky-700 ring-1 ring-sky-200',
+  Fixed: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+  Security: 'bg-rose-50 text-rose-700 ring-1 ring-rose-200',
+};
+
+const dotColor: Record<ChangeType, string> = {
+  New: 'bg-emerald-500',
+  Enhanced: 'bg-sky-500',
+  Fixed: 'bg-amber-500',
+  Security: 'bg-rose-500',
+};
+
+const releases: Release[] = [
+  {
+    type: 'New',
+    date: 'September 9, 2026',
+    product: 'Merchant Dashboard',
+    title: 'Maintenance mode for storefronts',
+    summary:
+      'Pause your storefront without taking your integration offline. Customers see a friendly message while you push updates.',
+    details: [
+      'Toggle maintenance mode per store from the dashboard.',
+      'Customize the message shown to customers during downtime.',
+    ],
+  },
+  {
+    type: 'New',
+    date: 'September 9, 2026',
+    product: 'Platform',
+    title: 'Platform-wide maintenance mode',
+    summary:
+      'Coordinate scheduled maintenance across all connected services with a single switch.',
+    details: [
+      'Pause services cleanly for upgrades or hotfixes.',
+      'Broadcast scheduled maintenance windows to users automatically.',
+    ],
+  },
+  {
+    type: 'Enhanced',
+    date: 'August 28, 2026',
+    product: 'STK Push',
+    title: 'Quicker STK Push handoff',
+    summary:
+      'Push initiation across every M-PESA shortcode is now noticeably faster, with smarter retries when carriers are slow.',
+    details: [
+      'Median initiation time dropped from 3.2s to 1.4s.',
+      'Adaptive retries reduce dead-end push failures.',
+    ],
+  },
+  {
+    type: 'New',
+    date: 'August 15, 2026',
+    product: 'B2C Disbursement',
+    title: 'Schedule bulk payouts ahead of time',
+    summary:
+      'Queue B2C batches up to 30 days in advance and let XecoFlow run them on the day you choose.',
+    details: [
+      'CSV upload with a future execution date.',
+      'Automatic retries for invalid or unreachable numbers.',
+      'Reconciliation report ready to download after each run.',
+    ],
+  },
+  {
+    type: 'Fixed',
+    date: 'August 2, 2026',
+    product: 'Business Wallet',
+    title: 'Wallet balance now updates instantly',
+    summary:
+      'Corrected a display bug where the wallet could briefly show a stale balance right after a transaction settled.',
+    details: [
+      'Balances refresh in real time after every transaction.',
+      'Wallet webhooks now deliver more reliably under load.',
+    ],
+  },
+  {
+    type: 'Security',
+    date: 'July 20, 2026',
+    product: 'API & Gateway',
+    title: 'TLS 1.3 enforced and signing keys rotated',
+    summary:
+      'We tightened transport security across the gateway and rotated the signing keys used for API authentication.',
+    details: [
+      'TLS 1.0 and 1.1 connections are now refused.',
+      'Rotate your API signing keys from the dashboard to stay current.',
+    ],
+  },
+];
+
+// Group releases by month for the timeline rail
+const grouped = releases.reduce<Record<string, Release[]>>((acc, release) => {
+  const month = release.date.split(' ').slice(0, 2).join(' ');
+  if (!acc[month]) acc[month] = [];
+  acc[month].push(release);
+  return acc;
+}, {});
+
+export default function ReleaseNotesPage() {
   return (
-    <footer className="relative bg-[#0a2540] text-[#adbbca] pt-16 pb-8 overflow-hidden antialiased">
-      {/* Decorative glows */}
-      <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute top-0 left-0 w-[400px] h-[400px] bg-sky-500/5 rounded-full blur-[100px] pointer-events-none" />
+    <main className="bg-[#fafafa] text-[#0a2540] antialiased min-h-screen">
+      {/* ── Hero ──────────────────────────────────────────────────── */}
+      <section className="bg-white border-b border-gray-200">
+        <div className="max-w-[1080px] mx-auto px-6 sm:px-8 pt-10 pb-14">
 
-      <div className="max-w-[1350px] mx-auto px-8 relative z-10">
-        {/* ─ Main Grid ──────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-12 gap-8 lg:gap-10 mb-12">
-          {/* About Us */}
-          <div className="col-span-1 md:col-span-3">
-            <h4 className="text-white font-semibold text-[15px] tracking-wide mb-4">About Us</h4>
-            <ul className="space-y-2.5 text-[15px]">
-              <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Who we are</Link></li>
-              <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Our Partners</Link></li>
-              <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Privacy Policy</Link></li>
-              <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Terms of Service</Link></li>
-            </ul>
-          </div>
+          {/* Breadcrumb */}
+          <nav className="flex items-center gap-2 text-[13px] text-gray-400 mb-10">
+            <Link href="/" className="hover:text-[#0a2540] transition-colors">Home</Link>
+            <span>/</span>
+            <span className="text-gray-600">Release Notes</span>
+          </nav>
 
-          {/* Products */}
-          <div className="col-span-1 md:col-span-3">
-            <h4 className="text-white font-semibold text-[15px] tracking-wide mb-4">Products</h4>
-            <ul className="space-y-2.5 text-[15px]">
-              <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Payments Links</Link></li>
-              <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">STK Push</Link></li>
-              <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">B2C Disbursement</Link></li>
-              <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Bulk Airtime Disbursement</Link></li>
-              <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Business Wallet</Link></li>
-            </ul>
-          </div>
+          {/* Title block */}
+          <div className="max-w-[720px]">
+            <span className="inline-flex items-center gap-2 text-[12px] font-medium text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 px-3 py-1 rounded-full mb-6">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              Living changelog
+            </span>
 
-          {/* Resources */}
-          <div className="col-span-1 md:col-span-3">
-            <h4 className="text-white font-semibold text-[15px] tracking-wide mb-4">Resources</h4>
-            <ul className="space-y-2.5 text-[15px]">
-              <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">API Reference</Link></li>
-              <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Documentation</Link></li>
-              <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">SDKs and Libraries</Link></li>
-              <li><Link href="/release-notes" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Release Notes</Link></li>
-              <li><Link href="#" className="hover:text-white transition-all duration-150 inline-block hover:translate-x-0.5">Guides</Link></li>
-            </ul>
-          </div>
+            <h1 className="text-[46px] sm:text-[56px] font-bold leading-[1.02] tracking-tight mb-5">
+              What&apos;s new in XecoFlow
+            </h1>
 
-          {/* Get in Touch */}
-          <div className="col-span-1 md:col-span-3">
-            <h4 className="text-white font-semibold text-[15px] tracking-wide mb-4">Get in Touch</h4>
-            <p className="text-[14px] text-[#adbbca]/80 mb-3 leading-relaxed">
-              If you have any feedback or complaint, please talk to us on:
+            <p className="text-[17px] leading-relaxed text-gray-600">
+              Every meaningful change to our payments platform — new features, improvements,
+              fixes, and security updates. Grouped by month so you can scan what shipped and
+              when.
             </p>
-            <ul className="space-y-2.5 text-[14px]">
-              <li className="flex items-start gap-2">
-                <svg className="w-4 h-4 text-[#10B981] mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
-                <span>Call Center: <a href="tel:+254712071385" className="hover:text-white transition-colors">+254 712 071 385</a></span>
-              </li>
-              <li className="flex items-start gap-2">
-                <svg className="w-4 h-4 text-[#10B981] mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <span>Email: <a href="mailto:support@xecoflow.co.ke" className="hover:text-white transition-colors">support@xecoflow.co.ke</a></span>
-              </li>
-              <li className="flex items-start gap-2">
-                <svg className="w-4 h-4 text-[#10B981] mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-                <span>WhatsApp: <a href="https://wa.me/254712071385" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">+254 712 071 385</a></span>
-              </li>
-            </ul>
+          </div>
 
-            {/* Social Media Icons */}
-            <div className="flex flex-wrap items-center gap-2.5 mt-5">
-              <a href="#" aria-label="Facebook" className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.06] border border-white/[0.08] text-[#adbbca]/80 hover:text-white hover:bg-white/[0.1] transition-colors">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                </svg>
-              </a>
-              <a href="#" aria-label="Twitter" className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.06] border border-white/[0.08] text-[#adbbca]/80 hover:text-white hover:bg-white/[0.1] transition-colors">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-              </a>
-              <a href="#" aria-label="LinkedIn" className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.06] border border-white/[0.08] text-[#adbbca]/80 hover:text-white hover:bg-white/[0.1] transition-colors">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-                </svg>
-              </a>
-              <a href="#" aria-label="Instagram" className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.06] border border-white/[0.08] text-[#adbbca]/80 hover:text-white hover:bg-white/[0.1] transition-colors">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
-                </svg>
-              </a>
-              <a href="#" aria-label="TikTok" className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.06] border border-white/[0.08] text-[#adbbca]/80 hover:text-white hover:bg-white/[0.1] transition-colors">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" />
-                </svg>
-              </a>
-              <a href="#" aria-label="WhatsApp" className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.06] border border-white/[0.08] text-[#adbbca]/80 hover:text-white hover:bg-white/[0.1] transition-colors">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                </svg>
-              </a>
-            </div>
+          {/* Filter bar */}
+          <div className="flex flex-wrap items-center gap-2 mt-9">
+            <span className="text-[13px] text-gray-400 mr-2">Filter:</span>
+            {(['New', 'Enhanced', 'Fixed', 'Security'] as ChangeType[]).map((t) => (
+              <button
+                key={t}
+                className={`text-[13px] font-medium px-3 py-1.5 rounded-full transition-colors ${typeStyles[t]} hover:opacity-80`}
+              >
+                {t}
+              </button>
+            ))}
+            <button className="text-[13px] font-medium text-gray-500 px-3 py-1.5 rounded-full hover:bg-gray-100 transition-colors">
+              All
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Timeline Body ─────────────────────────────────────────── */}
+      <section className="max-w-[1080px] mx-auto px-6 sm:px-8 py-14">
+        <div className="relative">
+
+          {/* Vertical rail */}
+          <div className="hidden md:block absolute left-[130px] top-2 bottom-2 w-px bg-gray-200" />
+
+          <div className="space-y-16">
+            {Object.entries(grouped).map(([month, items]) => (
+              <div key={month} className="md:flex md:gap-10">
+
+                {/* Month label */}
+                <div className="md:w-[130px] shrink-0 mb-6 md:mb-0">
+                  <div className="md:sticky md:top-24">
+                    <p className="text-[13px] font-semibold text-gray-400 uppercase tracking-wider">
+                      {month}
+                    </p>
+                    <p className="text-[12px] text-gray-300 mt-1">
+                      {items.length} {items.length === 1 ? 'update' : 'updates'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Entries */}
+                <div className="flex-1 space-y-8">
+                  {items.map((release, i) => (
+                    <article key={i} className="relative md:pl-10">
+
+                      {/* Timeline dot */}
+                      <span
+                        className={`hidden md:block absolute left-[-5px] top-2 w-2.5 h-2.5 rounded-full ring-4 ring-[#fafafa] ${dotColor[release.type]}`}
+                      />
+
+                      {/* Card */}
+                      <div className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-7 hover:shadow-[0_2px_20px_-6px_rgba(10,37,64,0.08)] transition-shadow">
+
+                        {/* Meta row */}
+                        <div className="flex flex-wrap items-center gap-3 mb-3">
+                          <span
+                            className={`text-[11px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full ${typeStyles[release.type]}`}
+                          >
+                            {release.type}
+                          </span>
+                          <span className="text-[13px] text-gray-400">
+                            {release.date}
+                          </span>
+                          <span className="text-gray-200">·</span>
+                          <span className="text-[13px] font-medium text-gray-500">
+                            {release.product}
+                          </span>
+                        </div>
+
+                        {/* Title */}
+                        <h2 className="text-[19px] font-semibold leading-snug mb-2.5">
+                          {release.title}
+                        </h2>
+
+                        {/* Summary */}
+                        <p className="text-[15px] leading-relaxed text-gray-600 mb-4">
+                          {release.summary}
+                        </p>
+
+                        {/* Details */}
+                        {release.details && (
+                          <ul className="space-y-1.5 border-l-2 border-gray-100 pl-4">
+                            {release.details.map((detail, j) => (
+                              <li key={j} className="text-[14px] text-gray-500 leading-relaxed">
+                                {detail}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* ── Bottom Bar ──────────────────────────────────────────────── */}
-        <div className="border-t border-white/[0.08] pt-6 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-          {/* Copyright */}
-          <div className="space-y-1.5 max-w-2xl">
-            <p className="text-[13px] text-[#10B981]">
-              &copy; 2026 XecoFlow. All rights reserved.
-            </p>
+        {/* ── Footer pager ──────────────────────────────────────── */}
+        <div className="mt-20 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-200 pt-8">
+          <p className="text-[13px] text-gray-400">
+            You&apos;re viewing the latest 6 releases.
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              disabled
+              className="text-[13px] font-medium text-gray-300 px-4 py-2 rounded-lg cursor-not-allowed"
+            >
+              ← Newer
+            </button>
+            <Link
+              href="#"
+              className="text-[13px] font-medium text-white bg-[#0a2540] hover:bg-[#12365a] px-4 py-2 rounded-lg transition-colors"
+            >
+              Older releases →
+            </Link>
           </div>
         </div>
-      </div>
-    </footer>
+      </section>
+    </main>
   );
 }
