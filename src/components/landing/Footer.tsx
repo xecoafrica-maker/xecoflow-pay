@@ -1,3 +1,4 @@
+// src/components/landing/Footer.tsx
 'use client';
 
 import Link from 'next/link';
@@ -114,7 +115,7 @@ export default function Footer() {
         <div className="border-t border-white/[0.08] pt-6 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           {/* Copyright */}
           <div className="space-y-1.5 max-w-2xl">
-            <p className="text-[13px] text-[#adbbca]/60">
+            <p className="text-[13px] text-[#10B981]">
               &copy; 2026 XecoFlow. All rights reserved.
             </p>
           </div>
