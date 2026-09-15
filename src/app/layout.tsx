@@ -1,9 +1,11 @@
+// src/app/layout.tsx
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Suspense } from 'react';
 import { PreferencesProvider } from '@/context/PreferencesContext';
 import { SessionProvider } from '@/context/SessionContext';
+import Footer from '@/components/landing/Footer';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -17,7 +19,7 @@ export const metadata: Metadata = {
       "style-src * 'unsafe-inline';",
       "img-src * data: blob:;",
       "font-src * data:;",
-      "connect-src * ws: wss:;"   // ✅ THIS ALLOWS EVERYTHING
+      "connect-src * ws: wss:;"
     ].join(' ')
   }
 };
@@ -45,6 +47,7 @@ export default function RootLayout({
               }
             >
               {children}
+              <Footer />
             </Suspense>
           </PreferencesProvider>
         </SessionProvider>
