@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import Header from '@/components/landing/Header';
+import Footer from '@/components/landing/Footer';
 import { useState } from 'react';
 import { ArrowRight, CheckCircle } from 'lucide-react';
 
@@ -415,6 +416,7 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <Footer />
     </div>
   );
 }
