@@ -80,7 +80,6 @@ interface DashboardStats {
   completedAmount?: number;
 }
 
-// ─── Onboarding Steps ──────────────────────────────────────────────
 interface OnboardingStep {
   id: number;
   label: string;
@@ -90,16 +89,13 @@ interface OnboardingStep {
   active: boolean;
 }
 
-// ─── Filter Options ──────────────────────────────────────────────
 const STATUS_FILTERS = ['All', 'Completed', 'Pending', 'Failed', 'AWAITING_CUSTOMER_PIN'];
 const chartTypes = ['Bar', 'Line'];
 
-// ─── Get Current Month ─────────────────────────────────────────────
 const getCurrentMonth = () => {
   return new Date().toLocaleDateString('en-US', { month: 'long' });
 };
 
-// ─── Status helper (used everywhere) ──────────────────────────────
 const COMPLETED_KEYWORDS = ['COMPLETED', 'SUCCESS', 'SETTLED', 'PAID'];
 const FAILED_KEYWORDS = ['FAILED', 'ERROR', 'DECLINED', 'CANCELLED', 'CANCELED', 'REVERSED'];
 const PENDING_KEYWORDS = ['PENDING', 'AWAITING', 'PROCESSING', 'INITIATED'];
@@ -129,27 +125,13 @@ const SkeletonCard = () => (
 
 const SkeletonTransactionRow = () => (
   <tr className="border-b border-gray-50">
-    <td className="px-6 py-3">
-      <div className="h-4 w-16 bg-gray-200 rounded animate-pulse" />
-    </td>
-    <td className="px-6 py-3">
-      <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
-    </td>
-    <td className="px-6 py-3">
-      <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
-    </td>
-    <td className="px-6 py-3">
-      <div className="h-4 w-16 bg-gray-200 rounded animate-pulse" />
-    </td>
-    <td className="px-6 py-3">
-      <div className="h-5 w-20 bg-gray-200 rounded-full animate-pulse" />
-    </td>
-    <td className="px-6 py-3">
-      <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
-    </td>
-    <td className="px-6 py-3">
-      <div className="h-4 w-4 bg-gray-200 rounded animate-pulse" />
-    </td>
+    <td className="px-6 py-3"><div className="h-4 w-16 bg-gray-200 rounded animate-pulse" /></td>
+    <td className="px-6 py-3"><div className="h-4 w-24 bg-gray-200 rounded animate-pulse" /></td>
+    <td className="px-6 py-3"><div className="h-4 w-20 bg-gray-200 rounded animate-pulse" /></td>
+    <td className="px-6 py-3"><div className="h-4 w-16 bg-gray-200 rounded animate-pulse" /></td>
+    <td className="px-6 py-3"><div className="h-5 w-20 bg-gray-200 rounded-full animate-pulse" /></td>
+    <td className="px-6 py-3"><div className="h-4 w-24 bg-gray-200 rounded animate-pulse" /></td>
+    <td className="px-6 py-3"><div className="h-4 w-4 bg-gray-200 rounded animate-pulse" /></td>
   </tr>
 );
 
@@ -164,18 +146,13 @@ export default function DashboardOverview() {
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
-  // ─── Onboarding Steps State ─────────────────────────────────────
   const [onboardingSteps, setOnboardingSteps] = useState<OnboardingStep[]>([]);
-
-  // ─── Real Data State ──────────────────────────────────────────────
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
-
   const [ledgerBalance, setLedgerBalance] = useState<number>(0);
   const [balanceLoading, setBalanceLoading] = useState<boolean>(true);
 
-  // ─── Filter State ──────────────────────────────────────────────────
   const [statusFilter, setStatusFilter] = useState('All');
   const [chartType, setChartType] = useState('Bar');
   const [timeRange, setTimeRange] = useState('7 Days');
@@ -184,50 +161,21 @@ export default function DashboardOverview() {
 
   const tooltipFormatter = (value: any) => [`KES ${value}`, 'Amount'];
 
-  // ─── 🚀 Fetch Onboarding Status ──────────────────────────────────
   const fetchOnboarding = async () => {
     try {
-      const res = await fetch(`/api/onboarding/status`, {
-        credentials: 'include',
-      });
+      const res = await fetch(`/api/onboarding/status`, { credentials: 'include' });
       const data = await res.json();
 
       if (data) {
         const stepMappings = [
-          {
-            id: 1,
-            label: '01 — Business Profile',
-            href: '/dashboard/onboarding/stage1',
-            completed: data.steps.businessProfile === 'COMPLETED',
-          },
-          {
-            id: 2,
-            label: '02 — Owners & Documents',
-            href: '/dashboard/onboarding/stage2',
-            completed: data.steps.ownersDocuments === 'COMPLETED',
-          },
-          {
-            id: 3,
-            label: '03 — Tax & Compliance',
-            href: '/dashboard/onboarding/stage3',
-            completed: data.steps.taxCompliance === 'COMPLETED',
-          },
-          {
-            id: 4,
-            label: '04 — Settlement',
-            href: '/dashboard/onboarding/stage4',
-            completed: data.steps.settlement === 'COMPLETED',
-          },
-          {
-            id: 5,
-            label: '05 — Review & Submit',
-            href: '/dashboard/onboarding/stage5',
-            completed: data.overallStatus === 'SUBMITTED',
-          },
+          { id: 1, label: '01 — Business Profile', href: '/dashboard/onboarding/stage1', completed: data.steps.businessProfile === 'COMPLETED' },
+          { id: 2, label: '02 — Owners & Documents', href: '/dashboard/onboarding/stage2', completed: data.steps.ownersDocuments === 'COMPLETED' },
+          { id: 3, label: '03 — Tax & Compliance', href: '/dashboard/onboarding/stage3', completed: data.steps.taxCompliance === 'COMPLETED' },
+          { id: 4, label: '04 — Settlement', href: '/dashboard/onboarding/stage4', completed: data.steps.settlement === 'COMPLETED' },
+          { id: 5, label: '05 — Review & Submit', href: '/dashboard/onboarding/stage5', completed: data.overallStatus === 'SUBMITTED' },
         ];
 
         const activeStepId = data.currentStep;
-
         const mappedSteps = stepMappings.map((step) => ({
           ...step,
           icon: step.label.includes('Business Profile') ? Building :
@@ -244,59 +192,40 @@ export default function DashboardOverview() {
     }
   };
 
-  // ─── Fetch Real Data ──────────────────────────────────────────────
   const fetchDashboardData = async (merchantIdParam?: string) => {
     try {
       console.log("🔍 Fetching data for merchant:", merchantIdParam);
 
       const params = new URLSearchParams();
-      if (merchantIdParam) {
-        params.append('merchantId', merchantIdParam);
-      }
+      if (merchantIdParam) params.append('merchantId', merchantIdParam);
       params.append('limit', '500');
 
-      // 1. Fetch MERGED inflow (STK Push + C2B)
-      const transRes = await fetch(`/api/transactions/inflow?${params.toString()}`, {
-        credentials: 'include',
-      });
+      const transRes = await fetch(`/api/transactions/inflow?${params.toString()}`, { credentials: 'include' });
       const transData = await transRes.json();
 
       if (transData.success) {
         setTransactions(transData.data || []);
         setFilteredTransactions(transData.data || []);
         if (transData.meta) {
-          console.log(
-            `📊 [DASHBOARD] Loaded ${transData.meta.stkCount} STK + ${transData.meta.c2bCount} C2B = ${transData.meta.total} total`
-          );
+          console.log(`📊 [DASHBOARD] Loaded ${transData.meta.stkCount} STK + ${transData.meta.c2bCount} C2B = ${transData.meta.total} total`);
         }
       }
 
-      // 2. Fetch Stats (still from the stats endpoint)
-      const statsRes = await fetch(`/api/dashboard/stats?${params.toString()}`, {
-        credentials: 'include',
-      });
+      const statsRes = await fetch(`/api/dashboard/stats?${params.toString()}`, { credentials: 'include' });
       const statsData = await statsRes.json();
 
-      if (statsData.success) {
-        setStats(statsData.stats);
-      }
+      if (statsData.success) setStats(statsData.stats);
 
-      // 3. Fetch REAL Balance from Ledger Engine
       if (merchantIdParam) {
         const paddedId = String(merchantIdParam).padStart(8, '0');
         const accountNumber = `1-1001-${paddedId}`;
         console.log('🔍 Fetching balance for account:', accountNumber);
 
-        const balanceRes = await fetch(`/api/ledger/accounts/${accountNumber}/balance`, {
-          credentials: 'include',
-        });
+        const balanceRes = await fetch(`/api/ledger/accounts/${accountNumber}/balance`, { credentials: 'include' });
         const balanceData = await balanceRes.json();
 
-        if (balanceData.success) {
-          setLedgerBalance(balanceData.balance);
-        } else {
-          console.error('❌ Failed to fetch balance:', balanceData.error);
-        }
+        if (balanceData.success) setLedgerBalance(balanceData.balance);
+        else console.error('❌ Failed to fetch balance:', balanceData.error);
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -306,25 +235,16 @@ export default function DashboardOverview() {
     }
   };
 
-  // ─── Apply Filters ──────────────────────────────────────────────
   useEffect(() => {
     let filtered = [...transactions];
 
     if (statusFilter !== 'All') {
       filtered = filtered.filter((t) => {
         const combined = `${t.status || ''} ${t.payment_status || ''}`.toUpperCase();
-        if (statusFilter === 'Completed') {
-          return COMPLETED_KEYWORDS.some((k) => combined.includes(k));
-        }
-        if (statusFilter === 'Pending') {
-          return PENDING_KEYWORDS.some((k) => combined.includes(k));
-        }
-        if (statusFilter === 'Failed') {
-          return FAILED_KEYWORDS.some((k) => combined.includes(k));
-        }
-        if (statusFilter === 'AWAITING_CUSTOMER_PIN') {
-          return combined.includes('AWAITING_CUSTOMER_PIN');
-        }
+        if (statusFilter === 'Completed') return COMPLETED_KEYWORDS.some((k) => combined.includes(k));
+        if (statusFilter === 'Pending') return PENDING_KEYWORDS.some((k) => combined.includes(k));
+        if (statusFilter === 'Failed') return FAILED_KEYWORDS.some((k) => combined.includes(k));
+        if (statusFilter === 'AWAITING_CUSTOMER_PIN') return combined.includes('AWAITING_CUSTOMER_PIN');
         return true;
       });
     }
@@ -332,7 +252,6 @@ export default function DashboardOverview() {
     setFilteredTransactions(filtered);
   }, [transactions, statusFilter]);
 
-  // ─── Auth & Profile ────────────────────────────────────────────────
   useEffect(() => {
     let merchant = null;
     let merchantIdValue = null;
@@ -373,19 +292,13 @@ export default function DashboardOverview() {
     fetchData();
   }, [router]);
 
-  // ─── Log Dashboard View ──────────────────────────────────────────
   useEffect(() => {
     const logView = async () => {
-      if (isLoggingView.current || hasLoggedView.current || !merchantId) {
-        return;
-      }
+      if (isLoggingView.current || hasLoggedView.current || !merchantId) return;
 
       try {
         isLoggingView.current = true;
-        await log(
-          ActivityActions.VIEW_DASHBOARD,
-          `Viewed dashboard for ${merchantName}`
-        );
+        await log(ActivityActions.VIEW_DASHBOARD, `Viewed dashboard for ${merchantName}`);
         hasLoggedView.current = true;
         console.log('✅ Dashboard view logged');
       } catch (error) {
@@ -395,62 +308,22 @@ export default function DashboardOverview() {
       }
     };
 
-    if (!loading && merchantId && !hasLoggedView.current) {
-      logView();
-    }
+    if (!loading && merchantId && !hasLoggedView.current) logView();
   }, [loading, merchantId, merchantName, log]);
 
-  // ─── Generate Real Stats ──────────────────────────────────────────
   const currentMonth = getCurrentMonth();
 
   const generateStats = () => {
     if (!stats && transactions.length === 0) {
       return [
-        {
-          label: 'Available Balance',
-          value: 'KES 0',
-          change: 'Ready to withdraw',
-          up: true,
-          icon: Wallet,
-          color: 'text-emerald-500',
-          bg: 'bg-emerald-50'
-        },
-        {
-          label: 'Total Processed',
-          value: 'KES 0',
-          change: 'This month',
-          up: true,
-          icon: TrendingUp,
-          color: 'text-blue-500',
-          bg: 'bg-blue-50'
-        },
-        {
-          label: 'Transactions',
-          value: '0',
-          change: 'This month',
-          up: true,
-          icon: BarChart3,
-          color: 'text-amber-500',
-          bg: 'bg-amber-50'
-        },
-        {
-          label: 'Total Withdrawn',
-          value: 'KES 0',
-          change: 'All withdrawals',
-          up: true,
-          icon: ArrowUpLeft,
-          color: 'text-purple-500',
-          bg: 'bg-purple-50'
-        },
+        { label: 'Available Balance', value: 'KES 0', change: 'Ready to withdraw', up: true, icon: Wallet, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+        { label: 'Total Processed', value: 'KES 0', change: 'This month', up: true, icon: TrendingUp, color: 'text-blue-500', bg: 'bg-blue-50' },
+        { label: 'Transactions', value: '0', change: 'This month', up: true, icon: BarChart3, color: 'text-amber-500', bg: 'bg-amber-50' },
+        { label: 'Total Withdrawn', value: 'KES 0', change: 'All withdrawals', up: true, icon: ArrowUpLeft, color: 'text-purple-500', bg: 'bg-purple-50' },
       ];
     }
 
-    // ✅ FIXED: Total Processed counts ONLY completed transactions
-    const completedAmount = transactions
-      .filter(isCompleted)
-      .reduce((sum, t) => sum + parseFloat(t.amount || '0'), 0);
-
-    // Transactions count = ALL attempts
+    const completedAmount = transactions.filter(isCompleted).reduce((sum, t) => sum + parseFloat(t.amount || '0'), 0);
     const totalTransactions = transactions.length;
 
     const todayTransactions = transactions.filter((t) => {
@@ -463,48 +336,15 @@ export default function DashboardOverview() {
     const totalWithdrawn = 0;
 
     return [
-      {
-        label: 'Available Balance',
-        value: `KES ${availableBalance.toLocaleString()}`,
-        change: 'Ready to withdraw',
-        up: true,
-        icon: Wallet,
-        color: 'text-emerald-500',
-        bg: 'bg-emerald-50'
-      },
-      {
-        label: 'Total Processed',
-        value: `KES ${completedAmount.toLocaleString()}`,
-        change: 'Completed this month',
-        up: completedAmount > 0,
-        icon: TrendingUp,
-        color: 'text-blue-500',
-        bg: 'bg-blue-50'
-      },
-      {
-        label: 'Transactions',
-        value: totalTransactions.toString(),
-        change: `${todayTransactions} today`,
-        up: todayTransactions > 0,
-        icon: BarChart3,
-        color: 'text-amber-500',
-        bg: 'bg-amber-50'
-      },
-      {
-        label: 'Total Withdrawn',
-        value: `KES ${totalWithdrawn.toLocaleString()}`,
-        change: 'All withdrawals',
-        up: true,
-        icon: ArrowUpLeft,
-        color: 'text-purple-500',
-        bg: 'bg-purple-50'
-      },
+      { label: 'Available Balance', value: `KES ${availableBalance.toLocaleString()}`, change: 'Ready to withdraw', up: true, icon: Wallet, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+      { label: 'Total Processed', value: `KES ${completedAmount.toLocaleString()}`, change: 'Completed this month', up: completedAmount > 0, icon: TrendingUp, color: 'text-blue-500', bg: 'bg-blue-50' },
+      { label: 'Transactions', value: totalTransactions.toString(), change: `${todayTransactions} today`, up: todayTransactions > 0, icon: BarChart3, color: 'text-amber-500', bg: 'bg-amber-50' },
+      { label: 'Total Withdrawn', value: `KES ${totalWithdrawn.toLocaleString()}`, change: 'All withdrawals', up: true, icon: ArrowUpLeft, color: 'text-purple-500', bg: 'bg-purple-50' },
     ];
   };
 
   const statsData = generateStats();
 
-  // ─── Generate Chart Data (Completed only) ────────────────────────
   const chartData = [...filteredTransactions]
     .filter(isCompleted)
     .slice(0, 7)
@@ -514,7 +354,6 @@ export default function DashboardOverview() {
     }))
     .reverse();
 
-  // ─── Recent Transactions (today, ALL statuses) ───────────────────
   const getTodayTransactions = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -544,7 +383,6 @@ export default function DashboardOverview() {
 
   const recentTransactions = getTodayTransactions();
 
-  // ─── Status Helper ────────────────────────────────────────────────
   const getStatusDisplay = (status: string) => {
     const s = status?.toUpperCase() || '';
     if (s.includes('COMPLETED') || s.includes('SUCCESS') || s.includes('SETTLED')) {
@@ -559,7 +397,6 @@ export default function DashboardOverview() {
     return { label: status || 'Unknown', color: 'bg-gray-50 text-gray-600', icon: <Clock size={12} /> };
   };
 
-  // ─── Amount with status indicator ─────────────────────────────────
   const AmountWithStatus = ({ amount, status }: { amount: number; status: string }) => {
     const s = status?.toUpperCase() || '';
     const isSuccess = s.includes('COMPLETED') || s.includes('SUCCESS') || s.includes('SETTLED');
@@ -583,7 +420,6 @@ export default function DashboardOverview() {
     setShowDetailsModal(true);
   };
 
-  // ─── Onboarding Calculation ──────────────────────────────────────
   const completedSteps = onboardingSteps.filter((s) => s.completed).length;
   const totalSteps = onboardingSteps.length;
   const isFullyOnboarded = totalSteps > 0 && completedSteps === totalSteps;
@@ -596,7 +432,6 @@ export default function DashboardOverview() {
     return 'Complete Setup';
   };
 
-  // ─── Render Loading Skeletons ────────────────────────────────────
   if (loading) {
     return (
       <div className="max-w-[1400px] mx-auto space-y-6">
@@ -609,9 +444,7 @@ export default function DashboardOverview() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <SkeletonCard key={i} />
-          ))}
+          {[1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -661,9 +494,7 @@ export default function DashboardOverview() {
                 </tr>
               </thead>
               <tbody>
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <SkeletonTransactionRow key={i} />
-                ))}
+                {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonTransactionRow key={i} />)}
               </tbody>
             </table>
           </div>
@@ -678,23 +509,16 @@ export default function DashboardOverview() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <p className="text-sm text-gray-400">
-            {new Date().toLocaleDateString('en-US', {
-              weekday: 'short',
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric'
-            })}
+            {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
           </p>
           <h1 className="text-2xl font-bold text-gray-900">
             {new Date().getHours() < 12 ? 'Good Morning' : new Date().getHours() < 17 ? 'Good Afternoon' : 'Good Evening'}, {merchantName}
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Here's what's happening with your business today.
-          </p>
+          <p className="text-sm text-gray-500 mt-1">Here's what's happening with your business today.</p>
         </div>
       </div>
 
-      {/* ─── COLLAPSIBLE ACTIVATION CENTER ──────────────────────────── */}
+      {/* ─── Onboarding ─────────────────────────────────────────────── */}
       {!showOnboarding && !isFullyOnboarded && onboardingSteps.length > 0 && (
         <div
           className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors group"
@@ -722,9 +546,7 @@ export default function DashboardOverview() {
                 <Building className="w-4 h-4 text-indigo-600" />
                 Activate your XecoFlow Business
               </h3>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Complete the steps below to start accepting payments securely.
-              </p>
+              <p className="text-xs text-gray-500 mt-0.5">Complete the steps below to start accepting payments securely.</p>
             </div>
             <div className="flex items-center gap-3 shrink-0">
               <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
@@ -735,33 +557,23 @@ export default function DashboardOverview() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
-            {onboardingSteps.map((step, index) => {
+            {onboardingSteps.map((step) => {
               const Icon = step.icon;
               return (
                 <div
                   key={step.id}
                   className={`flex items-center gap-3 p-3 rounded-lg border ${
-                    step.completed
-                      ? 'bg-emerald-50 border-emerald-200'
-                      : step.active
-                      ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-200'
-                      : 'bg-gray-50 border-gray-200'
+                    step.completed ? 'bg-emerald-50 border-emerald-200'
+                    : step.active ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-200'
+                    : 'bg-gray-50 border-gray-200'
                   }`}
                 >
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                      step.completed
-                        ? 'bg-emerald-500 text-white'
-                        : step.active
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-300 text-gray-500'
-                    }`}
-                  >
-                    {step.completed ? (
-                      <CheckCircle size={14} />
-                    ) : (
-                      <span className="text-xs font-bold">{step.id}</span>
-                    )}
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                    step.completed ? 'bg-emerald-500 text-white'
+                    : step.active ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-300 text-gray-500'
+                  }`}>
+                    {step.completed ? <CheckCircle size={14} /> : <span className="text-xs font-bold">{step.id}</span>}
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className={`text-xs font-semibold truncate ${
@@ -799,10 +611,7 @@ export default function DashboardOverview() {
       {/* ─── Stats Cards ────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {statsData.map((stat) => (
-          <div
-            key={stat.label}
-            className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-all"
-          >
+          <div key={stat.label} className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-3">
               <div className={`w-10 h-10 rounded-lg ${stat.bg} flex items-center justify-center`}>
                 <stat.icon size={20} className={stat.color} />
@@ -818,9 +627,9 @@ export default function DashboardOverview() {
         ))}
       </div>
 
-      {/* ─── Two‑column layout ───────────────────────────────────────── */}
+      {/* ─── Two-column layout ─────────────────────────────────────── */}
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-6">
+        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-6 overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
             <div>
               <h2 className="text-lg font-bold text-gray-900">Transaction Analytics</h2>
@@ -844,85 +653,42 @@ export default function DashboardOverview() {
             </div>
           </div>
 
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              {chartData.length > 0 ? (
-                chartType === 'Bar' ? (
+          {/* ─── Chart area ─── */}
+          {chartData.length > 0 ? (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                {chartType === 'Bar' ? (
                   <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis
-                      dataKey="day"
-                      tick={{ fontSize: 12, fill: '#94a3b8' }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 12, fill: '#94a3b8', dy: 2 }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(value) => `KES ${value.toLocaleString()}`}
-                    />
+                    <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: '#94a3b8', dy: 2 }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
                     <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        borderRadius: '12px',
-                        border: '1px solid #e5e7eb',
-                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                        padding: '12px 16px'
-                      }}
+                      contentStyle={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '12px 16px' }}
                       formatter={tooltipFormatter}
                       cursor={{ fill: '#f1f5f9' }}
                     />
-                    <Bar
-                      dataKey="amount"
-                      fill="#10B981"
-                      radius={[6, 6, 0, 0]}
-                      barSize={32}
-                    />
+                    <Bar dataKey="amount" fill="#10B981" radius={[6, 6, 0, 0]} barSize={32} />
                   </BarChart>
                 ) : (
                   <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis
-                      dataKey="day"
-                      tick={{ fontSize: 12, fill: '#94a3b8' }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 12, fill: '#94a3b8', dy: 2 }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(value) => `KES ${value.toLocaleString()}`}
-                    />
+                    <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: '#94a3b8', dy: 2 }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
                     <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        borderRadius: '12px',
-                        border: '1px solid #e5e7eb',
-                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                        padding: '12px 16px'
-                      }}
+                      contentStyle={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '12px 16px' }}
                       formatter={tooltipFormatter}
                     />
-                    <Line
-                      type="monotone"
-                      dataKey="amount"
-                      stroke="#10B981"
-                      strokeWidth={3}
-                      dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
-                      activeDot={{ r: 6, fill: '#10B981' }}
-                    />
+                    <Line type="monotone" dataKey="amount" stroke="#10B981" strokeWidth={3} dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: '#10B981' }} />
                   </LineChart>
-                )
-              ) : (
-                <div className="flex items-center justify-center h-full text-gray-400 flex-col gap-3">
-                  <BarChart3 size={40} className="text-gray-300" />
-                  <span className="text-sm">No completed transactions to chart</span>
-                </div>
-              )}
-            </ResponsiveContainer>
-          </div>
+                )}
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-64 w-full flex flex-col items-center justify-center text-gray-400 gap-3">
+              <BarChart3 size={40} className="text-gray-300" />
+              <span className="text-sm">No completed transactions to chart</span>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gray-100">
             <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
@@ -931,9 +697,7 @@ export default function DashboardOverview() {
                   key={type}
                   onClick={() => setChartType(type)}
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                    chartType === type
-                      ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
-                      : 'text-gray-500 hover:text-gray-700'
+                    chartType === type ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
                   {type}
@@ -947,9 +711,7 @@ export default function DashboardOverview() {
                   key={range}
                   onClick={() => setTimeRange(range)}
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                    timeRange === range
-                      ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
-                      : 'text-gray-500 hover:text-gray-700'
+                    timeRange === range ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
                   {range}
@@ -959,11 +721,9 @@ export default function DashboardOverview() {
           </div>
         </div>
 
-        {/* ─── Quick Actions ──────────────────────────────────────────── */}
+        {/* ─── Quick Actions ──────────────────────────────────────── */}
         <div className="bg-white border border-gray-200 rounded-xl p-6">
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">
-            Quick Actions
-          </h2>
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Quick Actions</h2>
           <div className="space-y-2.5">
             <Link
               href="/dashboard/smart-bills/create"
@@ -973,9 +733,7 @@ export default function DashboardOverview() {
                 <Link2 size={17} className="text-blue-600 group-hover:text-blue-700" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 group-hover:text-blue-700 transition-colors">
-                  Create Bill Link
-                </p>
+                <p className="text-sm font-medium text-gray-900 group-hover:text-blue-700 transition-colors">Create Bill Link</p>
                 <p className="text-xs text-gray-400">Generate a payment link</p>
               </div>
               <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-400 transition-colors flex-shrink-0" />
@@ -989,9 +747,7 @@ export default function DashboardOverview() {
                 <ArrowUpRight size={17} className="text-emerald-600 group-hover:text-emerald-700" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 group-hover:text-emerald-700 transition-colors">
-                  Withdraw Funds
-                </p>
+                <p className="text-sm font-medium text-gray-900 group-hover:text-emerald-700 transition-colors">Withdraw Funds</p>
                 <p className="text-xs text-gray-400">Withdraw to your account</p>
               </div>
               <ChevronRight size={16} className="text-gray-300 group-hover:text-emerald-400 transition-colors flex-shrink-0" />
@@ -1005,9 +761,7 @@ export default function DashboardOverview() {
                 <Code size={17} className="text-purple-600 group-hover:text-purple-700" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 group-hover:text-purple-700 transition-colors">
-                  API Integration
-                </p>
+                <p className="text-sm font-medium text-gray-900 group-hover:text-purple-700 transition-colors">API Integration</p>
                 <p className="text-xs text-gray-400">Developer documentation</p>
               </div>
               <ChevronRight size={16} className="text-gray-300 group-hover:text-purple-400 transition-colors flex-shrink-0" />
@@ -1021,9 +775,7 @@ export default function DashboardOverview() {
                 <FileText size={17} className="text-amber-600 group-hover:text-amber-700" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 group-hover:text-amber-700 transition-colors">
-                  Generate Statement
-                </p>
+                <p className="text-sm font-medium text-gray-900 group-hover:text-amber-700 transition-colors">Generate Statement</p>
                 <p className="text-xs text-gray-400">Download transaction report</p>
               </div>
               <ChevronRight size={16} className="text-gray-300 group-hover:text-amber-400 transition-colors flex-shrink-0" />
@@ -1037,9 +789,7 @@ export default function DashboardOverview() {
                 <Smartphone size={17} className="text-rose-600 group-hover:text-rose-700" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 group-hover:text-rose-700 transition-colors">
-                  Buy Airtime
-                </p>
+                <p className="text-sm font-medium text-gray-900 group-hover:text-rose-700 transition-colors">Buy Airtime</p>
                 <p className="text-xs text-gray-400">Top up your phone</p>
               </div>
               <ChevronRight size={16} className="text-gray-300 group-hover:text-rose-400 transition-colors flex-shrink-0" />
@@ -1048,7 +798,7 @@ export default function DashboardOverview() {
         </div>
       </div>
 
-      {/* ─── Recent Transactions ──────────────────────────────────────── */}
+      {/* ─── Recent Transactions ────────────────────────────────────── */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">Today's Transactions</h2>
@@ -1077,14 +827,10 @@ export default function DashboardOverview() {
                     <tr key={tx.id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-6 py-3 font-mono text-xs text-gray-500">{tx.id}</td>
                       <td className="px-6 py-3 font-medium text-gray-900">{tx.customer}</td>
-                      <td className="px-6 py-3">
-                        <AmountWithStatus amount={tx.amount} status={tx.status} />
-                      </td>
+                      <td className="px-6 py-3"><AmountWithStatus amount={tx.amount} status={tx.status} /></td>
                       <td className="px-6 py-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${
-                          tx.channel === 'C2B'
-                            ? 'bg-teal-50 text-teal-600 border-teal-200'
-                            : 'bg-blue-50 text-blue-600 border-blue-200'
+                          tx.channel === 'C2B' ? 'bg-teal-50 text-teal-600 border-teal-200' : 'bg-blue-50 text-blue-600 border-blue-200'
                         }`}>
                           {tx.channel === 'C2B' ? 'M-PESA Paybill' : 'M-PESA STK Push'}
                         </span>
@@ -1120,16 +866,13 @@ export default function DashboardOverview() {
         </div>
       </div>
 
-      {/* ─── Transaction Details Modal ────────────────────────────────── */}
+      {/* ─── Transaction Details Modal ──────────────────────────────── */}
       {showDetailsModal && selectedTransaction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
               <h3 className="text-xl font-bold text-gray-900">Transaction Details</h3>
-              <button
-                onClick={() => setShowDetailsModal(false)}
-                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-              >
+              <button onClick={() => setShowDetailsModal(false)} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
                 <XCircle className="w-6 h-6 text-gray-500" />
               </button>
             </div>
