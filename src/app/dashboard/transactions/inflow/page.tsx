@@ -80,6 +80,8 @@ type DatePreset =
   | 'Last month'
   | 'Custom';
 
+type ChannelFilter = 'all' | 'stk' | 'c2b';
+
 interface DateRange {
   from: Date | null;
   to: Date | null;
@@ -105,24 +107,15 @@ const statusBadgeColors = {
   Failed: 'bg-red-500',
 };
 
+// ─── Only 2 categories now: Payment (STK) and M-PESA Paybill (C2B) ─
 const categoryIcons: Record<string, any> = {
   'Payment': Wallet,
-  'Lipa na M-PESA': Smartphone,
-  'Utility Payment': Smartphone,
-  'Commission': Coins,
-  'M-PESA': Smartphone,
-  'Card': CreditCard,
-  'Bank Transfer': Wallet,
+  'M-PESA Paybill': Smartphone,
 };
 
 const categoryColors: Record<string, string> = {
   'Payment': 'bg-blue-50 text-blue-600 border-blue-200',
-  'Lipa na M-PESA': 'bg-teal-50 text-teal-600 border-teal-200',
-  'Utility Payment': 'bg-emerald-50 text-emerald-600 border-emerald-200',
-  'Commission': 'bg-purple-50 text-purple-600 border-purple-200',
-  'M-PESA': 'bg-green-50 text-green-600 border-green-200',
-  'Card': 'bg-indigo-50 text-indigo-600 border-indigo-200',
-  'Bank Transfer': 'bg-amber-50 text-amber-600 border-amber-200',
+  'M-PESA Paybill': 'bg-teal-50 text-teal-600 border-teal-200',
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -196,7 +189,6 @@ const toInputDate = (d: Date | null) => {
 };
 
 // Mask phone: keep country code + last 3, mask the middle
-// 254712071385  →  254712***385
 const maskPhone = (phone: string | null | undefined): string => {
   if (!phone) return '—';
   const cleaned = phone.replace(/\s+/g, '');
@@ -214,12 +206,10 @@ const PENDING_KEYWORDS = ['PENDING', 'AWAITING', 'PROCESSING', 'INITIATED'];
 const deriveStatus = (tx: Transaction): 'Completed' | 'Pending' | 'Failed' => {
   const combined = `${tx.status || ''} ${tx.payment_status || ''}`.toUpperCase();
 
-  // Priority: Failed > Completed > Pending
   if (FAILED_KEYWORDS.some((k) => combined.includes(k))) return 'Failed';
   if (COMPLETED_KEYWORDS.some((k) => combined.includes(k))) return 'Completed';
   if (PENDING_KEYWORDS.some((k) => combined.includes(k))) return 'Pending';
 
-  // Fallback: if there's a receipt, money moved — call it Completed
   if (tx.mpesa_receipt) return 'Completed';
 
   return 'Pending';
@@ -249,7 +239,7 @@ export default function InflowPage() {
   const [selectedTransaction, setSelectedTransaction] = useState<InflowTransaction | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [filterCategory, setFilterCategory] = useState('All');
+  const [filterChannel, setFilterChannel] = useState<ChannelFilter>('all');
   const [merchantId, setMerchantId] = useState<string>('');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -352,32 +342,16 @@ export default function InflowPage() {
   }, [loading, transactions.length, merchantId, log]);
 
   // ─── Transform Transactions ────────────────────────────────────────
+  // Only TWO categories now: 'Payment' (STK) or 'M-PESA Paybill' (C2B)
   const transformToInflow = (tx: Transaction): InflowTransaction => {
     const isC2B = tx.channel === 'C2B';
-    let category = 'Payment';
-    const source = tx.source?.toLowerCase() || '';
-    const requestType = tx.request_type?.toLowerCase() || '';
 
-    if (isC2B) {
-      category = 'Lipa na M-PESA';
-    } else if (requestType.includes('utility') || requestType.includes('kplc') || requestType.includes('airtime')) {
-      category = 'Utility Payment';
-    } else if (requestType.includes('commission') || requestType.includes('fee')) {
-      category = 'Commission';
-    } else if (source.includes('mpesa')) {
-      category = 'M-PESA';
-    } else if (source.includes('card')) {
-      category = 'Card';
-    } else if (source.includes('bank')) {
-      category = 'Bank Transfer';
-    }
-
+    const category = isC2B ? 'M-PESA Paybill' : 'Payment';
     const status = deriveStatus(tx);
     const amountValue = parseFloat(tx.amount) || 0;
 
-    // C2B rows have no phone — customer identity is a hash
     const customerName = isC2B
-      ? 'Lipa na M-PESA'
+      ? 'M-PESA Paybill'
       : (tx.phone_number || 'Unknown Customer');
     const phoneValue = isC2B ? '—' : (tx.phone_number || 'N/A');
 
@@ -389,14 +363,14 @@ export default function InflowPage() {
       maskedPhone: isC2B ? '—' : maskPhone(tx.phone_number),
       email: isC2B ? '—' : `${tx.phone_number || 'user'}@example.com`,
       amount: amountValue,
-      method: isC2B ? 'M-PESA (C2B)' : (tx.source || 'M-PESA'),
-      channel: isC2B ? 'C2B' : (tx.request_type || 'STK Push'),
+      method: isC2B ? 'M-PESA Paybill' : 'M-PESA STK Push',
+      channel: isC2B ? 'M-PESA Paybill' : 'M-PESA STK Push',
       category: category,
       status: status,
       ref: tx.checkout_id || tx.id.slice(0, 12),
       description: isC2B
-        ? 'Manual Lipa na M-PESA payment'
-        : `${tx.request_type || 'Payment'} - ${tx.phone_number || ''}`,
+        ? 'Manual M-PESA Paybill payment'
+        : `${tx.request_type || 'Payment'}${tx.phone_number ? ' - ' + tx.phone_number : ''}`,
       date: tx.created_at,
       settlementDate: tx.completed_at || tx.created_at,
     };
@@ -406,7 +380,7 @@ export default function InflowPage() {
     return transactions.map(transformToInflow);
   };
 
-  // ─── Filter Chain: date → category → search ───────────────────────
+  // ─── Filter Chain: date → channel → search ────────────────────────
   const filteredData = useMemo(() => {
     const data = getInflowData();
 
@@ -417,16 +391,19 @@ export default function InflowPage() {
       return d >= dateRange.from.getTime() && d <= dateRange.to.getTime();
     });
 
-    // 2. Category filter
-    const categoryFiltered = dateFiltered.filter(
-      (item) => filterCategory === 'All' || item.category === filterCategory
-    );
+    // 2. Channel filter
+    const channelFiltered = dateFiltered.filter((item) => {
+      if (filterChannel === 'all') return true;
+      if (filterChannel === 'stk') return item.channel === 'M-PESA STK Push';
+      if (filterChannel === 'c2b') return item.channel === 'M-PESA Paybill';
+      return true;
+    });
 
-    // 3. Search filter (includes receipt, phone, amount, channel)
+    // 3. Search filter
     const term = searchTerm.toLowerCase();
     const searched = !term
-      ? categoryFiltered
-      : categoryFiltered.filter(
+      ? channelFiltered
+      : channelFiltered.filter(
           (item) =>
             item.receipt?.toLowerCase().includes(term) ||
             item.customer?.toLowerCase().includes(term) ||
@@ -444,7 +421,7 @@ export default function InflowPage() {
     return [...searched].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
-  }, [transactions, dateRange, filterCategory, searchTerm]);
+  }, [transactions, dateRange, filterChannel, searchTerm]);
 
   const totalInflow = filteredData.reduce((sum, t) => sum + t.amount, 0);
   const completedCount = filteredData.filter((t) => t.status === 'Completed').length;
@@ -783,18 +760,13 @@ export default function InflowPage() {
           {/* Filters */}
           <div className="flex gap-2 flex-wrap items-center">
             <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
+              value={filterChannel}
+              onChange={(e) => setFilterChannel(e.target.value as ChannelFilter)}
               className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 appearance-none pr-10 shadow-sm"
             >
-              <option value="All">All Categories</option>
-              <option value="Payment">Payment</option>
-              <option value="Lipa na M-PESA">Lipa na M-PESA</option>
-              <option value="Utility Payment">Utility Payment</option>
-              <option value="Commission">Commission</option>
-              <option value="M-PESA">M-PESA</option>
-              <option value="Card">Card</option>
-              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="all">All Channels</option>
+              <option value="stk">M-PESA STK Push</option>
+              <option value="c2b">M-PESA Paybill</option>
             </select>
 
             {/* Date preset dropdown + range caption */}
