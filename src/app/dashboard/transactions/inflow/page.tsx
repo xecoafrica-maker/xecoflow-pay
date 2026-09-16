@@ -35,21 +35,22 @@ import { useActivityLogger } from '@/hooks/useActivityLogger';
 // ─── Types ──────────────────────────────────────────────────────────
 interface Transaction {
   id: string;
-  user_id: string;
+  user_id?: string;
   amount: string;
-  phone_number: string;
-  business_shortcode: string;
+  phone_number: string | null;
+  business_shortcode?: string | null;
   status: string;
   payment_status: string;
   source: string;
   request_type: string;
-  checkout_id: string;
+  checkout_id?: string | null;
   mpesa_receipt: string | null;
-  result_code: string | null;
-  result_desc: string | null;
+  result_code?: string | null;
+  result_desc?: string | null;
   created_at: string;
-  completed_at: string | null;
-  updated_at: string;
+  completed_at?: string | null;
+  updated_at?: string;
+  channel?: 'STK_PUSH' | 'C2B';
 }
 
 interface InflowTransaction {
@@ -106,6 +107,7 @@ const statusBadgeColors = {
 
 const categoryIcons: Record<string, any> = {
   'Payment': Wallet,
+  'Lipa na M-PESA': Smartphone,
   'Utility Payment': Smartphone,
   'Commission': Coins,
   'M-PESA': Smartphone,
@@ -115,6 +117,7 @@ const categoryIcons: Record<string, any> = {
 
 const categoryColors: Record<string, string> = {
   'Payment': 'bg-blue-50 text-blue-600 border-blue-200',
+  'Lipa na M-PESA': 'bg-teal-50 text-teal-600 border-teal-200',
   'Utility Payment': 'bg-emerald-50 text-emerald-600 border-emerald-200',
   'Commission': 'bg-purple-50 text-purple-600 border-purple-200',
   'M-PESA': 'bg-green-50 text-green-600 border-green-200',
@@ -203,9 +206,7 @@ const maskPhone = (phone: string | null | undefined): string => {
   return `${head}***${tail}`;
 };
 
-// ─── Status derivation (FIXED) ───────────────────────────────────────
-// A transaction is Completed if either `status` or `payment_status` indicates
-// a terminal success state. "SETTLED" counts as Completed.
+// ─── Status derivation ────────────────────────────────────────────────
 const COMPLETED_KEYWORDS = ['COMPLETED', 'SUCCESS', 'SETTLED', 'PAID'];
 const FAILED_KEYWORDS = ['FAILED', 'ERROR', 'DECLINED', 'CANCELLED', 'CANCELED', 'REVERSED'];
 const PENDING_KEYWORDS = ['PENDING', 'AWAITING', 'PROCESSING', 'INITIATED'];
@@ -271,7 +272,7 @@ export default function InflowPage() {
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
-  // ─── Fetch Real Transactions ──────────────────────────────────────
+  // ─── Fetch Merged Inflow (STK Push + C2B) ────────────────────────
   const fetchTransactions = async () => {
     try {
       setLoading(true);
@@ -292,9 +293,9 @@ export default function InflowPage() {
 
       const params = new URLSearchParams();
       params.append('merchantId', id);
-      params.append('limit', '100');
+      params.append('limit', '500');
 
-      const response = await fetch(`/api/transactions?${params.toString()}`, {
+      const response = await fetch(`/api/transactions/inflow?${params.toString()}`, {
         credentials: 'include',
       });
       const data = await response.json();
@@ -302,11 +303,16 @@ export default function InflowPage() {
       if (data.success) {
         setTransactions(data.data || []);
         setLastFetched(new Date());
+        if (data.meta) {
+          console.log(
+            `📊 [INFLOW] Loaded ${data.meta.stkCount} STK + ${data.meta.c2bCount} C2B = ${data.meta.total} total (${data.meta.dedupedCount} deduped)`
+          );
+        }
       } else {
-        console.error('Failed to fetch transactions:', data.message);
+        console.error('Failed to fetch inflow:', data.error || data.message);
       }
     } catch (error) {
-      console.error('Error fetching transactions:', error);
+      console.error('Error fetching inflow:', error);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -345,13 +351,16 @@ export default function InflowPage() {
     }
   }, [loading, transactions.length, merchantId, log]);
 
-  // ─── Transform Transactions ─────────────────────────────────────
+  // ─── Transform Transactions ────────────────────────────────────────
   const transformToInflow = (tx: Transaction): InflowTransaction => {
+    const isC2B = tx.channel === 'C2B';
     let category = 'Payment';
     const source = tx.source?.toLowerCase() || '';
     const requestType = tx.request_type?.toLowerCase() || '';
 
-    if (requestType.includes('utility') || requestType.includes('kplc') || requestType.includes('airtime')) {
+    if (isC2B) {
+      category = 'Lipa na M-PESA';
+    } else if (requestType.includes('utility') || requestType.includes('kplc') || requestType.includes('airtime')) {
       category = 'Utility Payment';
     } else if (requestType.includes('commission') || requestType.includes('fee')) {
       category = 'Commission';
@@ -363,25 +372,31 @@ export default function InflowPage() {
       category = 'Bank Transfer';
     }
 
-    // ✅ FIXED: use deriveStatus so SETTLED/COMPLETED/SUCCESS all → Completed
     const status = deriveStatus(tx);
-
     const amountValue = parseFloat(tx.amount) || 0;
+
+    // C2B rows have no phone — customer identity is a hash
+    const customerName = isC2B
+      ? 'Lipa na M-PESA'
+      : (tx.phone_number || 'Unknown Customer');
+    const phoneValue = isC2B ? '—' : (tx.phone_number || 'N/A');
 
     return {
       id: tx.id,
       receipt: tx.mpesa_receipt || null,
-      customer: tx.phone_number || 'Unknown Customer',
-      phone: tx.phone_number || 'N/A',
-      maskedPhone: maskPhone(tx.phone_number),
-      email: `${tx.phone_number || 'user'}@example.com`,
+      customer: customerName,
+      phone: phoneValue,
+      maskedPhone: isC2B ? '—' : maskPhone(tx.phone_number),
+      email: isC2B ? '—' : `${tx.phone_number || 'user'}@example.com`,
       amount: amountValue,
-      method: tx.source || 'M-PESA',
-      channel: tx.request_type || 'Payment',
+      method: isC2B ? 'M-PESA (C2B)' : (tx.source || 'M-PESA'),
+      channel: isC2B ? 'C2B' : (tx.request_type || 'STK Push'),
       category: category,
       status: status,
       ref: tx.checkout_id || tx.id.slice(0, 12),
-      description: `${tx.request_type || 'Payment'} - ${tx.phone_number || ''}`,
+      description: isC2B
+        ? 'Manual Lipa na M-PESA payment'
+        : `${tx.request_type || 'Payment'} - ${tx.phone_number || ''}`,
       date: tx.created_at,
       settlementDate: tx.completed_at || tx.created_at,
     };
@@ -407,7 +422,7 @@ export default function InflowPage() {
       (item) => filterCategory === 'All' || item.category === filterCategory
     );
 
-    // 3. Search filter (includes receipt, phone, amount)
+    // 3. Search filter (includes receipt, phone, amount, channel)
     const term = searchTerm.toLowerCase();
     const searched = !term
       ? categoryFiltered
@@ -419,6 +434,7 @@ export default function InflowPage() {
             item.id?.toLowerCase().includes(term) ||
             item.ref?.toLowerCase().includes(term) ||
             item.method?.toLowerCase().includes(term) ||
+            item.channel?.toLowerCase().includes(term) ||
             item.status?.toLowerCase().includes(term) ||
             item.category?.toLowerCase().includes(term) ||
             item.amount.toString().includes(term)
@@ -773,6 +789,7 @@ export default function InflowPage() {
             >
               <option value="All">All Categories</option>
               <option value="Payment">Payment</option>
+              <option value="Lipa na M-PESA">Lipa na M-PESA</option>
               <option value="Utility Payment">Utility Payment</option>
               <option value="Commission">Commission</option>
               <option value="M-PESA">M-PESA</option>
