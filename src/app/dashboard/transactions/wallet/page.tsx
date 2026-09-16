@@ -44,7 +44,7 @@ interface LedgerEntry {
 
 interface WalletTransaction {
   id: string;
-  Ref: string;
+  Receipt: string;
   Description: string;
   Amount: number;
   BalanceBefore: number;
@@ -84,6 +84,40 @@ const typeColors = {
   KPLC: 'bg-amber-50 text-amber-700 border-amber-200',
 };
 
+// ─── Skeleton Components ──────────────────────────────────────────
+const SkeletonSummaryCard = () => (
+  <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm animate-pulse">
+    <div className="h-3 w-24 bg-gray-200 rounded mb-2" />
+    <div className="h-6 w-24 bg-gray-200 rounded" />
+  </div>
+);
+
+const SkeletonTransactionRow = () => (
+  <tr className="border-b border-gray-100">
+    <td className="px-3 py-3.5">
+      <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+    </td>
+    <td className="px-3 py-3.5">
+      <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+    </td>
+    <td className="px-3 py-3.5">
+      <div className="h-4 w-40 bg-gray-200 rounded animate-pulse" />
+    </td>
+    <td className="px-3 py-3.5">
+      <div className="h-4 w-20 bg-gray-200 rounded animate-pulse ml-auto" />
+    </td>
+    <td className="px-3 py-3.5">
+      <div className="h-4 w-20 bg-gray-200 rounded animate-pulse ml-auto" />
+    </td>
+    <td className="px-3 py-3.5">
+      <div className="h-6 w-20 bg-gray-200 rounded-full animate-pulse" />
+    </td>
+    <td className="px-3 py-3.5">
+      <div className="h-6 w-24 bg-gray-200 rounded-full animate-pulse" />
+    </td>
+  </tr>
+);
+
 export default function WalletPage() {
   const router = useRouter();
   const { log, ActivityActions } = useActivityLogger();
@@ -104,11 +138,11 @@ export default function WalletPage() {
   // ─── Helper: Determine transaction type ───────────────────────────
   const determineType = (entry: any): WalletTransaction['Type'] => {
     const desc = entry.description?.toLowerCase() || '';
-    
+
     if (desc.includes('withdrawal')) return 'Withdrawal';
     if (desc.includes('airtime') || desc.includes('top up')) return 'Airtime';
     if (desc.includes('kplc') || desc.includes('electricity')) return 'KPLC';
-    
+
     if (entry.entry_type === 'CREDIT') return 'Credit';
     return 'Debit';
   };
@@ -121,7 +155,6 @@ export default function WalletPage() {
       const paddedId = String(merchantId).padStart(8, '0');
       const accountNumber = `1-1001-${paddedId}`;
 
-      // ✅ FIXED: Use API route with credentials
       const entriesRes = await fetch(`/api/ledger/accounts/${accountNumber}/entries`, {
         credentials: 'include',
       });
@@ -134,7 +167,7 @@ export default function WalletPage() {
       if (entriesJson.success) {
         const mappedEntries = (entriesJson.data || []).map((item: LedgerEntry) => ({
           id: item.id,
-          Ref: item.reference_id || item.id.slice(0, 8),
+          Receipt: item.reference_id || item.id.slice(0, 8),
           Description: item.description || '—',
           Amount: item.amount,
           BalanceBefore: item.balance_before || 0,
@@ -147,7 +180,6 @@ export default function WalletPage() {
         allEntries = mappedEntries;
       }
 
-      // ✅ FIXED: Use API route with credentials
       const b2cRes = await fetch(`/api/withdrawals?merchantId=${merchantId}`, {
         credentials: 'include',
       });
@@ -157,7 +189,7 @@ export default function WalletPage() {
         if (b2cJson.success) {
           const mappedB2C = (b2cJson.data || []).map((item: any) => ({
             id: item.id,
-            Ref: item.mpesa_receipt || item.id.slice(0, 8),
+            Receipt: item.mpesa_receipt || item.id.slice(0, 8),
             Description: `Withdrawal to ${item.phone_number}`,
             Amount: Number(item.amount),
             BalanceBefore: 0,
@@ -196,12 +228,11 @@ export default function WalletPage() {
     }
   };
 
-  // ─── ✅ FIXED: Auth & Profile ──────────────────────────────────────
+  // ─── Auth & Profile ────────────────────────────────────────────────
   useEffect(() => {
-    // ✅ Read merchant data from localStorage
     let merchant = null;
     let id = '';
-    
+
     try {
       const stored = localStorage.getItem('merchant');
       if (stored) {
@@ -212,26 +243,21 @@ export default function WalletPage() {
       console.error('Failed to parse merchant data', e);
     }
 
-    // ❌ If no merchant data, redirect to login
     if (!merchant || !id) {
-      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+      console.warn('No merchant found in localStorage, redirecting to login');
       router.push('/login?session=expired');
       return;
     }
 
-    // ✅ Merchant data found
-    console.log('✅ Merchant data loaded:', merchant);
     setMerchantId(id);
-
   }, [router]);
 
   // ─── Fetch data when merchantId is available ─────────────────────
   useEffect(() => {
     if (merchantId) {
-      fetchWalletTransactions();
-      setTimeout(() => {
+      fetchWalletTransactions().finally(() => {
         setLoading(false);
-      }, 500);
+      });
     }
   }, [merchantId]);
 
@@ -241,7 +267,7 @@ export default function WalletPage() {
       if (isLoggingView.current || hasLoggedView.current || loading) {
         return;
       }
-      
+
       try {
         isLoggingView.current = true;
         const cached = getStoredMerchant();
@@ -259,53 +285,50 @@ export default function WalletPage() {
         isLoggingView.current = false;
       }
     };
-    
+
     if (!loading && !hasLoggedView.current && merchantId) {
       logView();
     }
-  }, [loading, merchantId, ledgerEntries.length, log]);
+  }, [loading, merchantId, ledgerEntries.length, log, ActivityActions.VIEW_WALLET]);
 
   // ─── Apply Filters ──────────────────────────────────────────────
   const filteredData = ledgerEntries.filter(
     (item) =>
       (filterType === 'All' || item.Type === filterType) &&
       (item.Description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.Ref?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.Receipt?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.Type?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const totalCredits = filteredData.filter(t => t.Type === 'Credit').reduce((sum, t) => sum + t.Amount, 0);
-  const totalDebits = filteredData.filter(t => t.Type !== 'Credit').reduce((sum, t) => sum + t.Amount, 0);
+  const totalCredits = filteredData.filter((t) => t.Type === 'Credit').reduce((sum, t) => sum + t.Amount, 0);
+  const totalDebits = filteredData.filter((t) => t.Type !== 'Credit').reduce((sum, t) => sum + t.Amount, 0);
   const netBalance = totalCredits - totalDebits;
 
   // ─── Export Functions ─────────────────────────────────────────────
   const exportToCSV = (data: WalletTransaction[]) => {
     const headers = [
       'Posted Time',
-      'Reference',
+      'M-PESA Receipt',
       'Description',
       'Amount (KES)',
       'Balance Before (KES)',
       'Balance After (KES)',
       'Type',
-      'Status'
+      'Status',
     ];
 
-    const rows = data.map(tx => [
+    const rows = data.map((tx) => [
       tx.Posted_Time,
-      tx.Ref,
+      tx.Receipt,
       tx.Description,
       tx.Amount.toFixed(2),
       tx.BalanceBefore.toFixed(2),
       tx.BalanceAfter.toFixed(2),
       tx.Type,
-      tx.status
+      tx.status,
     ]);
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
+    const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
 
     return csvContent;
   };
@@ -324,10 +347,10 @@ export default function WalletPage() {
       const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
-      
+
       const date = new Date().toISOString().split('T')[0];
       const filename = `wallet_transactions_${date}.${format === 'csv' ? 'csv' : 'xlsx'}`;
-      
+
       link.setAttribute('href', url);
       link.setAttribute('download', filename);
       document.body.appendChild(link);
@@ -345,14 +368,14 @@ export default function WalletPage() {
   };
 
   // ─── Handlers ──────────────────────────────────────────────────────
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
     hasLoggedView.current = false;
-    fetchWalletTransactions();
-    setTimeout(() => {
+    try {
+      await fetchWalletTransactions();
+    } finally {
       setIsRefreshing(false);
-      setLoading(false);
-    }, 500);
+    }
   };
 
   const handleViewDetails = async (tx: WalletTransaction) => {
@@ -360,7 +383,7 @@ export default function WalletPage() {
     setShowModal(true);
     await log(
       'Viewed wallet transaction details',
-      `Viewed details for transaction ${tx.Ref} - Amount: KES ${tx.Amount}`
+      `Viewed details for transaction ${tx.Receipt} - Amount: KES ${tx.Amount}`
     );
   };
 
@@ -400,12 +423,79 @@ export default function WalletPage() {
     );
   };
 
+  // ─── Skeleton Loading State ───────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-indigo-500 mx-auto" />
-          <p className="mt-4 text-gray-600">Loading wallet transactions...</p>
+      <div className="max-w-[1400px] mx-auto space-y-6 px-4 sm:px-6">
+        {/* Header skeleton */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gray-200 animate-pulse" />
+            <div>
+              <div className="h-6 w-56 bg-gray-200 rounded animate-pulse mb-2" />
+              <div className="h-4 w-72 bg-gray-200 rounded animate-pulse" />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <div className="h-10 w-24 bg-gray-200 rounded-xl animate-pulse" />
+            <div className="h-10 w-28 bg-gray-200 rounded-xl animate-pulse" />
+          </div>
+        </div>
+
+        {/* Summary cards skeleton */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <SkeletonSummaryCard key={i} />
+          ))}
+        </div>
+
+        {/* Filters skeleton */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <div className="h-11 w-full bg-gray-200 rounded-xl animate-pulse" />
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <div className="h-11 w-32 bg-gray-200 rounded-xl animate-pulse" />
+            <div className="h-11 w-28 bg-gray-200 rounded-xl animate-pulse" />
+          </div>
+        </div>
+
+        {/* Table skeleton */}
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="overflow-y-auto max-h-[500px]">
+            <table className="w-full text-sm table-fixed min-w-[700px]">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-gray-200 bg-gray-100">
+                  <th className="w-[140px] px-3 py-3.5">
+                    <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
+                  </th>
+                  <th className="w-[120px] px-3 py-3.5">
+                    <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
+                  </th>
+                  <th className="w-[180px] px-3 py-3.5">
+                    <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
+                  </th>
+                  <th className="w-[100px] px-3 py-3.5">
+                    <div className="h-3 w-16 bg-gray-200 rounded animate-pulse ml-auto" />
+                  </th>
+                  <th className="w-[120px] px-3 py-3.5">
+                    <div className="h-3 w-16 bg-gray-200 rounded animate-pulse ml-auto" />
+                  </th>
+                  <th className="w-[100px] px-3 py-3.5">
+                    <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
+                  </th>
+                  <th className="w-[100px] px-3 py-3.5">
+                    <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <SkeletonTransactionRow key={i} />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
@@ -435,7 +525,7 @@ export default function WalletPage() {
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </button>
-          
+
           {/* Export Dropdown */}
           <div className="relative">
             <button
@@ -450,9 +540,9 @@ export default function WalletPage() {
               )}
               {isExporting ? 'Exporting...' : 'Export'}
             </button>
-            
+
             {showExportMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
+              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
                 <button
                   onClick={() => handleExport('csv')}
                   className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors border-b border-gray-100"
@@ -506,7 +596,7 @@ export default function WalletPage() {
             </div>
             <input
               type="text"
-              placeholder="Search by description or reference..."
+              placeholder="Search by description or M-PESA receipt..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
@@ -537,15 +627,15 @@ export default function WalletPage() {
         </div>
       </div>
 
-      {/* ─── Table with Fixed Header and Scrollable Body ────────────── */}
+      {/* ─── Table ──────────────────────────────────────────────────── */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-y-auto max-h-[500px]">
           <table className="w-full text-sm table-fixed min-w-[700px]">
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-gray-200 bg-gray-100">
                 <th className="w-[140px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Posted Time</th>
-                <th className="w-[100px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Reference</th>
-                <th className="w-[130px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Description</th>
+                <th className="w-[120px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">M-PESA Receipt</th>
+                <th className="w-[180px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Description</th>
                 <th className="w-[100px] px-3 py-3.5 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
                 <th className="w-[120px] px-3 py-3.5 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Balance</th>
                 <th className="w-[100px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
@@ -563,14 +653,14 @@ export default function WalletPage() {
                       <div>
                         <p className="text-gray-500 font-medium text-lg">No wallet transactions</p>
                         <p className="text-sm text-gray-400 mt-1">
-                          {ledgerEntries.length > 0 
+                          {ledgerEntries.length > 0
                             ? 'No transactions match your search criteria'
                             : 'Your wallet activity will appear here'}
                         </p>
                       </div>
                       {ledgerEntries.length === 0 && (
                         <button
-                          onClick={() => window.location.href = '/dashboard/withdrawals/withdraw-fund'}
+                          onClick={() => (window.location.href = '/dashboard/withdrawals/withdraw-fund')}
                           className="mt-2 px-6 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-sm shadow-indigo-200"
                         >
                           <Wallet className="w-4 h-4" />
@@ -594,7 +684,7 @@ export default function WalletPage() {
                       </td>
                       <td className="px-3 py-3.5">
                         <span className="font-mono text-xs text-gray-500 group-hover:text-indigo-600 transition-colors">
-                          {tx.Ref}
+                          {tx.Receipt}
                         </span>
                       </td>
                       <td className="px-3 py-3.5">
@@ -641,7 +731,7 @@ export default function WalletPage() {
               <div className="flex items-center gap-3">
                 <div className={`w-3 h-3 rounded-full ${selectedTransaction.Type === 'Credit' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                 <h3 className="text-lg font-bold text-gray-900">Transaction Details</h3>
-                <span className="text-xs text-gray-400 font-mono ml-2">#{selectedTransaction.Ref}</span>
+                <span className="text-xs text-gray-400 font-mono ml-2">#{selectedTransaction.Receipt}</span>
               </div>
               <button
                 onClick={() => setShowModal(false)}
@@ -655,14 +745,14 @@ export default function WalletPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Reference</p>
-                    <p className="font-mono text-sm text-gray-900 mt-1 break-all">{selectedTransaction.Ref}</p>
+                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">M-PESA Receipt</p>
+                    <p className="font-mono text-sm text-gray-900 mt-1 break-all">{selectedTransaction.Receipt}</p>
                     <button
-                      onClick={() => handleCopy(selectedTransaction.Ref)}
+                      onClick={() => handleCopy(selectedTransaction.Receipt)}
                       className="mt-1 text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
                     >
                       <Copy className="w-3 h-3" />
-                      Copy Reference
+                      Copy Receipt
                     </button>
                   </div>
 
@@ -707,13 +797,13 @@ export default function WalletPage() {
 
               <div className="mt-6 pt-4 border-t border-gray-100 flex flex-wrap gap-3">
                 <button
-                  onClick={() => handleCopy(selectedTransaction.Ref)}
+                  onClick={() => handleCopy(selectedTransaction.Receipt)}
                   className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2"
                 >
                   <Copy className="w-4 h-4" />
-                  Copy Reference
+                  Copy Receipt
                 </button>
-                <button 
+                <button
                   onClick={() => window.print()}
                   className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2"
                 >
