@@ -684,41 +684,45 @@ export default function DashboardOverview() {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="h-64 w-full flex flex-col items-center justify-center text-gray-400 gap-3">
-              <BarChart3 size={40} className="text-gray-300" />
+            /* Compact empty state — no big gap */
+            <div className="py-12 flex flex-col items-center justify-center text-gray-400 gap-2">
+              <BarChart3 size={32} className="text-gray-300" />
               <span className="text-sm">No completed transactions to chart</span>
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gray-100">
-            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-              {chartTypes.map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setChartType(type)}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                    chartType === type ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
+          {/* Hide the chart-type / range controls when there's no chart to control */}
+          {chartData.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                {chartTypes.map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setChartType(type)}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                      chartType === type ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+              <div className="w-px h-6 bg-gray-200 mx-2" />
+              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                {['7 Days', '30 Days', '90 Days'].map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setTimeRange(range)}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                      timeRange === range ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {range}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="w-px h-6 bg-gray-200 mx-2" />
-            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-              {['7 Days', '30 Days', '90 Days'].map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setTimeRange(range)}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                    timeRange === range ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {range}
-                </button>
-              ))}
-            </div>
-          </div>
+          )}
         </div>
 
         {/* ─── Quick Actions ──────────────────────────────────────── */}
