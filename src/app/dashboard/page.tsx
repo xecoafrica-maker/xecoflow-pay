@@ -50,21 +50,22 @@ import { useActivityLogger } from '@/hooks/useActivityLogger';
 // ─── Types ──────────────────────────────────────────────────────────
 interface Transaction {
   id: string;
-  user_id: string;
+  user_id?: string;
   amount: string;
-  phone_number: string;
-  business_shortcode: string;
+  phone_number: string | null;
+  business_shortcode?: string | null;
   status: string;
   payment_status: string;
   source: string;
   request_type: string;
-  checkout_id: string;
+  checkout_id?: string | null;
   mpesa_receipt: string | null;
-  result_code: string | null;
-  result_desc: string | null;
+  result_code?: string | null;
+  result_desc?: string | null;
   created_at: string;
-  completed_at: string | null;
-  updated_at: string;
+  completed_at?: string | null;
+  updated_at?: string;
+  channel?: 'STK_PUSH' | 'C2B';
 }
 
 interface DashboardStats {
@@ -97,6 +98,22 @@ const chartTypes = ['Bar', 'Line'];
 const getCurrentMonth = () => {
   return new Date().toLocaleDateString('en-US', { month: 'long' });
 };
+
+// ─── Status helper (used everywhere) ──────────────────────────────
+const COMPLETED_KEYWORDS = ['COMPLETED', 'SUCCESS', 'SETTLED', 'PAID'];
+const FAILED_KEYWORDS = ['FAILED', 'ERROR', 'DECLINED', 'CANCELLED', 'CANCELED', 'REVERSED'];
+const PENDING_KEYWORDS = ['PENDING', 'AWAITING', 'PROCESSING', 'INITIATED'];
+
+const deriveStatus = (tx: Transaction): 'Completed' | 'Pending' | 'Failed' => {
+  const combined = `${tx.status || ''} ${tx.payment_status || ''}`.toUpperCase();
+  if (FAILED_KEYWORDS.some((k) => combined.includes(k))) return 'Failed';
+  if (COMPLETED_KEYWORDS.some((k) => combined.includes(k))) return 'Completed';
+  if (PENDING_KEYWORDS.some((k) => combined.includes(k))) return 'Pending';
+  if (tx.mpesa_receipt) return 'Completed';
+  return 'Pending';
+};
+
+const isCompleted = (tx: Transaction) => deriveStatus(tx) === 'Completed';
 
 // ─── Skeleton Components ──────────────────────────────────────────
 const SkeletonCard = () => (
@@ -143,7 +160,7 @@ export default function DashboardOverview() {
   const [merchantId, setMerchantId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(true);
-  
+
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
@@ -154,10 +171,10 @@ export default function DashboardOverview() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  
+
   const [ledgerBalance, setLedgerBalance] = useState<number>(0);
   const [balanceLoading, setBalanceLoading] = useState<boolean>(true);
-  
+
   // ─── Filter State ──────────────────────────────────────────────────
   const [statusFilter, setStatusFilter] = useState('All');
   const [chartType, setChartType] = useState('Bar');
@@ -170,57 +187,56 @@ export default function DashboardOverview() {
   // ─── 🚀 Fetch Onboarding Status ──────────────────────────────────
   const fetchOnboarding = async () => {
     try {
-      // ✅ FIXED: No token needed - cookie is sent automatically
       const res = await fetch(`/api/onboarding/status`, {
         credentials: 'include',
       });
       const data = await res.json();
-      
+
       if (data) {
         const stepMappings = [
-          { 
-            id: 1, 
-            label: '01 — Business Profile', 
-            href: '/dashboard/onboarding/stage1', 
-            completed: data.steps.businessProfile === 'COMPLETED' 
+          {
+            id: 1,
+            label: '01 — Business Profile',
+            href: '/dashboard/onboarding/stage1',
+            completed: data.steps.businessProfile === 'COMPLETED',
           },
-          { 
-            id: 2, 
-            label: '02 — Owners & Documents', 
-            href: '/dashboard/onboarding/stage2', 
-            completed: data.steps.ownersDocuments === 'COMPLETED' 
+          {
+            id: 2,
+            label: '02 — Owners & Documents',
+            href: '/dashboard/onboarding/stage2',
+            completed: data.steps.ownersDocuments === 'COMPLETED',
           },
-          { 
-            id: 3, 
-            label: '03 — Tax & Compliance', 
-            href: '/dashboard/onboarding/stage3', 
-            completed: data.steps.taxCompliance === 'COMPLETED' 
+          {
+            id: 3,
+            label: '03 — Tax & Compliance',
+            href: '/dashboard/onboarding/stage3',
+            completed: data.steps.taxCompliance === 'COMPLETED',
           },
-          { 
-            id: 4, 
-            label: '04 — Settlement', 
-            href: '/dashboard/onboarding/stage4', 
-            completed: data.steps.settlement === 'COMPLETED' 
+          {
+            id: 4,
+            label: '04 — Settlement',
+            href: '/dashboard/onboarding/stage4',
+            completed: data.steps.settlement === 'COMPLETED',
           },
-          { 
-            id: 5, 
-            label: '05 — Review & Submit', 
-            href: '/dashboard/onboarding/stage5', 
-            completed: data.overallStatus === 'SUBMITTED' 
+          {
+            id: 5,
+            label: '05 — Review & Submit',
+            href: '/dashboard/onboarding/stage5',
+            completed: data.overallStatus === 'SUBMITTED',
           },
         ];
 
         const activeStepId = data.currentStep;
-        
+
         const mappedSteps = stepMappings.map((step) => ({
           ...step,
-          icon: step.label.includes('Business Profile') ? Building : 
-                step.label.includes('Owners') ? Users : 
-                step.label.includes('Tax') ? FileText : 
+          icon: step.label.includes('Business Profile') ? Building :
+                step.label.includes('Owners') ? Users :
+                step.label.includes('Tax') ? FileText :
                 step.label.includes('Settlement') ? Landmark : CheckCircle,
-          active: step.id === activeStepId
+          active: step.id === activeStepId,
         }));
-        
+
         setOnboardingSteps(mappedSteps);
       }
     } catch (error) {
@@ -232,30 +248,35 @@ export default function DashboardOverview() {
   const fetchDashboardData = async (merchantIdParam?: string) => {
     try {
       console.log("🔍 Fetching data for merchant:", merchantIdParam);
-      
+
       const params = new URLSearchParams();
       if (merchantIdParam) {
         params.append('merchantId', merchantIdParam);
       }
-      params.append('limit', '100');
+      params.append('limit', '500');
 
-      // 1. Fetch Transactions
-      const transRes = await fetch(`/api/transactions?${params.toString()}`, {
+      // 1. Fetch MERGED inflow (STK Push + C2B)
+      const transRes = await fetch(`/api/transactions/inflow?${params.toString()}`, {
         credentials: 'include',
       });
       const transData = await transRes.json();
-      
+
       if (transData.success) {
         setTransactions(transData.data || []);
         setFilteredTransactions(transData.data || []);
+        if (transData.meta) {
+          console.log(
+            `📊 [DASHBOARD] Loaded ${transData.meta.stkCount} STK + ${transData.meta.c2bCount} C2B = ${transData.meta.total} total`
+          );
+        }
       }
 
-      // 2. Fetch Stats (for history, not balance)
+      // 2. Fetch Stats (still from the stats endpoint)
       const statsRes = await fetch(`/api/dashboard/stats?${params.toString()}`, {
         credentials: 'include',
       });
       const statsData = await statsRes.json();
-      
+
       if (statsData.success) {
         setStats(statsData.stats);
       }
@@ -265,14 +286,12 @@ export default function DashboardOverview() {
         const paddedId = String(merchantIdParam).padStart(8, '0');
         const accountNumber = `1-1001-${paddedId}`;
         console.log('🔍 Fetching balance for account:', accountNumber);
-        
-        // ✅ FIXED: No token needed - cookie is sent automatically
+
         const balanceRes = await fetch(`/api/ledger/accounts/${accountNumber}/balance`, {
           credentials: 'include',
         });
         const balanceData = await balanceRes.json();
-        console.log('🔍 Balance response:', balanceData);
-        
+
         if (balanceData.success) {
           setLedgerBalance(balanceData.balance);
         } else {
@@ -292,19 +311,19 @@ export default function DashboardOverview() {
     let filtered = [...transactions];
 
     if (statusFilter !== 'All') {
-      filtered = filtered.filter(t => {
-        const status = t.status || t.payment_status || '';
+      filtered = filtered.filter((t) => {
+        const combined = `${t.status || ''} ${t.payment_status || ''}`.toUpperCase();
         if (statusFilter === 'Completed') {
-          return status.includes('COMPLETED') || status.includes('SUCCESS');
+          return COMPLETED_KEYWORDS.some((k) => combined.includes(k));
         }
         if (statusFilter === 'Pending') {
-          return status.includes('PENDING') || status.includes('AWAITING');
+          return PENDING_KEYWORDS.some((k) => combined.includes(k));
         }
         if (statusFilter === 'Failed') {
-          return status.includes('FAILED') || status.includes('ERROR');
+          return FAILED_KEYWORDS.some((k) => combined.includes(k));
         }
         if (statusFilter === 'AWAITING_CUSTOMER_PIN') {
-          return status === 'AWAITING_CUSTOMER_PIN';
+          return combined.includes('AWAITING_CUSTOMER_PIN');
         }
         return true;
       });
@@ -313,13 +332,12 @@ export default function DashboardOverview() {
     setFilteredTransactions(filtered);
   }, [transactions, statusFilter]);
 
-  // ─── ✅ FIXED: Auth & Profile ──────────────────────────────────────
+  // ─── Auth & Profile ────────────────────────────────────────────────
   useEffect(() => {
-    // ✅ Read merchant data from localStorage
     let merchant = null;
     let merchantIdValue = null;
     let merchantNameValue = 'Merchant';
-    
+
     try {
       const stored = localStorage.getItem('merchant');
       if (stored) {
@@ -331,19 +349,16 @@ export default function DashboardOverview() {
       console.error('Failed to parse merchant data', e);
     }
 
-    // ❌ If no merchant data, redirect to login
     if (!merchant || !merchantIdValue) {
       console.warn('⚠️ No merchant found in localStorage, redirecting to login');
       router.push('/login?session=expired');
       return;
     }
 
-    // ✅ Merchant data found
     console.log('✅ Merchant data loaded:', merchant);
     setMerchantId(String(merchantIdValue));
     setMerchantName(merchantNameValue);
 
-    // ─── Fetch dashboard data ──────────────────────────────────────
     const fetchData = async () => {
       try {
         await fetchDashboardData(String(merchantIdValue));
@@ -356,7 +371,6 @@ export default function DashboardOverview() {
     };
 
     fetchData();
-
   }, [router]);
 
   // ─── Log Dashboard View ──────────────────────────────────────────
@@ -365,7 +379,7 @@ export default function DashboardOverview() {
       if (isLoggingView.current || hasLoggedView.current || !merchantId) {
         return;
       }
-      
+
       try {
         isLoggingView.current = true;
         await log(
@@ -380,7 +394,7 @@ export default function DashboardOverview() {
         isLoggingView.current = false;
       }
     };
-    
+
     if (!loading && merchantId && !hasLoggedView.current) {
       logView();
     }
@@ -392,121 +406,120 @@ export default function DashboardOverview() {
   const generateStats = () => {
     if (!stats && transactions.length === 0) {
       return [
-        { 
-          label: 'Available Balance', 
-          value: 'KES 0', 
-          change: 'Ready to withdraw', 
-          up: true, 
-          icon: Wallet, 
-          color: 'text-emerald-500', 
-          bg: 'bg-emerald-50' 
+        {
+          label: 'Available Balance',
+          value: 'KES 0',
+          change: 'Ready to withdraw',
+          up: true,
+          icon: Wallet,
+          color: 'text-emerald-500',
+          bg: 'bg-emerald-50'
         },
-        { 
-          label: 'Total Processed', 
-          value: 'KES 0', 
-          change: 'This month', 
-          up: true, 
-          icon: TrendingUp, 
-          color: 'text-blue-500', 
-          bg: 'bg-blue-50' 
+        {
+          label: 'Total Processed',
+          value: 'KES 0',
+          change: 'This month',
+          up: true,
+          icon: TrendingUp,
+          color: 'text-blue-500',
+          bg: 'bg-blue-50'
         },
-        { 
-          label: 'Transactions', 
-          value: '0', 
-          change: 'This month', 
-          up: true, 
-          icon: BarChart3, 
-          color: 'text-amber-500', 
-          bg: 'bg-amber-50' 
+        {
+          label: 'Transactions',
+          value: '0',
+          change: 'This month',
+          up: true,
+          icon: BarChart3,
+          color: 'text-amber-500',
+          bg: 'bg-amber-50'
         },
-        { 
+        {
           label: 'Total Withdrawn',
-          value: 'KES 0', 
+          value: 'KES 0',
           change: 'All withdrawals',
-          up: true, 
+          up: true,
           icon: ArrowUpLeft,
-          color: 'text-purple-500', 
-          bg: 'bg-purple-50' 
+          color: 'text-purple-500',
+          bg: 'bg-purple-50'
         },
       ];
     }
 
-    const totalAmount = stats?.totalAmount || transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-    const totalTransactions = stats?.totalTransactions || transactions.length;
-    const todayTransactions = stats?.todayTransactions || transactions.filter(t => {
+    // ✅ FIXED: Total Processed counts ONLY completed transactions
+    const completedAmount = transactions
+      .filter(isCompleted)
+      .reduce((sum, t) => sum + parseFloat(t.amount || '0'), 0);
+
+    // Transactions count = ALL attempts
+    const totalTransactions = transactions.length;
+
+    const todayTransactions = transactions.filter((t) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       return new Date(t.created_at) >= today;
     }).length;
-    const todayAmount = stats?.todayAmount || transactions.filter(t => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return new Date(t.created_at) >= today;
-    }).reduce((sum, t) => sum + parseFloat(t.amount), 0);
-    const pendingTransactions = stats?.pendingTransactions || transactions.filter(t => 
-      t.status === 'AWAITING_CUSTOMER_PIN' || t.payment_status === 'PENDING'
-    ).length;
 
     const availableBalance = ledgerBalance;
     const totalWithdrawn = 0;
 
     return [
-      { 
-        label: 'Available Balance', 
-        value: `KES ${availableBalance.toLocaleString()}`, 
-        change: 'Ready to withdraw', 
-        up: true, 
-        icon: Wallet, 
-        color: 'text-emerald-500', 
-        bg: 'bg-emerald-50' 
+      {
+        label: 'Available Balance',
+        value: `KES ${availableBalance.toLocaleString()}`,
+        change: 'Ready to withdraw',
+        up: true,
+        icon: Wallet,
+        color: 'text-emerald-500',
+        bg: 'bg-emerald-50'
       },
-      { 
-        label: 'Total Processed', 
-        value: `KES ${totalAmount.toLocaleString()}`, 
-        change: 'This month', 
-        up: todayTransactions > 0, 
-        icon: TrendingUp, 
-        color: 'text-blue-500', 
-        bg: 'bg-blue-50' 
+      {
+        label: 'Total Processed',
+        value: `KES ${completedAmount.toLocaleString()}`,
+        change: 'Completed this month',
+        up: completedAmount > 0,
+        icon: TrendingUp,
+        color: 'text-blue-500',
+        bg: 'bg-blue-50'
       },
-      { 
-        label: 'Transactions', 
-        value: totalTransactions.toString(), 
-        change: `${todayTransactions} today`, 
-        up: todayTransactions > 0, 
-        icon: BarChart3, 
-        color: 'text-amber-500', 
-        bg: 'bg-amber-50' 
+      {
+        label: 'Transactions',
+        value: totalTransactions.toString(),
+        change: `${todayTransactions} today`,
+        up: todayTransactions > 0,
+        icon: BarChart3,
+        color: 'text-amber-500',
+        bg: 'bg-amber-50'
       },
-      { 
+      {
         label: 'Total Withdrawn',
-        value: `KES ${totalWithdrawn.toLocaleString()}`, 
+        value: `KES ${totalWithdrawn.toLocaleString()}`,
         change: 'All withdrawals',
-        up: true, 
+        up: true,
         icon: ArrowUpLeft,
-        color: 'text-purple-500', 
-        bg: 'bg-purple-50' 
+        color: 'text-purple-500',
+        bg: 'bg-purple-50'
       },
     ];
   };
 
   const statsData = generateStats();
 
-  // ─── Generate Chart Data ──────────────────────────────────────────
+  // ─── Generate Chart Data (Completed only) ────────────────────────
   const chartData = [...filteredTransactions]
+    .filter(isCompleted)
     .slice(0, 7)
-    .map(t => ({
+    .map((t) => ({
       day: new Date(t.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      amount: parseFloat(t.amount),
+      amount: parseFloat(t.amount || '0'),
     }))
     .reverse();
 
-  // ─── Recent Transactions ──────────────────────────────────────────
+  // ─── Recent Transactions (today, ALL statuses) ───────────────────
   const getTodayTransactions = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    const todayTxs = transactions.filter(t => {
+
+    const todayTxs = transactions.filter((t) => {
       const txDate = new Date(t.created_at);
       txDate.setHours(0, 0, 0, 0);
       return txDate.getTime() === today.getTime();
@@ -515,12 +528,14 @@ export default function DashboardOverview() {
     return todayTxs
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 6)
-      .map(t => ({
+      .map((t) => ({
         id: t.id.slice(0, 8),
-        customer: t.phone_number,
-        amount: parseFloat(t.amount),
-        method: t.source || 'M-PESA',
-        status: t.status || t.payment_status || 'PENDING',
+        fullId: t.id,
+        customer: t.phone_number || (t.channel === 'C2B' ? 'M-PESA Paybill' : 'Unknown'),
+        amount: parseFloat(t.amount || '0'),
+        method: t.channel === 'C2B' ? 'M-PESA Paybill' : 'M-PESA STK Push',
+        channel: t.channel,
+        status: deriveStatus(t),
         checkoutId: t.checkout_id,
         date: new Date(t.created_at).toLocaleString(),
         receipt: t.mpesa_receipt,
@@ -532,7 +547,7 @@ export default function DashboardOverview() {
   // ─── Status Helper ────────────────────────────────────────────────
   const getStatusDisplay = (status: string) => {
     const s = status?.toUpperCase() || '';
-    if (s.includes('COMPLETED') || s.includes('SUCCESS')) {
+    if (s.includes('COMPLETED') || s.includes('SUCCESS') || s.includes('SETTLED')) {
       return { label: 'Completed', color: 'bg-emerald-50 text-emerald-600', icon: <CheckCircle size={12} /> };
     }
     if (s.includes('PENDING') || s.includes('AWAITING')) {
@@ -544,16 +559,35 @@ export default function DashboardOverview() {
     return { label: status || 'Unknown', color: 'bg-gray-50 text-gray-600', icon: <Clock size={12} /> };
   };
 
+  // ─── Amount with status indicator ─────────────────────────────────
+  const AmountWithStatus = ({ amount, status }: { amount: number; status: string }) => {
+    const s = status?.toUpperCase() || '';
+    const isSuccess = s.includes('COMPLETED') || s.includes('SUCCESS') || s.includes('SETTLED');
+    const isFailed = s.includes('FAILED') || s.includes('ERROR') || s.includes('DECLINED');
+    const isPending = !isSuccess && !isFailed;
+
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className={`font-semibold ${isSuccess ? 'text-gray-900' : isFailed ? 'text-gray-400 line-through' : 'text-amber-700'}`}>
+          KES {amount.toLocaleString()}
+        </span>
+        {isSuccess && <CheckCircle size={12} className="text-emerald-500 shrink-0" />}
+        {isFailed && <XCircle size={12} className="text-red-400 shrink-0" />}
+        {isPending && <Clock size={12} className="text-amber-400 shrink-0" />}
+      </div>
+    );
+  };
+
   const handleViewDetails = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
     setShowDetailsModal(true);
   };
 
   // ─── Onboarding Calculation ──────────────────────────────────────
-  const completedSteps = onboardingSteps.filter(s => s.completed).length;
+  const completedSteps = onboardingSteps.filter((s) => s.completed).length;
   const totalSteps = onboardingSteps.length;
   const isFullyOnboarded = totalSteps > 0 && completedSteps === totalSteps;
-  
+
   const getActionButtonText = () => {
     if (isFullyOnboarded) return 'Submitted ✓';
     if (completedSteps === 0) return 'Start setup →';
@@ -644,11 +678,11 @@ export default function DashboardOverview() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <p className="text-sm text-gray-400">
-            {new Date().toLocaleDateString('en-US', { 
-              weekday: 'short', 
-              month: 'short', 
-              day: 'numeric', 
-              year: 'numeric' 
+            {new Date().toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
             })}
           </p>
           <h1 className="text-2xl font-bold text-gray-900">
@@ -662,7 +696,7 @@ export default function DashboardOverview() {
 
       {/* ─── COLLAPSIBLE ACTIVATION CENTER ──────────────────────────── */}
       {!showOnboarding && !isFullyOnboarded && onboardingSteps.length > 0 && (
-        <div 
+        <div
           className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors group"
           onClick={() => setShowOnboarding(true)}
         >
@@ -746,7 +780,7 @@ export default function DashboardOverview() {
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-gray-100">
             <Link
-              href={onboardingSteps.find(s => !s.completed)?.href || '/dashboard'}
+              href={onboardingSteps.find((s) => !s.completed)?.href || '/dashboard'}
               className="inline-flex items-center gap-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-all duration-200 w-full sm:w-auto justify-center"
             >
               {getActionButtonText()}
@@ -790,9 +824,11 @@ export default function DashboardOverview() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
             <div>
               <h2 className="text-lg font-bold text-gray-900">Transaction Analytics</h2>
-              <p className="text-sm text-gray-500">Total transaction amounts (KES)</p>
-              {filteredTransactions.length > 0 && (
-                <p className="text-xs text-gray-400 mt-1">{filteredTransactions.length} transactions found</p>
+              <p className="text-sm text-gray-500">Completed transaction amounts (KES)</p>
+              {filteredTransactions.filter(isCompleted).length > 0 && (
+                <p className="text-xs text-gray-400 mt-1">
+                  {filteredTransactions.filter(isCompleted).length} completed transactions
+                </p>
               )}
             </div>
             <div className="flex items-center gap-3 mt-3 sm:mt-0">
@@ -814,66 +850,66 @@ export default function DashboardOverview() {
                 chartType === 'Bar' ? (
                   <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis 
-                      dataKey="day" 
-                      tick={{ fontSize: 12, fill: '#94a3b8' }} 
-                      axisLine={false} 
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: 12, fill: '#94a3b8' }}
+                      axisLine={false}
                       tickLine={false}
                     />
-                    <YAxis 
+                    <YAxis
                       tick={{ fontSize: 12, fill: '#94a3b8', dy: 2 }}
-                      axisLine={false} 
+                      axisLine={false}
                       tickLine={false}
                       tickFormatter={(value) => `KES ${value.toLocaleString()}`}
                     />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'white', 
-                        borderRadius: '12px', 
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'white',
+                        borderRadius: '12px',
                         border: '1px solid #e5e7eb',
                         boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
                         padding: '12px 16px'
-                      }} 
+                      }}
                       formatter={tooltipFormatter}
                       cursor={{ fill: '#f1f5f9' }}
                     />
-                    <Bar 
-                      dataKey="amount" 
-                      fill="#10B981" 
-                      radius={[6, 6, 0, 0]} 
+                    <Bar
+                      dataKey="amount"
+                      fill="#10B981"
+                      radius={[6, 6, 0, 0]}
                       barSize={32}
                     />
                   </BarChart>
                 ) : (
                   <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis 
-                      dataKey="day" 
-                      tick={{ fontSize: 12, fill: '#94a3b8' }} 
-                      axisLine={false} 
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: 12, fill: '#94a3b8' }}
+                      axisLine={false}
                       tickLine={false}
                     />
-                    <YAxis 
+                    <YAxis
                       tick={{ fontSize: 12, fill: '#94a3b8', dy: 2 }}
-                      axisLine={false} 
+                      axisLine={false}
                       tickLine={false}
                       tickFormatter={(value) => `KES ${value.toLocaleString()}`}
                     />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'white', 
-                        borderRadius: '12px', 
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'white',
+                        borderRadius: '12px',
                         border: '1px solid #e5e7eb',
                         boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
                         padding: '12px 16px'
-                      }} 
+                      }}
                       formatter={tooltipFormatter}
                     />
-                    <Line 
-                      type="monotone" 
-                      dataKey="amount" 
-                      stroke="#10B981" 
-                      strokeWidth={3} 
+                    <Line
+                      type="monotone"
+                      dataKey="amount"
+                      stroke="#10B981"
+                      strokeWidth={3}
                       dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
                       activeDot={{ r: 6, fill: '#10B981' }}
                     />
@@ -882,7 +918,7 @@ export default function DashboardOverview() {
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-400 flex-col gap-3">
                   <BarChart3 size={40} className="text-gray-300" />
-                  <span className="text-sm">No transaction data available</span>
+                  <span className="text-sm">No completed transactions to chart</span>
                 </div>
               )}
             </ResponsiveContainer>
@@ -895,8 +931,8 @@ export default function DashboardOverview() {
                   key={type}
                   onClick={() => setChartType(type)}
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                    chartType === type 
-                      ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' 
+                    chartType === type
+                      ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
@@ -911,8 +947,8 @@ export default function DashboardOverview() {
                   key={range}
                   onClick={() => setTimeRange(range)}
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                    timeRange === range 
-                      ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' 
+                    timeRange === range
+                      ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
@@ -1016,7 +1052,7 @@ export default function DashboardOverview() {
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-lg font-bold text-gray-900">Today's Transactions</h2>
-          <Link href="/dashboard/transactions" className="text-sm text-emerald-500 font-medium hover:text-emerald-600">
+          <Link href="/dashboard/inflow" className="text-sm text-emerald-500 font-medium hover:text-emerald-600">
             View All →
           </Link>
         </div>
@@ -1041,8 +1077,18 @@ export default function DashboardOverview() {
                     <tr key={tx.id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-6 py-3 font-mono text-xs text-gray-500">{tx.id}</td>
                       <td className="px-6 py-3 font-medium text-gray-900">{tx.customer}</td>
-                      <td className="px-6 py-3 font-semibold text-gray-900">KES {tx.amount.toLocaleString()}</td>
-                      <td className="px-6 py-3 text-gray-500">{tx.method}</td>
+                      <td className="px-6 py-3">
+                        <AmountWithStatus amount={tx.amount} status={tx.status} />
+                      </td>
+                      <td className="px-6 py-3">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${
+                          tx.channel === 'C2B'
+                            ? 'bg-teal-50 text-teal-600 border-teal-200'
+                            : 'bg-blue-50 text-blue-600 border-blue-200'
+                        }`}>
+                          {tx.channel === 'C2B' ? 'M-PESA Paybill' : 'M-PESA STK Push'}
+                        </span>
+                      </td>
                       <td className="px-6 py-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
                           {statusInfo.icon}
@@ -1053,7 +1099,7 @@ export default function DashboardOverview() {
                       <td className="px-6 py-3">
                         <button
                           onClick={() => {
-                            const fullTx = transactions.find(t => t.id.startsWith(tx.id));
+                            const fullTx = transactions.find((t) => t.id === tx.fullId);
                             if (fullTx) handleViewDetails(fullTx);
                           }}
                           className="text-indigo-600 hover:text-indigo-800 transition-colors"
@@ -1095,30 +1141,34 @@ export default function DashboardOverview() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-400">Checkout ID</p>
-                  <p className="font-mono text-sm">{selectedTransaction.checkout_id}</p>
+                  <p className="font-mono text-sm">{selectedTransaction.checkout_id || '—'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-400">Amount</p>
-                  <p className="font-bold text-lg text-gray-900">KES {parseFloat(selectedTransaction.amount).toLocaleString()}</p>
+                  <p className="font-bold text-lg text-gray-900">KES {parseFloat(selectedTransaction.amount || '0').toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-400">Status</p>
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusDisplay(selectedTransaction.status || selectedTransaction.payment_status || '').color}`}>
-                    {getStatusDisplay(selectedTransaction.status || selectedTransaction.payment_status || '').icon}
-                    {getStatusDisplay(selectedTransaction.status || selectedTransaction.payment_status || '').label}
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusDisplay(deriveStatus(selectedTransaction)).color}`}>
+                    {getStatusDisplay(deriveStatus(selectedTransaction)).icon}
+                    {getStatusDisplay(deriveStatus(selectedTransaction)).label}
                   </span>
                 </div>
                 <div>
                   <p className="text-xs text-gray-400">Phone Number</p>
-                  <p className="text-sm">{selectedTransaction.phone_number}</p>
+                  <p className="text-sm">{selectedTransaction.phone_number || '—'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-400">Merchant ID</p>
-                  <p className="text-sm">{selectedTransaction.user_id}</p>
+                  <p className="text-sm">{selectedTransaction.user_id || merchantId}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-400">Method</p>
                   <p className="text-sm">{selectedTransaction.source || 'M-PESA'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Channel</p>
+                  <p className="text-sm">{selectedTransaction.channel === 'C2B' ? 'M-PESA Paybill' : 'M-PESA STK Push'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-400">Request Type</p>
@@ -1136,7 +1186,7 @@ export default function DashboardOverview() {
                 )}
                 {selectedTransaction.result_code && (
                   <div className="col-span-2">
-                    <p className="text-xs text-gray-400">Result Code</p>
+                    <p className="text-xs text-gray-400">Result</p>
                     <p className="text-sm">{selectedTransaction.result_code} - {selectedTransaction.result_desc}</p>
                   </div>
                 )}
