@@ -1,5 +1,6 @@
 // src/app/release-notes/page.tsx
 import Link from 'next/link';
+import Footer from '@/components/landing/Footer';
 
 type ChangeType = 'Feature' | 'Improvement' | 'Fix' | 'Security';
 
@@ -177,6 +178,8 @@ export default function ReleaseNotesPage() {
           </Link>
         </div>
       </div>
+
+      <Footer />
     </main>
   );
 }
