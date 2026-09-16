@@ -5,7 +5,6 @@ import './globals.css';
 import { Suspense } from 'react';
 import { PreferencesProvider } from '@/context/PreferencesContext';
 import { SessionProvider } from '@/context/SessionContext';
-import Footer from '@/components/landing/Footer';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -47,7 +46,6 @@ export default function RootLayout({
               }
             >
               {children}
-              <Footer />
             </Suspense>
           </PreferencesProvider>
         </SessionProvider>
