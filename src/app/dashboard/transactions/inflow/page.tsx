@@ -342,7 +342,6 @@ export default function InflowPage() {
   }, [loading, transactions.length, merchantId, log]);
 
   // ─── Transform Transactions ────────────────────────────────────────
-  // Category labels: 'M-PESA STK Push' (STK) or 'M-PESA Paybill' (C2B)
   const transformToInflow = (tx: Transaction): InflowTransaction => {
     const isC2B = tx.channel === 'C2B';
 
@@ -423,7 +422,11 @@ export default function InflowPage() {
     );
   }, [transactions, dateRange, filterChannel, searchTerm]);
 
-  const totalInflow = filteredData.reduce((sum, t) => sum + t.amount, 0);
+  // ✅ Total Inflow only counts Completed transactions
+  const totalInflow = filteredData
+    .filter((t) => t.status === 'Completed')
+    .reduce((sum, t) => sum + t.amount, 0);
+
   const completedCount = filteredData.filter((t) => t.status === 'Completed').length;
   const pendingCount = filteredData.filter((t) => t.status === 'Pending').length;
   const failedCount = filteredData.filter((t) => t.status === 'Failed').length;
@@ -846,15 +849,15 @@ export default function InflowPage() {
       {/* ─── Table ──────────────────────────────────────────────────── */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-y-auto max-h-[500px]">
-          <table className="w-full text-sm table-fixed min-w-[820px]">
+          <table className="w-full text-sm table-fixed min-w-[850px]">
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-gray-200 bg-gray-100">
                 <th className="w-[140px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">M-PESA Receipt</th>
                 <th className="w-[140px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date &amp; Time</th>
                 <th className="w-[160px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
                 <th className="w-[120px] px-3 py-3.5 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
-                <th className="w-[120px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
-                <th className="w-[110px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                <th className="w-[170px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
+                <th className="w-[120px] px-3 py-3.5 pl-5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -936,12 +939,12 @@ export default function InflowPage() {
                     </td>
 
                     {/* Category */}
-                    <td className="px-3 py-3.5">
+                    <td className="px-3 py-3.5 pr-6">
                       <CategoryBadge category={tx.category} />
                     </td>
 
                     {/* Status */}
-                    <td className="px-3 py-3.5">
+                    <td className="px-3 py-3.5 pl-5">
                       <StatusBadge status={tx.status} />
                     </td>
                   </tr>
