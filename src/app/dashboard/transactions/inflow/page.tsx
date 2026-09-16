@@ -169,7 +169,6 @@ const getPresetRange = (preset: DatePreset): { from: Date; to: Date } => {
       return { from: startOfDay(from), to: endOfDay(to) };
     }
     default: {
-      // Fallback: this month
       const from = new Date(now.getFullYear(), now.getMonth(), 1);
       const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       return { from: startOfDay(from), to: endOfDay(to) };
@@ -195,7 +194,6 @@ const toInputDate = (d: Date | null) => {
 
 // Mask phone: keep country code + last 3, mask the middle
 // 254712071385  →  254712***385
-// 0712071385    →  0712***385
 const maskPhone = (phone: string | null | undefined): string => {
   if (!phone) return '—';
   const cleaned = phone.replace(/\s+/g, '');
@@ -203,6 +201,27 @@ const maskPhone = (phone: string | null | undefined): string => {
   const head = cleaned.slice(0, 6);
   const tail = cleaned.slice(-3);
   return `${head}***${tail}`;
+};
+
+// ─── Status derivation (FIXED) ───────────────────────────────────────
+// A transaction is Completed if either `status` or `payment_status` indicates
+// a terminal success state. "SETTLED" counts as Completed.
+const COMPLETED_KEYWORDS = ['COMPLETED', 'SUCCESS', 'SETTLED', 'PAID'];
+const FAILED_KEYWORDS = ['FAILED', 'ERROR', 'DECLINED', 'CANCELLED', 'CANCELED', 'REVERSED'];
+const PENDING_KEYWORDS = ['PENDING', 'AWAITING', 'PROCESSING', 'INITIATED'];
+
+const deriveStatus = (tx: Transaction): 'Completed' | 'Pending' | 'Failed' => {
+  const combined = `${tx.status || ''} ${tx.payment_status || ''}`.toUpperCase();
+
+  // Priority: Failed > Completed > Pending
+  if (FAILED_KEYWORDS.some((k) => combined.includes(k))) return 'Failed';
+  if (COMPLETED_KEYWORDS.some((k) => combined.includes(k))) return 'Completed';
+  if (PENDING_KEYWORDS.some((k) => combined.includes(k))) return 'Pending';
+
+  // Fallback: if there's a receipt, money moved — call it Completed
+  if (tx.mpesa_receipt) return 'Completed';
+
+  return 'Pending';
 };
 
 // ─── Summary Card ────────────────────────────────────────────────────
@@ -247,6 +266,7 @@ export default function InflowPage() {
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const dateMenuRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
@@ -343,15 +363,8 @@ export default function InflowPage() {
       category = 'Bank Transfer';
     }
 
-    let status = 'Pending';
-    const txStatus = tx.status?.toUpperCase() || tx.payment_status?.toUpperCase() || '';
-    if (txStatus.includes('COMPLETED') || txStatus.includes('SUCCESS')) {
-      status = 'Completed';
-    } else if (txStatus.includes('FAILED') || txStatus.includes('ERROR') || txStatus.includes('DECLINED')) {
-      status = 'Failed';
-    } else if (txStatus.includes('PENDING') || txStatus.includes('AWAITING')) {
-      status = 'Pending';
-    }
+    // ✅ FIXED: use deriveStatus so SETTLED/COMPLETED/SUCCESS all → Completed
+    const status = deriveStatus(tx);
 
     const amountValue = parseFloat(tx.amount) || 0;
 
@@ -394,7 +407,7 @@ export default function InflowPage() {
       (item) => filterCategory === 'All' || item.category === filterCategory
     );
 
-    // 3. Search filter (now includes receipt and amount)
+    // 3. Search filter (includes receipt, phone, amount)
     const term = searchTerm.toLowerCase();
     const searched = !term
       ? categoryFiltered
@@ -447,11 +460,14 @@ export default function InflowPage() {
     setCustomRangeOpen(false);
   };
 
-  // Close date menu when clicking outside
+  // Close menus when clicking outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dateMenuRef.current && !dateMenuRef.current.contains(e.target as Node)) {
         setCustomRangeOpen(false);
+      }
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -665,7 +681,7 @@ export default function InflowPage() {
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </button>
 
-          <div className="relative">
+          <div className="relative" ref={exportMenuRef}>
             <button
               onClick={() => setShowExportMenu(!showExportMenu)}
               disabled={isExporting}
@@ -680,7 +696,7 @@ export default function InflowPage() {
             </button>
 
             {showExportMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
+              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
                 <button
                   onClick={() => handleExport('csv')}
                   className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors border-b border-gray-100"
@@ -775,7 +791,7 @@ export default function InflowPage() {
               </button>
 
               {customRangeOpen && (
-                <div className="absolute right-0 mt-2 w-60 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                <div className="absolute right-0 mt-2 w-60 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
                   <div className="py-1">
                     {datePresets.map((preset) => (
                       <button
