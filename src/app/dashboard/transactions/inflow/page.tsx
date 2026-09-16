@@ -1,7 +1,7 @@
 // src/app/dashboard/transactions/inflow/page.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowUpRight,
@@ -27,6 +27,7 @@ import {
   Loader2,
   FileSpreadsheet,
   FileText,
+  Calendar,
 } from 'lucide-react';
 import { getStoredMerchant } from '@/lib/auth';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
@@ -53,8 +54,10 @@ interface Transaction {
 
 interface InflowTransaction {
   id: string;
+  receipt: string | null;
   customer: string;
   phone: string;
+  maskedPhone: string;
   email: string;
   amount: number;
   method: string;
@@ -65,6 +68,21 @@ interface InflowTransaction {
   description: string;
   date: string;
   settlementDate: string;
+}
+
+type DatePreset =
+  | 'Today'
+  | 'Yesterday'
+  | 'Last 7 days'
+  | 'Last 30 days'
+  | 'This month'
+  | 'Last month'
+  | 'Custom';
+
+interface DateRange {
+  from: Date | null;
+  to: Date | null;
+  preset: DatePreset;
 }
 
 // ─── Colors ──────────────────────────────────────────────────────────
@@ -104,7 +122,90 @@ const categoryColors: Record<string, string> = {
   'Bank Transfer': 'bg-amber-50 text-amber-600 border-amber-200',
 };
 
-// ─── Summary Card Component ──────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────
+const startOfDay = (d: Date) => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+};
+
+const endOfDay = (d: Date) => {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+};
+
+const getPresetRange = (preset: DatePreset): { from: Date; to: Date } => {
+  const now = new Date();
+  const today = startOfDay(now);
+  const endToday = endOfDay(now);
+
+  switch (preset) {
+    case 'Today':
+      return { from: today, to: endToday };
+    case 'Yesterday': {
+      const y = new Date(today);
+      y.setDate(y.getDate() - 1);
+      return { from: startOfDay(y), to: endOfDay(y) };
+    }
+    case 'Last 7 days': {
+      const from = new Date(today);
+      from.setDate(from.getDate() - 6);
+      return { from: startOfDay(from), to: endToday };
+    }
+    case 'Last 30 days': {
+      const from = new Date(today);
+      from.setDate(from.getDate() - 29);
+      return { from: startOfDay(from), to: endToday };
+    }
+    case 'This month': {
+      const from = new Date(now.getFullYear(), now.getMonth(), 1);
+      const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return { from: startOfDay(from), to: endOfDay(to) };
+    }
+    case 'Last month': {
+      const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const to = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { from: startOfDay(from), to: endOfDay(to) };
+    }
+    default: {
+      // Fallback: this month
+      const from = new Date(now.getFullYear(), now.getMonth(), 1);
+      const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return { from: startOfDay(from), to: endOfDay(to) };
+    }
+  }
+};
+
+const formatRangeCaption = (range: DateRange) => {
+  if (!range.from || !range.to) return '—';
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' };
+  const fromStr = range.from.toLocaleDateString('en-US', opts);
+  const toStr = range.to.toLocaleDateString('en-US', opts);
+  return `${fromStr} – ${toStr}`;
+};
+
+const toInputDate = (d: Date | null) => {
+  if (!d) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+// Mask phone: keep country code + last 3, mask the middle
+// 254712071385  →  254712***385
+// 0712071385    →  0712***385
+const maskPhone = (phone: string | null | undefined): string => {
+  if (!phone) return '—';
+  const cleaned = phone.replace(/\s+/g, '');
+  if (cleaned.length < 6) return cleaned;
+  const head = cleaned.slice(0, 6);
+  const tail = cleaned.slice(-3);
+  return `${head}***${tail}`;
+};
+
+// ─── Summary Card ────────────────────────────────────────────────────
 const SummaryCard = ({ title, value, icon: Icon, color }: any) => (
   <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
     <div className="flex items-center justify-between">
@@ -132,7 +233,21 @@ export default function InflowPage() {
   const [merchantId, setMerchantId] = useState<string>('');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [lastFetched, setLastFetched] = useState<Date | null>(null);
+
+  // Date range state
+  const initialRange = getPresetRange('This month');
+  const [dateRange, setDateRange] = useState<DateRange>({
+    from: initialRange.from,
+    to: initialRange.to,
+    preset: 'This month',
+  });
+  const [customRangeOpen, setCustomRangeOpen] = useState(false);
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const dateMenuRef = useRef<HTMLDivElement>(null);
+
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
@@ -140,33 +255,33 @@ export default function InflowPage() {
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      
+
       const cached = getStoredMerchant();
       let id = merchantId;
-      
+
       if (!id && cached) {
         id = String(cached.merchant_id || cached.merchantId);
         setMerchantId(id);
       }
-      
+
       if (!id) {
         console.warn('No merchant ID available');
         setLoading(false);
         return;
       }
-      
+
       const params = new URLSearchParams();
       params.append('merchantId', id);
       params.append('limit', '100');
-      
-      // ✅ FIXED: Use credentials: 'include' - no token needed
+
       const response = await fetch(`/api/transactions?${params.toString()}`, {
         credentials: 'include',
       });
       const data = await response.json();
-      
+
       if (data.success) {
         setTransactions(data.data || []);
+        setLastFetched(new Date());
       } else {
         console.error('Failed to fetch transactions:', data.message);
       }
@@ -184,13 +299,13 @@ export default function InflowPage() {
       if (isLoggingView.current || hasLoggedView.current || transactions.length === 0) {
         return;
       }
-      
+
       try {
         isLoggingView.current = true;
-        
+
         const cached = getStoredMerchant();
         const id = merchantId || cached?.merchant_id || cached?.merchantId;
-        
+
         if (id) {
           await log(
             ActivityActions.VIEW_INFLOW,
@@ -204,7 +319,7 @@ export default function InflowPage() {
         isLoggingView.current = false;
       }
     };
-    
+
     if (!loading && transactions.length > 0 && !hasLoggedView.current) {
       logView();
     }
@@ -215,7 +330,7 @@ export default function InflowPage() {
     let category = 'Payment';
     const source = tx.source?.toLowerCase() || '';
     const requestType = tx.request_type?.toLowerCase() || '';
-    
+
     if (requestType.includes('utility') || requestType.includes('kplc') || requestType.includes('airtime')) {
       category = 'Utility Payment';
     } else if (requestType.includes('commission') || requestType.includes('fee')) {
@@ -227,7 +342,7 @@ export default function InflowPage() {
     } else if (source.includes('bank')) {
       category = 'Bank Transfer';
     }
-    
+
     let status = 'Pending';
     const txStatus = tx.status?.toUpperCase() || tx.payment_status?.toUpperCase() || '';
     if (txStatus.includes('COMPLETED') || txStatus.includes('SUCCESS')) {
@@ -237,13 +352,15 @@ export default function InflowPage() {
     } else if (txStatus.includes('PENDING') || txStatus.includes('AWAITING')) {
       status = 'Pending';
     }
-    
+
     const amountValue = parseFloat(tx.amount) || 0;
-    
+
     return {
-      id: tx.id.slice(0, 8),
+      id: tx.id,
+      receipt: tx.mpesa_receipt || null,
       customer: tx.phone_number || 'Unknown Customer',
       phone: tx.phone_number || 'N/A',
+      maskedPhone: maskPhone(tx.phone_number),
       email: `${tx.phone_number || 'user'}@example.com`,
       amount: amountValue,
       method: tx.source || 'M-PESA',
@@ -261,59 +378,117 @@ export default function InflowPage() {
     return transactions.map(transformToInflow);
   };
 
-  const filteredData = getInflowData().filter(
-    (item) =>
-      (filterCategory === 'All' || item.category === filterCategory) &&
-      (item.customer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.ref?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.method?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.status?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.category?.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // ─── Filter Chain: date → category → search ───────────────────────
+  const filteredData = useMemo(() => {
+    const data = getInflowData();
+
+    // 1. Date filter
+    const dateFiltered = data.filter((item) => {
+      if (!dateRange.from || !dateRange.to) return true;
+      const d = new Date(item.date).getTime();
+      return d >= dateRange.from.getTime() && d <= dateRange.to.getTime();
+    });
+
+    // 2. Category filter
+    const categoryFiltered = dateFiltered.filter(
+      (item) => filterCategory === 'All' || item.category === filterCategory
+    );
+
+    // 3. Search filter (now includes receipt and amount)
+    const term = searchTerm.toLowerCase();
+    const searched = !term
+      ? categoryFiltered
+      : categoryFiltered.filter(
+          (item) =>
+            item.receipt?.toLowerCase().includes(term) ||
+            item.customer?.toLowerCase().includes(term) ||
+            item.phone?.toLowerCase().includes(term) ||
+            item.id?.toLowerCase().includes(term) ||
+            item.ref?.toLowerCase().includes(term) ||
+            item.method?.toLowerCase().includes(term) ||
+            item.status?.toLowerCase().includes(term) ||
+            item.category?.toLowerCase().includes(term) ||
+            item.amount.toString().includes(term)
+        );
+
+    // 4. Sort newest first
+    return [...searched].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  }, [transactions, dateRange, filterCategory, searchTerm]);
 
   const totalInflow = filteredData.reduce((sum, t) => sum + t.amount, 0);
-  const completedCount = filteredData.filter(t => t.status === 'Completed').length;
-  const pendingCount = filteredData.filter(t => t.status === 'Pending').length;
-  const failedCount = filteredData.filter(t => t.status === 'Failed').length;
+  const completedCount = filteredData.filter((t) => t.status === 'Completed').length;
+  const pendingCount = filteredData.filter((t) => t.status === 'Pending').length;
+  const failedCount = filteredData.filter((t) => t.status === 'Failed').length;
 
-  // ─── Export Functions ─────────────────────────────────────────────
+  // ─── Date Range Handlers ──────────────────────────────────────────
+  const applyPreset = (preset: DatePreset) => {
+    if (preset === 'Custom') {
+      setCustomFrom(toInputDate(dateRange.from));
+      setCustomTo(toInputDate(dateRange.to));
+      setCustomRangeOpen(true);
+      return;
+    }
+    const { from, to } = getPresetRange(preset);
+    setDateRange({ from, to, preset });
+    setCustomRangeOpen(false);
+  };
+
+  const applyCustomRange = () => {
+    if (!customFrom || !customTo) return;
+    const from = startOfDay(new Date(customFrom));
+    const to = endOfDay(new Date(customTo));
+    if (from > to) {
+      alert('Start date must be before end date');
+      return;
+    }
+    setDateRange({ from, to, preset: 'Custom' });
+    setCustomRangeOpen(false);
+  };
+
+  // Close date menu when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dateMenuRef.current && !dateMenuRef.current.contains(e.target as Node)) {
+        setCustomRangeOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // ─── Export ──────────────────────────────────────────────────────
   const exportToCSV = (data: InflowTransaction[]) => {
     const headers = [
-      'Transaction ID',
+      'M-PESA Receipt',
       'Date',
       'Time',
-      'Customer',
-      'Phone',
+      'Phone (Masked)',
       'Amount (KES)',
       'Method',
       'Channel',
       'Category',
       'Status',
       'Reference',
-      'Description'
+      'Description',
     ];
 
-    const rows = data.map(tx => [
-      tx.id,
+    const rows = data.map((tx) => [
+      tx.receipt || '—',
       formatDate(tx.date),
       formatTime(tx.date),
-      tx.customer,
-      tx.phone,
+      tx.maskedPhone,
       tx.amount.toFixed(2),
       tx.method,
       tx.channel,
       tx.category,
       tx.status,
       tx.ref,
-      tx.description
+      tx.description,
     ]);
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
-
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     return csvContent;
   };
 
@@ -331,10 +506,11 @@ export default function InflowPage() {
       const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
-      
-      const date = new Date().toISOString().split('T')[0];
-      const filename = `inflow_transactions_${date}.${format === 'csv' ? 'csv' : 'xlsx'}`;
-      
+
+      const from = dateRange.from ? toInputDate(dateRange.from) : 'all';
+      const to = dateRange.to ? toInputDate(dateRange.to) : 'all';
+      const filename = `inflow_${from}_to_${to}.${format === 'csv' ? 'csv' : 'xlsx'}`;
+
       link.setAttribute('href', url);
       link.setAttribute('download', filename);
       document.body.appendChild(link);
@@ -342,7 +518,10 @@ export default function InflowPage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      log('Exported transactions', `Exported ${filteredData.length} inflow transactions as ${format.toUpperCase()}`);
+      log(
+        'Exported transactions',
+        `Exported ${filteredData.length} inflow transactions as ${format.toUpperCase()}`
+      );
     } catch (error) {
       console.error('Export failed:', error);
       alert('Failed to export transactions. Please try again.');
@@ -362,12 +541,14 @@ export default function InflowPage() {
     setShowModal(true);
     await log(
       'Viewed transaction details',
-      `Viewed details for transaction ${tx.id} - Amount: KES ${tx.amount}`
+      `Viewed details for transaction ${tx.receipt || tx.id} - Amount: KES ${tx.amount}`
     );
   };
 
-  const handleCopy = (text: string) => {
+  const handleCopy = (text: string, id: string) => {
     navigator.clipboard?.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
   };
 
   const getInitials = (name: string) => {
@@ -375,7 +556,7 @@ export default function InflowPage() {
     if (name.startsWith('0') || name.startsWith('+') || name.startsWith('254')) {
       return name.slice(0, 2);
     }
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   const formatDate = (dateStr: string) => {
@@ -413,12 +594,11 @@ export default function InflowPage() {
     );
   };
 
-  // ─── ✅ FIXED: Auth & Profile ──────────────────────────────────────
+  // ─── Auth ─────────────────────────────────────────────────────────
   useEffect(() => {
-    // ✅ Read merchant data from localStorage
     let merchant = null;
     let id = '';
-    
+
     try {
       const stored = localStorage.getItem('merchant');
       if (stored) {
@@ -429,20 +609,14 @@ export default function InflowPage() {
       console.error('Failed to parse merchant data', e);
     }
 
-    // ❌ If no merchant data, redirect to login
     if (!merchant || !id) {
       console.warn('⚠️ No merchant found in localStorage, redirecting to login');
       router.push('/login?session=expired');
       return;
     }
 
-    // ✅ Merchant data found
-    console.log('✅ Merchant data loaded:', merchant);
     setMerchantId(id);
-
-    // ─── Fetch transactions ──────────────────────────────────────
     fetchTransactions();
-
   }, [router]);
 
   if (loading) {
@@ -455,6 +629,16 @@ export default function InflowPage() {
       </div>
     );
   }
+
+  const datePresets: DatePreset[] = [
+    'Today',
+    'Yesterday',
+    'Last 7 days',
+    'Last 30 days',
+    'This month',
+    'Last month',
+    'Custom',
+  ];
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-6 px-4 sm:px-6">
@@ -480,8 +664,7 @@ export default function InflowPage() {
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </button>
-          
-          {/* Export Dropdown */}
+
           <div className="relative">
             <button
               onClick={() => setShowExportMenu(!showExportMenu)}
@@ -495,7 +678,7 @@ export default function InflowPage() {
               )}
               {isExporting ? 'Exporting...' : 'Export'}
             </button>
-            
+
             {showExportMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
                 <button
@@ -550,20 +733,23 @@ export default function InflowPage() {
 
       {/* ─── Filters & Search (Sticky) ──────────────────────────────── */}
       <div className="sticky top-[88px] z-10 bg-gray-50/95 backdrop-blur-sm -mx-4 px-4 py-3 -mt-1 border-b border-gray-200/50">
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col lg:flex-row gap-3">
+          {/* Search */}
           <div className="flex-1 relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-gray-400" />
             </div>
             <input
               type="text"
-              placeholder="Search by customer phone, transaction ID, reference, method, status, or category..."
+              placeholder="Search by M-PESA receipt, phone, amount…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
             />
           </div>
-          <div className="flex gap-2 flex-wrap">
+
+          {/* Filters */}
+          <div className="flex gap-2 flex-wrap items-center">
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
@@ -577,10 +763,73 @@ export default function InflowPage() {
               <option value="Card">Card</option>
               <option value="Bank Transfer">Bank Transfer</option>
             </select>
-            <button className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap">
-              <Filter className="w-4 h-4" />
-              Filter
-            </button>
+
+            {/* Date preset dropdown + range caption */}
+            <div className="relative" ref={dateMenuRef}>
+              <button
+                onClick={() => setCustomRangeOpen((v) => !v)}
+                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap"
+              >
+                <Calendar className="w-4 h-4" />
+                {dateRange.preset}
+              </button>
+
+              {customRangeOpen && (
+                <div className="absolute right-0 mt-2 w-60 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                  <div className="py-1">
+                    {datePresets.map((preset) => (
+                      <button
+                        key={preset}
+                        onClick={() => applyPreset(preset)}
+                        className={`w-full px-4 py-2 text-left text-sm transition-colors ${
+                          dateRange.preset === preset
+                            ? 'bg-emerald-50 text-emerald-700 font-medium'
+                            : 'hover:bg-gray-50 text-gray-700'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+
+                  {dateRange.preset === 'Custom' && (
+                    <div className="border-t border-gray-100 p-3 space-y-2">
+                      <label className="block">
+                        <span className="text-xs text-gray-500">From</span>
+                        <input
+                          type="date"
+                          value={customFrom}
+                          onChange={(e) => setCustomFrom(e.target.value)}
+                          className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs text-gray-500">To</span>
+                        <input
+                          type="date"
+                          value={customTo}
+                          onChange={(e) => setCustomTo(e.target.value)}
+                          className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        />
+                      </label>
+                      <button
+                        onClick={applyCustomRange}
+                        className="w-full mt-1 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Range caption */}
+            <div className="hidden sm:flex items-center px-3 py-2 bg-white rounded-xl text-xs text-gray-500 border border-gray-200 whitespace-nowrap">
+              {formatRangeCaption(dateRange)}
+            </div>
+
+            {/* Transaction count */}
             <div className="flex items-center px-4 py-2 bg-gray-50 rounded-xl text-sm text-gray-500 border border-gray-200 whitespace-nowrap">
               <span className="font-medium text-gray-700">{filteredData.length}</span>
               <span className="ml-1">transactions</span>
@@ -589,18 +838,18 @@ export default function InflowPage() {
         </div>
       </div>
 
-      {/* ─── Table with Fixed Header and Scrollable Body ────────────── */}
+      {/* ─── Table ──────────────────────────────────────────────────── */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-y-auto max-h-[500px]">
-          <table className="w-full text-sm table-fixed min-w-[700px]">
+          <table className="w-full text-sm table-fixed min-w-[820px]">
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-gray-200 bg-gray-100">
-                <th className="w-[80px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">ID</th>
-                <th className="w-[150px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date & Time</th>
-                <th className="w-[150px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
+                <th className="w-[140px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">M-PESA Receipt</th>
+                <th className="w-[140px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date &amp; Time</th>
+                <th className="w-[160px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
                 <th className="w-[120px] px-3 py-3.5 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
                 <th className="w-[120px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
-                <th className="w-[100px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                <th className="w-[110px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -614,8 +863,8 @@ export default function InflowPage() {
                       <div>
                         <p className="text-gray-500 font-medium text-lg">No inflow transactions</p>
                         <p className="text-sm text-gray-400 mt-1">
-                          {transactions.length > 0 
-                            ? 'No transactions match your search criteria'
+                          {transactions.length > 0
+                            ? 'No transactions match your filters'
                             : 'Your incoming payments will appear here'}
                         </p>
                       </div>
@@ -629,13 +878,33 @@ export default function InflowPage() {
                     onClick={() => handleViewDetails(tx)}
                     className="border-b border-gray-100 hover:bg-gray-50/70 transition-colors cursor-pointer group"
                   >
-                    {/* ID */}
+                    {/* M-PESA Receipt */}
                     <td className="px-3 py-3.5">
-                      <span className="font-mono text-xs text-gray-500 group-hover:text-emerald-600 transition-colors">
-                        {tx.id}
-                      </span>
+                      {tx.receipt ? (
+                        <div className="flex items-center gap-1.5 group/receipt">
+                          <span className="font-mono text-xs text-gray-700 group-hover:text-emerald-600 transition-colors tracking-normal">
+                            {tx.receipt}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopy(tx.receipt!, tx.id);
+                            }}
+                            title="Copy receipt"
+                            className="opacity-0 group-hover/receipt:opacity-100 transition-opacity p-1 rounded hover:bg-emerald-50"
+                          >
+                            {copiedId === tx.id ? (
+                              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5 text-gray-400" />
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="font-mono text-xs text-gray-300">—</span>
+                      )}
                     </td>
-                    
+
                     {/* Date & Time */}
                     <td className="px-3 py-3.5">
                       <div className="flex flex-col">
@@ -643,29 +912,29 @@ export default function InflowPage() {
                         <span className="text-xs text-gray-400">{formatTime(tx.date)}</span>
                       </div>
                     </td>
-                    
-                    {/* Customer */}
+
+                    {/* Customer (masked) */}
                     <td className="px-3 py-3.5">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center text-emerald-700 font-semibold text-xs flex-shrink-0">
                           {getInitials(tx.customer)}
                         </div>
-                        <span className="text-sm text-gray-900 truncate">{tx.phone}</span>
+                        <span className="text-sm text-gray-900 truncate font-mono">{tx.maskedPhone}</span>
                       </div>
                     </td>
-                    
+
                     {/* Amount */}
                     <td className="px-3 py-3.5 text-right">
                       <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">
                         KES {tx.amount.toLocaleString()}
                       </span>
                     </td>
-                    
+
                     {/* Category */}
                     <td className="px-3 py-3.5">
                       <CategoryBadge category={tx.category} />
                     </td>
-                    
+
                     {/* Status */}
                     <td className="px-3 py-3.5">
                       <StatusBadge status={tx.status} />
@@ -684,7 +953,7 @@ export default function InflowPage() {
             </span>
             <span className="text-xs text-gray-500 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              Last updated: {new Date().toLocaleString()}
+              Last updated: {lastFetched ? lastFetched.toLocaleString() : '—'}
             </span>
           </div>
         )}
@@ -692,13 +961,23 @@ export default function InflowPage() {
 
       {/* ─── View Details Modal ──────────────────────────────────────── */}
       {showModal && selectedTransaction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
               <div className="flex items-center gap-3">
                 <div className={`w-3 h-3 rounded-full ${statusBadgeColors[selectedTransaction.status as keyof typeof statusBadgeColors] || 'bg-gray-500'}`} />
                 <h3 className="text-lg font-bold text-gray-900">Transaction Details</h3>
-                <span className="text-xs text-gray-400 font-mono ml-2">#{selectedTransaction.id}</span>
+                {selectedTransaction.receipt && (
+                  <span className="text-xs text-gray-500 font-mono ml-2">
+                    #{selectedTransaction.receipt}
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => setShowModal(false)}
@@ -718,12 +997,34 @@ export default function InflowPage() {
                         {getInitials(selectedTransaction.customer)}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium text-gray-900 truncate">{selectedTransaction.customer}</p>
+                        <p className="font-medium text-gray-900 font-mono truncate">{selectedTransaction.phone}</p>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <Phone className="w-3 h-3 flex-shrink-0" />
-                          <span className="truncate">{selectedTransaction.phone}</span>
+                          <span className="truncate">Mobile Money</span>
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">M-PESA Receipt</p>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="font-mono text-sm text-gray-900 break-all">
+                        {selectedTransaction.receipt || '—'}
+                      </p>
+                      {selectedTransaction.receipt && (
+                        <button
+                          onClick={() => handleCopy(selectedTransaction.receipt!, 'modal-receipt')}
+                          className="p-1.5 rounded hover:bg-gray-200 transition-colors"
+                          title="Copy receipt"
+                        >
+                          {copiedId === 'modal-receipt' ? (
+                            <CheckCircle className="w-4 h-4 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-4 h-4 text-gray-400" />
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -772,8 +1073,10 @@ export default function InflowPage() {
                         <span className="text-sm text-gray-900 text-right">{formatDate(selectedTransaction.settlementDate)}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-500">Date & Time</span>
-                        <span className="text-sm text-gray-900 text-right">{formatDate(selectedTransaction.date)} {formatTime(selectedTransaction.date)}</span>
+                        <span className="text-sm text-gray-500">Date &amp; Time</span>
+                        <span className="text-sm text-gray-900 text-right">
+                          {formatDate(selectedTransaction.date)} {formatTime(selectedTransaction.date)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -782,13 +1085,13 @@ export default function InflowPage() {
 
               <div className="mt-6 pt-4 border-t border-gray-100 flex flex-wrap gap-3">
                 <button
-                  onClick={() => handleCopy(selectedTransaction.id)}
+                  onClick={() => handleCopy(selectedTransaction.receipt || selectedTransaction.id, 'modal-copy')}
                   className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2"
                 >
                   <Copy className="w-4 h-4" />
-                  Copy ID
+                  {selectedTransaction.receipt ? 'Copy Receipt' : 'Copy Reference'}
                 </button>
-                <button 
+                <button
                   onClick={() => window.print()}
                   className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2"
                 >
