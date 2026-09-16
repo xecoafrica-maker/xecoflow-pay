@@ -22,10 +22,8 @@ import {
   Play,
   Trash2,
   Download,
-  CreditCard,
   Printer,
   Mail,
-  Wallet,
   Loader2,
 } from 'lucide-react';
 import { getStoredMerchant } from '@/lib/auth';
@@ -60,61 +58,68 @@ interface ApiResponse {
 }
 
 // ─── Colors ──────────────────────────────────────────────────────────
-const statusColors = {
-  Active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  Paused: 'bg-amber-50 text-amber-700 border-amber-200',
-  Cancelled: 'bg-gray-50 text-gray-700 border-gray-200',
-  Completed: 'bg-blue-50 text-blue-700 border-blue-200',
+const statusColors: Record<string, string> = {
   PENDING: 'bg-yellow-50 text-yellow-700 border-yellow-200',
   PROCESSING: 'bg-blue-50 text-blue-700 border-blue-200',
+  COMPLETED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   FAILED: 'bg-red-50 text-red-700 border-red-200',
+  CANCELLED: 'bg-gray-50 text-gray-700 border-gray-200',
+  PAUSED: 'bg-amber-50 text-amber-700 border-amber-200',
 };
 
-const statusIcons = {
-  Active: CheckCircle,
-  Paused: ClockIcon,
-  Cancelled: XCircle,
-  Completed: CheckCircle,
+const statusIcons: Record<string, any> = {
   PENDING: ClockIcon,
   PROCESSING: ClockIcon,
+  COMPLETED: CheckCircle,
   FAILED: XCircle,
+  CANCELLED: XCircle,
+  PAUSED: Pause,
 };
 
-const methodIcons = {
+const methodIcons: Record<string, any> = {
   'M-PESA': Smartphone,
   'Bank Transfer': Landmark,
-  'Credit Card': CreditCard,
-  'MPESA_PHONE': Smartphone,
-  'BANK_ACCOUNT': Landmark,
+  MPESA_PHONE: Smartphone,
+  BANK_ACCOUNT: Landmark,
+  LEDGER_ACCOUNT: Landmark,
 };
 
-const methodColors = {
+const methodColors: Record<string, string> = {
   'M-PESA': 'bg-green-50 text-green-700 border-green-200',
   'Bank Transfer': 'bg-blue-50 text-blue-700 border-blue-200',
-  'Credit Card': 'bg-purple-50 text-purple-700 border-purple-200',
-  'MPESA_PHONE': 'bg-green-50 text-green-700 border-green-200',
-  'BANK_ACCOUNT': 'bg-blue-50 text-blue-700 border-blue-200',
+  MPESA_PHONE: 'bg-green-50 text-green-700 border-green-200',
+  BANK_ACCOUNT: 'bg-blue-50 text-blue-700 border-blue-200',
+  LEDGER_ACCOUNT: 'bg-blue-50 text-blue-700 border-blue-200',
 };
 
-const frequencyOptions = ['Daily', 'Weekly', 'Bi-Weekly', 'Monthly', 'Quarterly'];
+const frequencyOptions = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly'];
+
+const frequencyLabels: Record<string, string> = {
+  daily: 'Daily',
+  weekly: 'Weekly',
+  biweekly: 'Bi-Weekly',
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+};
 
 // ─── Status Badge ──────────────────────────────────────────────────
 const StatusBadge = ({ status }: { status: string }) => {
-  const StatusIcon = statusIcons[status as keyof typeof statusIcons] || ClockIcon;
-  const colorKey = status as keyof typeof statusColors;
-  const color = statusColors[colorKey] || 'bg-gray-50 text-gray-700 border-gray-200';
+  const upper = (status || '').toUpperCase();
+  const StatusIcon = statusIcons[upper] || ClockIcon;
+  const color = statusColors[upper] || 'bg-gray-50 text-gray-700 border-gray-200';
+  const label = upper.charAt(0) + upper.slice(1).toLowerCase();
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color}`}>
       <StatusIcon className="w-3 h-3" />
-      {status}
+      {label}
     </span>
   );
 };
 
 // ─── Method Badge ──────────────────────────────────────────────────
 const MethodBadge = ({ method }: { method: string }) => {
-  const Icon = methodIcons[method as keyof typeof methodIcons] || CreditCard;
-  const color = methodColors[method as keyof typeof methodColors] || 'bg-gray-50 text-gray-600 border-gray-200';
+  const Icon = methodIcons[method] || Landmark;
+  const color = methodColors[method] || 'bg-gray-50 text-gray-600 border-gray-200';
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color}`}>
       <Icon className="w-3 h-3" />
@@ -122,6 +127,11 @@ const MethodBadge = ({ method }: { method: string }) => {
     </span>
   );
 };
+
+// ─── Skeleton ──────────────────────────────────────────────────────
+const SkeletonBlock = ({ className = '' }: { className?: string }) => (
+  <div className={`bg-gray-200 rounded animate-pulse ${className}`} />
+);
 
 export default function ScheduledWithdrawalsPage() {
   const router = useRouter();
@@ -141,16 +151,17 @@ export default function ScheduledWithdrawalsPage() {
   const [merchantId, setMerchantId] = useState<string>('');
   const [merchantName, setMerchantName] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isToggling, setIsToggling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ Prevent duplicate logging
   const hasLoggedView = useRef(false);
   const isLoggingView = useRef(false);
 
   // ─── Form State ───────────────────────────────────────────────────
   const [formData, setFormData] = useState({
     amount: '',
-    frequency: 'Weekly',
+    frequency: 'weekly',
     nextDate: '',
     time: '08:00',
     method: 'M-PESA',
@@ -161,19 +172,8 @@ export default function ScheduledWithdrawalsPage() {
   // ─── Fetch Schedules ──────────────────────────────────────────────
   const fetchSchedules = async () => {
     try {
-      // ✅ Read merchant from localStorage
-      let merchant = null;
-      let id = '';
-      
-      try {
-        const stored = localStorage.getItem('merchant');
-        if (stored) {
-          merchant = JSON.parse(stored);
-          id = String(merchant.merchant_id || merchant.merchantId || '');
-        }
-      } catch (e) {
-        console.error('Failed to parse merchant data', e);
-      }
+      const cached = getStoredMerchant();
+      const id = merchantId || String(cached?.merchant_id || cached?.merchantId || '');
 
       if (!id) {
         console.warn('No merchant ID available');
@@ -183,12 +183,9 @@ export default function ScheduledWithdrawalsPage() {
       const statusParam = filterStatus !== 'All' ? `&status=${filterStatus}` : '';
       const frequencyParam = filterFrequency !== 'All' ? `&frequency=${filterFrequency}` : '';
 
-      // ✅ FIXED: Use API route with credentials
       const response = await fetch(
         `/api/schedules?merchantId=${id}&limit=100${statusParam}${frequencyParam}`,
-        {
-          credentials: 'include',
-        }
+        { credentials: 'include' }
       );
 
       if (!response.ok) {
@@ -202,100 +199,96 @@ export default function ScheduledWithdrawalsPage() {
       const json: ApiResponse = await response.json();
 
       if (json.success) {
-        // Map API data to frontend format
-        const mappedData = (json.data || []).map((item: any) => ({
-          id: item.id,
-          name: item.schedule_type || 'Scheduled Withdrawal',
-          description: `${item.schedule_type} of ${item.amount} ${item.currency}`,
-          amount: Number(item.amount),
-          frequency: item.frequency || 'weekly',
-          method: item.destination_type === 'MPESA_PHONE' ? 'M-PESA' : 'Bank Transfer',
-          status: item.status,
-          recipient: item.destination_reference || item.destination_account_number || 'N/A',
-          startDate: item.created_at,
-          nextDate: item.scheduled_at,
-          time: item.scheduled_at ? new Date(item.scheduled_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '08:00',
-          created_at: item.created_at,
-          updated_at: item.updated_at,
-        }));
+        const mappedData: ScheduledWithdrawal[] = (json.data || []).map((item: any) => {
+          const destType = item.destination_type || '';
+          const method = destType === 'MPESA_PHONE' ? 'M-PESA' : 'Bank Transfer';
+          const recipient =
+            item.destination_reference ||
+            item.destination_account_number ||
+            'N/A';
+
+          return {
+            id: item.id,
+            name: frequencyLabels[item.frequency] || item.frequency || 'Scheduled Withdrawal',
+            description: `${frequencyLabels[item.frequency] || item.frequency} withdrawal of ${item.currency} ${Number(item.amount).toLocaleString()}`,
+            amount: Number(item.amount),
+            frequency: item.frequency || 'weekly',
+            method,
+            status: (item.status || 'PENDING').toUpperCase(),
+            recipient,
+            startDate: item.created_at,
+            nextDate: item.scheduled_at,
+            time: item.scheduled_at
+              ? new Date(item.scheduled_at).toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : '08:00',
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+          };
+        });
 
         setScheduledData(mappedData);
+        setError(null);
+      } else {
+        setError(json.error || 'Failed to load schedules.');
       }
-    } catch (error) {
-      console.error('Failed to fetch schedules:', error);
+    } catch (err) {
+      console.error('Failed to fetch schedules:', err);
       setError('Failed to load schedules. Please try again.');
     }
   };
 
-  // ─── ✅ FIXED: Auth & Profile ──────────────────────────────────────
+  // ─── Auth ─────────────────────────────────────────────────────────
   useEffect(() => {
-    // ✅ Read merchant data from localStorage
-    let merchant = null;
-    let id = '';
-    
-    try {
-      const stored = localStorage.getItem('merchant');
-      if (stored) {
-        merchant = JSON.parse(stored);
-        id = String(merchant.merchant_id || merchant.merchantId || '');
-      }
-    } catch (e) {
-      console.error('Failed to parse merchant data', e);
-    }
+    const cached = getStoredMerchant();
+    const id = String(cached?.merchant_id || cached?.merchantId || '');
 
-    // ❌ If no merchant data, redirect to login
-    if (!merchant || !id) {
-      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
+    if (!id) {
+      console.warn('No merchant found, redirecting to login');
       router.push('/login?session=expired');
       return;
     }
 
-    // ✅ Merchant data found
-    console.log('✅ Merchant data loaded:', merchant);
     setMerchantId(id);
-    setMerchantName(merchant.business_name || merchant.businessName || '');
+    setMerchantName(cached?.business_name || cached?.businessName || '');
 
-    // ─── Fetch schedules ──────────────────────────────────────
-    fetchSchedules();
-
-    setTimeout(() => {
+    fetchSchedules().finally(() => {
       setLoading(false);
-    }, 500);
+    });
   }, [router]);
 
   // ─── Log View ──────────────────────────────────────────────────────
   useEffect(() => {
     const logView = async () => {
-      if (isLoggingView.current || hasLoggedView.current) {
-        return;
-      }
-      
+      if (isLoggingView.current || hasLoggedView.current || loading) return;
+
       try {
         isLoggingView.current = true;
-        
         if (merchantId) {
           await log(
             ActivityActions.VIEW_WITHDRAW_SCHEDULES,
-            `Viewed scheduled withdrawals for ${merchantName || 'business'}`
+            `Viewed scheduled withdrawals (${scheduledData.length})`
           );
           hasLoggedView.current = true;
         }
-      } catch (error) {
-        console.debug('Scheduled withdrawals view logging skipped:', error);
+      } catch (err) {
+        console.debug('Scheduled withdrawals view logging skipped:', err);
       } finally {
         isLoggingView.current = false;
       }
     };
-    
+
     if (merchantId && !hasLoggedView.current && !loading) {
       logView();
     }
-  }, [merchantId, merchantName, loading, log]);
+  }, [merchantId, loading, log, scheduledData.length, ActivityActions.VIEW_WITHDRAW_SCHEDULES]);
 
   // ─── Filter Data ──────────────────────────────────────────────────
   const filteredData = scheduledData.filter(
     (item) =>
-      (filterStatus === 'All' || item.status === filterStatus) &&
+      (filterStatus === 'All' || item.status === filterStatus.toUpperCase()) &&
       (filterFrequency === 'All' || item.frequency === filterFrequency) &&
       (item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -304,17 +297,20 @@ export default function ScheduledWithdrawalsPage() {
 
   // ─── Statistics ──────────────────────────────────────────────────
   const totalScheduled = filteredData.length;
-  const activeCount = filteredData.filter(t => t.status === 'Active' || t.status === 'PENDING' || t.status === 'PROCESSING').length;
-  const pausedCount = filteredData.filter(t => t.status === 'Paused').length;
+  const activeCount = filteredData.filter(
+    (t) => t.status === 'PENDING' || t.status === 'PROCESSING'
+  ).length;
+  const pausedCount = filteredData.filter((t) => t.status === 'PAUSED').length;
 
   // ─── Handlers ──────────────────────────────────────────────────────
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
     hasLoggedView.current = false;
-    fetchSchedules().finally(() => {
+    try {
+      await fetchSchedules();
+    } finally {
       setIsRefreshing(false);
-      setLoading(false);
-    });
+    }
   };
 
   const handleViewDetails = async (schedule: ScheduledWithdrawal) => {
@@ -334,28 +330,19 @@ export default function ScheduledWithdrawalsPage() {
   const confirmDelete = async () => {
     if (!selectedSchedule) return;
 
+    const cached = getStoredMerchant();
+    const id = cached?.merchant_id || cached?.merchantId;
+    if (!id) {
+      router.push('/login?session=expired');
+      return;
+    }
+
+    setIsDeleting(true);
     try {
-      // ✅ Get merchant from localStorage
-      let merchant = null;
-      try {
-        const stored = localStorage.getItem('merchant');
-        if (stored) {
-          merchant = JSON.parse(stored);
-        }
-      } catch (e) {
-        console.error('Failed to parse merchant data', e);
-      }
-
-      if (!merchant || !merchant.merchant_id) {
-        router.push('/login?session=expired');
-        return;
-      }
-
-      // ✅ FIXED: Use API route with credentials
-      const response = await fetch(`/api/schedules/${selectedSchedule.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
+      const response = await fetch(
+        `/api/schedules/${selectedSchedule.id}?merchantId=${id}`,
+        { method: 'DELETE', credentials: 'include' }
+      );
 
       if (!response.ok) throw new Error('Failed to delete schedule');
 
@@ -367,116 +354,92 @@ export default function ScheduledWithdrawalsPage() {
       setShowDeleteModal(false);
       setSelectedSchedule(null);
       await fetchSchedules();
-    } catch (error) {
-      console.error('Failed to delete schedule:', error);
+    } catch (err) {
+      console.error('Failed to delete schedule:', err);
       alert('Failed to delete schedule. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const handleToggleStatus = async (schedule: ScheduledWithdrawal) => {
+    const cached = getStoredMerchant();
+    const id = cached?.merchant_id || cached?.merchantId;
+    if (!id) {
+      router.push('/login?session=expired');
+      return;
+    }
+
+    // PENDING or PROCESSING → pause. PAUSED → resume.
+    const isActive = schedule.status === 'PENDING' || schedule.status === 'PROCESSING';
+    const action = isActive ? 'pause' : 'resume';
+
+    setIsToggling(true);
     try {
-      // ✅ Get merchant from localStorage
-      let merchant = null;
-      try {
-        const stored = localStorage.getItem('merchant');
-        if (stored) {
-          merchant = JSON.parse(stored);
-        }
-      } catch (e) {
-        console.error('Failed to parse merchant data', e);
-      }
-
-      if (!merchant || !merchant.merchant_id) {
-        router.push('/login?session=expired');
-        return;
-      }
-
-      const newStatus = schedule.status === 'Active' || schedule.status === 'PENDING' ? 'PAUSED' : 'PENDING';
-      const endpoint = `/api/schedules/${schedule.id}/${newStatus === 'PAUSED' ? 'pause' : 'resume'}`;
-
-      // ✅ FIXED: Use API route with credentials
-      const response = await fetch(endpoint, {
+      const response = await fetch(`/api/schedules/${schedule.id}/${action}`, {
         method: 'POST',
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merchantId: id }),
       });
 
       if (!response.ok) throw new Error('Failed to update schedule status');
 
       await log(
-        schedule.status === 'Active' ? 'Paused scheduled withdrawal' : 'Activated scheduled withdrawal',
-        `${schedule.status === 'Active' ? 'Paused' : 'Activated'} schedule ${schedule.id}`
+        isActive ? 'Paused scheduled withdrawal' : 'Resumed scheduled withdrawal',
+        `${isActive ? 'Paused' : 'Resumed'} schedule ${schedule.id}`
       );
 
       await fetchSchedules();
-    } catch (error) {
-      console.error('Failed to toggle status:', error);
+    } catch (err) {
+      console.error('Failed to toggle status:', err);
       alert('Failed to update schedule status. Please try again.');
+    } finally {
+      setIsToggling(false);
     }
   };
 
-  // ✅ FIXED: handleCreateSchedule with proper EAT to UTC conversion
   const handleCreateSchedule = async () => {
     if (!formData.amount || !formData.nextDate || !formData.time) {
       alert('Please fill in all required fields');
       return;
     }
+    if (!formData.confirmAccuracy) {
+      alert('Please confirm the accuracy of the details.');
+      return;
+    }
+
+    const cached = getStoredMerchant();
+    const id = cached?.merchant_id || cached?.merchantId;
+    if (!id) {
+      router.push('/login?session=expired');
+      return;
+    }
 
     setIsSubmitting(true);
-
     try {
-      // ✅ Get merchant from localStorage
-      let merchant = null;
-      try {
-        const stored = localStorage.getItem('merchant');
-        if (stored) {
-          merchant = JSON.parse(stored);
-        }
-      } catch (e) {
-        console.error('Failed to parse merchant data', e);
-      }
+      // Combine date + time into a local timestamp, then send ISO string.
+      const localDateTimeString = `${formData.nextDate}T${formData.time || '08:00'}:00`;
+      const localDate = new Date(localDateTimeString);
 
-      if (!merchant || !merchant.merchant_id) {
-        router.push('/login?session=expired');
-        return;
-      }
-
-      // Map frequency to database format
-      const frequencyMap: Record<string, string> = {
-        'Daily': 'daily',
-        'Weekly': 'weekly',
-        'Bi-Weekly': 'biweekly',
-        'Monthly': 'monthly',
-        'Quarterly': 'quarterly',
-      };
-
-      // ✅ CORRECT: Convert EAT time to UTC
-      const eatTimeString = `${formData.nextDate}T${formData.time || '08:00:00'}`;
-      const localDate = new Date(eatTimeString);
-      const utcDate = new Date(localDate.getTime() - localDate.getTimezoneOffset() * 60000);
-
-      // ✅ FIXED: Use API route with credentials
       const response = await fetch('/api/schedules', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          merchantId: merchant.merchant_id,
+          merchantId: id,
           amount: parseFloat(formData.amount),
-          frequency: frequencyMap[formData.frequency] || 'weekly',
-          nextDate: formData.nextDate,
-          time: formData.time,
+          frequency: formData.frequency,
           method: formData.method,
-          destination_reference: formData.destination_reference || '',
           destination_type: formData.method === 'M-PESA' ? 'MPESA_PHONE' : 'BANK_ACCOUNT',
-          scheduled_at: utcDate.toISOString(),
+          destination_reference: formData.destination_reference || cached?.phone || '',
+          scheduled_at: localDate.toISOString(),
         }),
       });
 
       const data = await response.json();
 
-      if (!response.ok) {
+      if (!response.ok || !data.success) {
         throw new Error(data.error || 'Failed to create schedule');
       }
 
@@ -488,19 +451,18 @@ export default function ScheduledWithdrawalsPage() {
       setShowCreateModal(false);
       setFormData({
         amount: '',
-        frequency: 'Weekly',
+        frequency: 'weekly',
         nextDate: '',
         time: '08:00',
         method: 'M-PESA',
         destination_reference: '',
         confirmAccuracy: false,
       });
-      
+
       await fetchSchedules();
-      
-    } catch (error: any) {
-      console.error('Failed to create schedule:', error);
-      alert(error.message || 'Failed to create schedule. Please try again.');
+    } catch (err: any) {
+      console.error('Failed to create schedule:', err);
+      alert(err.message || 'Failed to create schedule. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -520,13 +482,63 @@ export default function ScheduledWithdrawalsPage() {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  // ─── Loading State ────────────────────────────────────────────────
+  // ─── Loading Skeleton ─────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-purple-500 mx-auto" />
-          <p className="mt-4 text-gray-600">Loading scheduled withdrawals...</p>
+      <div className="max-w-[1400px] mx-auto space-y-6 px-4 sm:px-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <SkeletonBlock className="w-10 h-10 rounded-xl" />
+            <div>
+              <SkeletonBlock className="h-6 w-56 mb-2" />
+              <SkeletonBlock className="h-4 w-72" />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <SkeletonBlock className="h-10 w-32 rounded-xl" />
+            <SkeletonBlock className="h-10 w-24 rounded-xl" />
+            <SkeletonBlock className="h-10 w-24 rounded-xl" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+              <SkeletonBlock className="h-3 w-24 mb-3" />
+              <SkeletonBlock className="h-7 w-16" />
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <SkeletonBlock className="h-11 flex-1 rounded-xl" />
+          <SkeletonBlock className="h-11 w-40 rounded-xl" />
+          <SkeletonBlock className="h-11 w-40 rounded-xl" />
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/80">
+                <th className="px-6 py-3.5"><SkeletonBlock className="h-3 w-32" /></th>
+                <th className="px-6 py-3.5"><SkeletonBlock className="h-3 w-16" /></th>
+                <th className="px-6 py-3.5"><SkeletonBlock className="h-3 w-32" /></th>
+                <th className="px-6 py-3.5"><SkeletonBlock className="h-3 w-24" /></th>
+                <th className="px-6 py-3.5"><SkeletonBlock className="h-3 w-16" /></th>
+              </tr>
+            </thead>
+            <tbody>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <tr key={i} className="border-b border-gray-50">
+                  <td className="px-6 py-4"><SkeletonBlock className="h-4 w-20" /></td>
+                  <td className="px-6 py-4"><SkeletonBlock className="h-6 w-24 rounded-full" /></td>
+                  <td className="px-6 py-4"><SkeletonBlock className="h-4 w-32" /></td>
+                  <td className="px-6 py-4"><SkeletonBlock className="h-4 w-24" /></td>
+                  <td className="px-6 py-4"><SkeletonBlock className="h-4 w-20 ml-auto" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     );
@@ -563,10 +575,6 @@ export default function ScheduledWithdrawalsPage() {
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </button>
-          <button className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm">
-            <Download className="w-4 h-4" />
-            Export
-          </button>
         </div>
       </div>
 
@@ -574,7 +582,7 @@ export default function ScheduledWithdrawalsPage() {
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-          <div>
+          <div className="flex-1">
             <p className="text-sm text-red-700">{error}</p>
             <button
               onClick={() => setError(null)}
@@ -610,7 +618,7 @@ export default function ScheduledWithdrawalsPage() {
           </div>
           <input
             type="text"
-            placeholder="Search by name, ID, or recipient..."
+            placeholder="Search by frequency, ID, or recipient..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all shadow-sm"
@@ -624,10 +632,11 @@ export default function ScheduledWithdrawalsPage() {
           >
             <option value="All">All Status</option>
             <option value="PENDING">Pending</option>
-            <option value="Active">Active</option>
-            <option value="Paused">Paused</option>
+            <option value="PROCESSING">Processing</option>
+            <option value="PAUSED">Paused</option>
             <option value="COMPLETED">Completed</option>
             <option value="FAILED">Failed</option>
+            <option value="CANCELLED">Cancelled</option>
           </select>
           <select
             value={filterFrequency}
@@ -636,13 +645,11 @@ export default function ScheduledWithdrawalsPage() {
           >
             <option value="All">All Frequencies</option>
             {frequencyOptions.map((freq) => (
-              <option key={freq} value={freq}>{freq}</option>
+              <option key={freq} value={freq}>
+                {frequencyLabels[freq]}
+              </option>
             ))}
           </select>
-          <button className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap">
-            <Filter className="w-4 h-4" />
-            Filter
-          </button>
           <div className="flex items-center px-4 py-2 bg-gray-50 rounded-xl text-sm text-gray-500 border border-gray-200">
             <span className="font-medium text-gray-700">{filteredData.length}</span>
             <span className="ml-1">schedules</span>
@@ -659,7 +666,7 @@ export default function ScheduledWithdrawalsPage() {
                 <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Transfer Frequency</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Next Processing Date</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Default Bank</th>
+                <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Destination</th>
                 <th className="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
               </tr>
             </thead>
@@ -690,7 +697,9 @@ export default function ScheduledWithdrawalsPage() {
                     className="border-b border-gray-50 hover:bg-gray-50/70 transition-colors group"
                   >
                     <td className="px-6 py-4">
-                      <span className="text-sm text-gray-700">{schedule.frequency}</span>
+                      <span className="text-sm text-gray-700">
+                        {frequencyLabels[schedule.frequency] || schedule.frequency}
+                      </span>
                     </td>
                     <td className="px-6 py-4">
                       <StatusBadge status={schedule.status} />
@@ -721,21 +730,24 @@ export default function ScheduledWithdrawalsPage() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleToggleStatus(schedule)}
-                          className={`p-1.5 hover:bg-gray-100 rounded-lg transition-colors ${
-                            schedule.status === 'Active' || schedule.status === 'PENDING' || schedule.status === 'PROCESSING'
-                              ? 'text-amber-400 hover:text-amber-600'
-                              : 'text-emerald-400 hover:text-emerald-600'
-                          }`}
-                          title={schedule.status === 'Active' || schedule.status === 'PENDING' ? 'Pause' : 'Activate'}
-                        >
-                          {schedule.status === 'Active' || schedule.status === 'PENDING' || schedule.status === 'PROCESSING' ? (
-                            <Pause className="w-4 h-4" />
-                          ) : (
-                            <Play className="w-4 h-4" />
-                          )}
-                        </button>
+                        {(schedule.status === 'PENDING' || schedule.status === 'PROCESSING' || schedule.status === 'PAUSED') && (
+                          <button
+                            onClick={() => handleToggleStatus(schedule)}
+                            disabled={isToggling}
+                            className={`p-1.5 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 ${
+                              schedule.status === 'PAUSED'
+                                ? 'text-emerald-400 hover:text-emerald-600'
+                                : 'text-amber-400 hover:text-amber-600'
+                            }`}
+                            title={schedule.status === 'PAUSED' ? 'Resume' : 'Pause'}
+                          >
+                            {schedule.status === 'PAUSED' ? (
+                              <Play className="w-4 h-4" />
+                            ) : (
+                              <Pause className="w-4 h-4" />
+                            )}
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDelete(schedule)}
                           className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-red-400 hover:text-red-600"
@@ -752,7 +764,6 @@ export default function ScheduledWithdrawalsPage() {
           </table>
         </div>
 
-        {/* ─── Footer ────────────────────────────────────────────────── */}
         {filteredData.length > 0 && (
           <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
             <span className="text-xs text-gray-400">
@@ -810,9 +821,10 @@ export default function ScheduledWithdrawalsPage() {
                     Transfer frequency <span className="text-red-500">*</span>
                   </label>
                   <div className="grid grid-cols-5 gap-2">
-                    {['Daily', 'Weekly', 'Bi-Weekly', 'Monthly', 'Quarterly'].map((freq) => (
+                    {frequencyOptions.map((freq) => (
                       <button
                         key={freq}
+                        type="button"
                         onClick={() => setFormData({ ...formData, frequency: freq })}
                         className={`px-4 py-2 rounded-xl border text-sm font-medium transition-all ${
                           formData.frequency === freq
@@ -820,7 +832,7 @@ export default function ScheduledWithdrawalsPage() {
                             : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
                         }`}
                       >
-                        {freq}
+                        {frequencyLabels[freq]}
                       </button>
                     ))}
                   </div>
@@ -852,13 +864,14 @@ export default function ScheduledWithdrawalsPage() {
                   </div>
                 </div>
 
-                {/* Withdraw To Selection */}
+                {/* Destination */}
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-1.5">
                     Withdraw To <span className="text-red-500">*</span>
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
+                      type="button"
                       onClick={() => setFormData({ ...formData, method: 'Bank Transfer' })}
                       className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
                         formData.method === 'Bank Transfer'
@@ -869,10 +882,11 @@ export default function ScheduledWithdrawalsPage() {
                       <Landmark className="w-4 h-4" />
                       <div className="text-left">
                         <div className="font-medium">Bank Account</div>
-                        <div className="text-xs text-gray-400">AFRICAN BANKING CORP.</div>
+                        <div className="text-xs text-gray-400">Linked bank</div>
                       </div>
                     </button>
                     <button
+                      type="button"
                       onClick={() => setFormData({ ...formData, method: 'M-PESA' })}
                       className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
                         formData.method === 'M-PESA'
@@ -883,10 +897,30 @@ export default function ScheduledWithdrawalsPage() {
                       <Smartphone className="w-4 h-4" />
                       <div className="text-left">
                         <div className="font-medium">Mobile Money</div>
-                        <div className="text-xs text-gray-400">254712071385</div>
+                        <div className="text-xs text-gray-400">Linked phone</div>
                       </div>
                     </button>
                   </div>
+                </div>
+
+                {/* Destination reference (phone / account no.) */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1.5">
+                    {formData.method === 'M-PESA' ? 'Mobile number' : 'Account number'}
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.destination_reference}
+                    onChange={(e) =>
+                      setFormData({ ...formData, destination_reference: e.target.value })
+                    }
+                    placeholder={
+                      formData.method === 'M-PESA'
+                        ? 'e.g. 254XXXXXXXXX'
+                        : 'e.g. 0123456789'
+                    }
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
+                  />
                 </div>
 
                 {/* Summary */}
@@ -896,60 +930,66 @@ export default function ScheduledWithdrawalsPage() {
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-500">Amount</span>
                       <span className="text-sm font-medium text-gray-900">
-                        {formData.amount ? `KES ${parseFloat(formData.amount).toLocaleString()}` : '—'}
+                        {formData.amount
+                          ? `KES ${parseFloat(formData.amount).toLocaleString()}`
+                          : '—'}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-500">Transfer frequency</span>
-                      <span className="text-sm font-medium text-gray-900">{formData.frequency}</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {frequencyLabels[formData.frequency]}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-500">Start processing</span>
-                      <span className="text-sm font-medium text-gray-900">{formData.nextDate || '—'}</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {formData.nextDate || '—'}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-500">Time</span>
-                      <span className="text-sm font-medium text-gray-900">{formData.time || '—'}</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {formData.time || '—'}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-500">Destination</span>
-                      <span className="text-sm font-medium text-gray-900">{formData.method}</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {formData.method}
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Confirmation Checkbox */}
+                {/* Confirmation */}
                 <div className="flex items-start gap-3">
                   <input
                     type="checkbox"
                     id="confirmAccuracy"
                     checked={formData.confirmAccuracy}
-                    onChange={(e) => setFormData({ ...formData, confirmAccuracy: e.target.checked })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, confirmAccuracy: e.target.checked })
+                    }
                     className="mt-1 w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                   />
                   <label htmlFor="confirmAccuracy" className="text-sm text-gray-600">
-                    I confirm I have submitted accurate bank details and understand that any errors may cause processing delays.
+                    I confirm the details are correct and understand that any errors may cause
+                    processing delays.
                   </label>
                 </div>
 
-                {/* Warning Message */}
+                {/* Warning */}
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                   <div className="flex items-start gap-3">
                     <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="text-sm text-amber-800">
-                        A minimum balance of <span className="font-bold">KES 0.00</span> is required for the automatic transfer to take place. Bank charges may apply per transfer.
+                        A minimum balance is required for the automatic transfer to take place.
+                        Bank charges may apply per transfer.
                       </p>
                     </div>
                   </div>
-                </div>
-
-                {/* Need Support */}
-                <div className="text-center">
-                  <p className="text-sm text-gray-500">Need Support?</p>
-                  <button className="text-sm text-purple-600 hover:text-purple-700 font-medium transition-colors">
-                    Contact our support team
-                  </button>
                 </div>
               </div>
 
@@ -989,12 +1029,21 @@ export default function ScheduledWithdrawalsPage() {
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
               <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${
-                  selectedSchedule.status === 'Active' || selectedSchedule.status === 'PENDING' ? 'bg-emerald-500' :
-                  selectedSchedule.status === 'Paused' ? 'bg-amber-500' : 'bg-gray-500'
-                }`} />
+                <div
+                  className={`w-3 h-3 rounded-full ${
+                    selectedSchedule.status === 'PENDING' || selectedSchedule.status === 'PROCESSING'
+                      ? 'bg-emerald-500'
+                      : selectedSchedule.status === 'PAUSED'
+                      ? 'bg-amber-500'
+                      : selectedSchedule.status === 'FAILED'
+                      ? 'bg-red-500'
+                      : 'bg-gray-500'
+                  }`}
+                />
                 <h3 className="text-lg font-bold text-gray-900">Schedule Details</h3>
-                <span className="text-xs text-gray-400 font-mono ml-2">#{selectedSchedule.id}</span>
+                <span className="text-xs text-gray-400 font-mono ml-2">
+                  #{selectedSchedule.id.slice(0, 8)}
+                </span>
               </div>
               <button
                 onClick={() => setShowModal(false)}
@@ -1008,33 +1057,22 @@ export default function ScheduledWithdrawalsPage() {
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Schedule Name</p>
-                    <p className="text-sm font-semibold text-gray-900 mt-1">{selectedSchedule.name}</p>
-                  </div>
-
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Description</p>
-                    <p className="text-sm text-gray-900 mt-1">{selectedSchedule.description}</p>
+                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Frequency</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-1">
+                      {frequencyLabels[selectedSchedule.frequency] || selectedSchedule.frequency}
+                    </p>
                   </div>
 
                   <div className="bg-gray-50 rounded-xl p-4">
                     <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Recipient</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{selectedSchedule.recipient}</p>
+                    <p className="text-sm font-medium text-gray-900 mt-1">
+                      {selectedSchedule.recipient}
+                    </p>
                   </div>
 
                   <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Frequency</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1">{selectedSchedule.frequency}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl p-4 border border-purple-200/50">
-                    <p className="text-xs text-gray-500 uppercase font-medium tracking-wider">Amount</p>
-                    <p className="text-3xl font-bold text-purple-700 mt-1">
-                      {formatCurrency(selectedSchedule.amount)}
-                    </p>
-                    <div className="mt-2">
+                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Status</p>
+                    <div className="mt-1">
                       <StatusBadge status={selectedSchedule.status} />
                     </div>
                   </div>
@@ -1045,49 +1083,68 @@ export default function ScheduledWithdrawalsPage() {
                       <MethodBadge method={selectedSchedule.method} />
                     </div>
                   </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl p-4 border border-purple-200/50">
+                    <p className="text-xs text-gray-500 uppercase font-medium tracking-wider">Amount</p>
+                    <p className="text-3xl font-bold text-purple-700 mt-1">
+                      {formatCurrency(selectedSchedule.amount)}
+                    </p>
+                  </div>
 
                   <div className="bg-gray-50 rounded-xl p-4">
                     <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Schedule Dates</p>
                     <div className="mt-2 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-500">Start Date</span>
-                        <span className="text-sm font-medium text-gray-900">{formatDate(selectedSchedule.startDate)}</span>
+                        <span className="text-sm text-gray-500">Created</span>
+                        <span className="text-sm font-medium text-gray-900">
+                          {formatDate(selectedSchedule.startDate)}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-500">Next Date</span>
-                        <span className="text-sm font-medium text-emerald-600">{formatDate(selectedSchedule.nextDate)}</span>
+                        <span className="text-sm text-gray-500">Next run</span>
+                        <span className="text-sm font-medium text-emerald-600">
+                          {formatDate(selectedSchedule.nextDate)}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-500">Time</span>
-                        <span className="text-sm font-medium text-gray-900">{selectedSchedule.time}</span>
+                        <span className="text-sm font-medium text-gray-900">
+                          {selectedSchedule.time}
+                        </span>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* ─── Actions ────────────────────────────────────────── */}
               <div className="mt-6 pt-4 border-t border-gray-100 flex flex-wrap gap-3">
-                <button
-                  onClick={() => handleToggleStatus(selectedSchedule)}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
-                    selectedSchedule.status === 'Active' || selectedSchedule.status === 'PENDING'
-                      ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                      : 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                  }`}
-                >
-                  {selectedSchedule.status === 'Active' || selectedSchedule.status === 'PENDING' ? (
-                    <>
-                      <Pause className="w-4 h-4" />
-                      Pause Schedule
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4" />
-                      Activate Schedule
-                    </>
-                  )}
-                </button>
+                {(selectedSchedule.status === 'PENDING' ||
+                  selectedSchedule.status === 'PROCESSING' ||
+                  selectedSchedule.status === 'PAUSED') && (
+                  <button
+                    onClick={() => handleToggleStatus(selectedSchedule)}
+                    disabled={isToggling}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-50 ${
+                      selectedSchedule.status === 'PAUSED'
+                        ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                        : 'bg-amber-500 hover:bg-amber-600 text-white'
+                    }`}
+                  >
+                    {selectedSchedule.status === 'PAUSED' ? (
+                      <>
+                        <Play className="w-4 h-4" />
+                        Resume Schedule
+                      </>
+                    ) : (
+                      <>
+                        <Pause className="w-4 h-4" />
+                        Pause Schedule
+                      </>
+                    )}
+                  </button>
+                )}
                 <button className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2">
                   <Printer className="w-4 h-4" />
                   Print
@@ -1118,22 +1175,35 @@ export default function ScheduledWithdrawalsPage() {
               </p>
 
               <div className="mt-4 bg-gray-50 rounded-xl p-3">
-                <p className="text-sm font-medium text-gray-900">{selectedSchedule.name}</p>
-                <p className="text-xs text-gray-500">{selectedSchedule.id}</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {frequencyLabels[selectedSchedule.frequency] || selectedSchedule.frequency} — {formatCurrency(selectedSchedule.amount)}
+                </p>
+                <p className="text-xs text-gray-500 font-mono">
+                  {selectedSchedule.id.slice(0, 12)}
+                </p>
               </div>
 
               <div className="mt-6 flex gap-3">
                 <button
                   onClick={() => setShowDeleteModal(false)}
-                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all"
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmDelete}
-                  className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium transition-all"
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  Delete
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    'Delete'
+                  )}
                 </button>
               </div>
             </div>
