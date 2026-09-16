@@ -107,14 +107,14 @@ const statusBadgeColors = {
   Failed: 'bg-red-500',
 };
 
-// ─── Only 2 categories now: Payment (STK) and M-PESA Paybill (C2B) ─
+// ─── Only 2 categories: M-PESA STK Push (STK) and M-PESA Paybill (C2B)
 const categoryIcons: Record<string, any> = {
-  'Payment': Wallet,
-  'M-PESA Paybill': Smartphone,
+  'M-PESA STK Push': Smartphone,
+  'M-PESA Paybill': Wallet,
 };
 
 const categoryColors: Record<string, string> = {
-  'Payment': 'bg-blue-50 text-blue-600 border-blue-200',
+  'M-PESA STK Push': 'bg-blue-50 text-blue-600 border-blue-200',
   'M-PESA Paybill': 'bg-teal-50 text-teal-600 border-teal-200',
 };
 
@@ -342,11 +342,11 @@ export default function InflowPage() {
   }, [loading, transactions.length, merchantId, log]);
 
   // ─── Transform Transactions ────────────────────────────────────────
-  // Only TWO categories now: 'Payment' (STK) or 'M-PESA Paybill' (C2B)
+  // Category labels: 'M-PESA STK Push' (STK) or 'M-PESA Paybill' (C2B)
   const transformToInflow = (tx: Transaction): InflowTransaction => {
     const isC2B = tx.channel === 'C2B';
 
-    const category = isC2B ? 'M-PESA Paybill' : 'Payment';
+    const category = isC2B ? 'M-PESA Paybill' : 'M-PESA STK Push';
     const status = deriveStatus(tx);
     const amountValue = parseFloat(tx.amount) || 0;
 
