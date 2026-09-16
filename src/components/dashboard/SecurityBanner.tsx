@@ -65,7 +65,7 @@ export default function SecurityBanner() {
 
   return (
     <Link
-      href="/dashboard/account/security"
+      href="/dashboard/settings/security"
       className="flex items-center justify-center gap-2 w-full px-4 py-2.5 text-center border-b border-rose-100 bg-rose-50 hover:bg-rose-100 transition-colors group"
     >
       <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
