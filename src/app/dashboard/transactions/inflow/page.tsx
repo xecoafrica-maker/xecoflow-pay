@@ -215,6 +215,46 @@ const deriveStatus = (tx: Transaction): 'Completed' | 'Pending' | 'Failed' => {
   return 'Pending';
 };
 
+// ─── Skeleton Components ──────────────────────────────────────────
+const SkeletonSummaryCard = () => (
+  <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm animate-pulse">
+    <div className="flex items-center justify-between">
+      <div>
+        <div className="h-3 w-24 bg-gray-200 rounded mb-2" />
+        <div className="h-6 w-20 bg-gray-200 rounded" />
+      </div>
+      <div className="w-10 h-10 rounded-xl bg-gray-200" />
+    </div>
+  </div>
+);
+
+const SkeletonTransactionRow = () => (
+  <tr className="border-b border-gray-100">
+    <td className="px-3 py-3.5">
+      <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+    </td>
+    <td className="px-3 py-3.5">
+      <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-1" />
+      <div className="h-3 w-16 bg-gray-100 rounded animate-pulse" />
+    </td>
+    <td className="px-3 py-3.5">
+      <div className="flex items-center gap-2">
+        <div className="w-7 h-7 rounded-full bg-gray-200 animate-pulse" />
+        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+      </div>
+    </td>
+    <td className="px-3 py-3.5">
+      <div className="h-4 w-16 bg-gray-200 rounded animate-pulse ml-auto" />
+    </td>
+    <td className="px-3 py-3.5">
+      <div className="h-6 w-32 bg-gray-200 rounded-full animate-pulse" />
+    </td>
+    <td className="px-3 py-3.5">
+      <div className="h-6 w-24 bg-gray-200 rounded-full animate-pulse" />
+    </td>
+  </tr>
+);
+
 // ─── Summary Card ────────────────────────────────────────────────────
 const SummaryCard = ({ title, value, icon: Icon, color }: any) => (
   <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
@@ -631,12 +671,77 @@ export default function InflowPage() {
     fetchTransactions();
   }, [router]);
 
+  // ─── Skeleton Loading State ───────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-emerald-500 mx-auto" />
-          <p className="mt-4 text-gray-600">Loading transactions...</p>
+      <div className="max-w-[1400px] mx-auto space-y-6 px-4 sm:px-6">
+        {/* Header skeleton */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gray-200 animate-pulse" />
+            <div>
+              <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2" />
+              <div className="h-4 w-64 bg-gray-200 rounded animate-pulse" />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <div className="h-10 w-24 bg-gray-200 rounded-xl animate-pulse" />
+            <div className="h-10 w-28 bg-gray-200 rounded-xl animate-pulse" />
+          </div>
+        </div>
+
+        {/* Summary cards skeleton */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <SkeletonSummaryCard key={i} />
+          ))}
+        </div>
+
+        {/* Filters skeleton */}
+        <div className="flex flex-col lg:flex-row gap-3">
+          <div className="flex-1">
+            <div className="h-11 w-full bg-gray-200 rounded-xl animate-pulse" />
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <div className="h-11 w-40 bg-gray-200 rounded-xl animate-pulse" />
+            <div className="h-11 w-32 bg-gray-200 rounded-xl animate-pulse" />
+            <div className="h-11 w-32 bg-gray-200 rounded-xl animate-pulse hidden sm:block" />
+          </div>
+        </div>
+
+        {/* Table skeleton */}
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="overflow-y-auto max-h-[500px]">
+            <table className="w-full text-sm table-fixed min-w-[850px]">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-gray-200 bg-gray-100">
+                  <th className="w-[140px] px-3 py-3.5">
+                    <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
+                  </th>
+                  <th className="w-[140px] px-3 py-3.5">
+                    <div className="h-3 w-20 bg-gray-200 rounded animate-pulse" />
+                  </th>
+                  <th className="w-[160px] px-3 py-3.5">
+                    <div className="h-3 w-20 bg-gray-200 rounded animate-pulse" />
+                  </th>
+                  <th className="w-[120px] px-3 py-3.5">
+                    <div className="h-3 w-14 bg-gray-200 rounded animate-pulse ml-auto" />
+                  </th>
+                  <th className="w-[170px] px-3 py-3.5">
+                    <div className="h-3 w-20 bg-gray-200 rounded animate-pulse" />
+                  </th>
+                  <th className="w-[120px] px-3 py-3.5 pl-5">
+                    <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <SkeletonTransactionRow key={i} />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
