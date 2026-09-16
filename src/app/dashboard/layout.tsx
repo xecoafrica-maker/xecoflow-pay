@@ -4,6 +4,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/dashboard/Sidebar';
+import SecurityBanner from '@/components/dashboard/SecurityBanner';
 import { clearAllAuthData } from '@/lib/auth';
 
 interface DashboardLayoutProps {
@@ -19,7 +20,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   // ─── Check authentication ──────────────────────────────────────────
   useEffect(() => {
     const checkAuth = async () => {
-      // ✅ Read merchant data from localStorage (NOT token!)
       let merchant = null;
       try {
         const stored = localStorage.getItem('merchant');
@@ -30,7 +30,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         console.error('Failed to parse merchant data', e);
       }
 
-      // ❌ If no merchant data, redirect to login
       if (!merchant || !merchant.merchantId) {
         console.warn('⚠️ No merchant found in localStorage, redirecting to login');
         clearAllAuthData();
@@ -38,26 +37,21 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         return;
       }
 
-      // ✅ Merchant data found, session is valid
       console.log('✅ Merchant data found:', merchant.businessName);
       setIsLoading(false);
 
-      // ─── Optional: Check session expiry via API ──────────────────
-      // You can call a protected API endpoint to check if the session is still valid
       try {
         const response = await fetch('/api/auth/me', {
           credentials: 'include',
         });
-        
+
         if (!response.ok) {
-          // Session expired on backend
           console.warn('⚠️ Session expired, redirecting to login');
           clearAllAuthData();
           router.push('/login?session=expired');
           return;
         }
-        
-        // Get session info from response
+
         const data = await response.json();
         if (data.sessionInfo?.remaining) {
           const remaining = data.sessionInfo.remaining;
@@ -69,15 +63,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       } catch (error) {
         console.error('Failed to check session:', error);
       }
-      
+
       setIsLoading(false);
     };
 
     checkAuth();
 
-    // ─── Session expiry checker (every 30 seconds) ──────────────────
     const interval = setInterval(() => {
-      // Check if merchant data still exists
       const merchant = localStorage.getItem('merchant');
       if (!merchant) {
         clearAllAuthData();
@@ -85,7 +77,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         return;
       }
 
-      // ─── Optional: Check session via API ──────────────────────────
       fetch('/api/auth/me', {
         credentials: 'include',
       })
@@ -111,12 +102,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         .catch(() => {
           // Network error, don't redirect
         });
-    }, 30000); // Check every 30 seconds
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [router]);
 
-  // ─── Show loading state ────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-[#0a2540]">
@@ -131,28 +121,33 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-[#0a2540]">
       <Sidebar />
-      <main className="flex-1 overflow-x-hidden p-6">
-        {/* ─── Session Expiry Warning ───────────────────────────────── */}
-        {sessionExpiring && (
-          <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-amber-500">⚠️</span>
-              <span className="text-sm text-amber-700 dark:text-amber-400">
-                Your session will expire in {Math.floor(sessionTimeLeft / 60)}m {sessionTimeLeft % 60}s
-              </span>
+      <main className="flex-1 overflow-x-hidden">
+        {/* ─── Account Security Banner (Paystack-style thin strip) ─── */}
+        <SecurityBanner />
+
+        <div className="p-6">
+          {/* ─── Session Expiry Warning ────────────────────────────── */}
+          {sessionExpiring && (
+            <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-amber-500">⚠️</span>
+                <span className="text-sm text-amber-700 dark:text-amber-400">
+                  Your session will expire in {Math.floor(sessionTimeLeft / 60)}m {sessionTimeLeft % 60}s
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  window.location.reload();
+                }}
+                className="px-3 py-1 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors"
+              >
+                Refresh Session
+              </button>
             </div>
-            <button
-              onClick={() => {
-                window.location.reload();
-              }}
-              className="px-3 py-1 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors"
-            >
-              Refresh Session
-            </button>
-          </div>
-        )}
-        
-        {children}
+          )}
+
+          {children}
+        </div>
       </main>
     </div>
   );

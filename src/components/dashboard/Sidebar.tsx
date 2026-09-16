@@ -174,19 +174,19 @@ const sidebarSections: SidebarSection[] = [
         icon: Link2,
         label: 'Payment Links',
         children: [
-          { 
-            icon: Package, 
-            label: 'Create Product Link', 
+          {
+            icon: Package,
+            label: 'Create Product Link',
             href: '/dashboard/smart-bills/create-product',
           },
-          { 
-            icon: CreditCard, 
-            label: 'Create Payment Page', 
+          {
+            icon: CreditCard,
+            label: 'Create Payment Page',
             href: '/dashboard/payment-pages/create',
           },
-          { 
-            icon: Layers, 
-            label: 'All Payment Links', 
+          {
+            icon: Layers,
+            label: 'All Payment Links',
             href: '/dashboard/smart-bills/pages',
           },
         ],
@@ -199,7 +199,7 @@ const sidebarSections: SidebarSection[] = [
       {
         icon: BadgeDollarSign,
         label: 'Service Charges',
-        href: '/dashboard/rates/transaction-fees', 
+        href: '/dashboard/rates/transaction-fees',
       }
     ],
   },
@@ -317,7 +317,7 @@ export default function Sidebar() {
   // ─── Get sections with dynamic pinned apps ──────────────────────
   const getSections = (): SidebarSection[] => {
     const pinnedItems = getPinnedItems();
-    
+
     if (pinnedItems.length > 0) {
       return sidebarSections.map(section => {
         if (section.title === 'MY APPS & SHORTCUTS') {
@@ -329,7 +329,7 @@ export default function Sidebar() {
         return section;
       });
     }
-    
+
     return sidebarSections.filter(section => section.title !== 'MY APPS & SHORTCUTS');
   };
 
@@ -388,7 +388,7 @@ export default function Sidebar() {
   // ─── Password Verification ──────────────────────────────────────────
   const verifyPassword = async (enteredPassword: string) => {
     try {
-      const token = 
+      const token =
         localStorage.getItem('auth_token') ||
         localStorage.getItem('token') ||
         localStorage.getItem('accessToken') ||
@@ -397,7 +397,7 @@ export default function Sidebar() {
         sessionStorage.getItem('token');
 
       console.log('🔍 [verifyPassword] Token found:', token ? '✅ Yes' : '❌ No');
-      
+
       if (!token) {
         setPasswordError('Please login again');
         return false;
@@ -417,7 +417,7 @@ export default function Sidebar() {
       });
 
       const data = await response.json();
-      
+
       console.log('🔍 [verifyPassword] Response:', data);
 
       if (response.ok && data.success) {
@@ -445,7 +445,7 @@ export default function Sidebar() {
   // ─── Handle Password Submit ──────────────────────────────────────
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!password) {
       setPasswordError('Please enter your password');
       return;
@@ -485,7 +485,6 @@ export default function Sidebar() {
 
   // ─── ✅ FIXED: Handle Sign Out ──────────────────────────────────────
   const handleSignOut = () => {
-    // ─── 1. Clear ALL localStorage items ──────────────────────────────
     localStorage.removeItem('auth_token');
     localStorage.removeItem('token');
     localStorage.removeItem('accessToken');
@@ -495,25 +494,19 @@ export default function Sidebar() {
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
-    
-    // ─── 2. Clear sessionStorage ──────────────────────────────────────
+
     sessionStorage.removeItem('auth_token');
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('merchant');
     sessionStorage.removeItem('authToken');
     sessionStorage.removeItem('user');
-    
-    // ─── 3. Clear all cookies ─────────────────────────────────────────
+
     document.cookie.split(';').forEach(cookie => {
       const [name] = cookie.split('=');
       document.cookie = `${name.trim()}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
       document.cookie = `${name.trim()}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
     });
-    
-    // ─── 4. Clear localStorage completely (optional - more aggressive) ──
-    // localStorage.clear(); // Uncomment if needed
-    
-    // ─── 5. Redirect to login with timestamp to prevent caching ──────
+
     router.push(`/login?t=${Date.now()}`);
   };
 
@@ -658,13 +651,13 @@ export default function Sidebar() {
             <div className="flex items-center justify-center gap-3 mb-6">
               <span className="text-3xl font-bold text-emerald-600">XecoFlow</span>
             </div>
-            
+
             <h2 className="text-3xl font-semibold text-gray-800 mb-3">
               Loading Application
             </h2>
-            
+
             <p className="text-gray-500 mb-8">Please wait while we prepare your workspace</p>
-            
+
             <div className="flex items-center justify-center gap-3">
               <div className="w-4 h-4 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
               <div className="w-4 h-4 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
@@ -672,7 +665,7 @@ export default function Sidebar() {
               <div className="w-4 h-4 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.6s' }} />
               <div className="w-4 h-4 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.8s' }} />
             </div>
-            
+
             <p className="text-sm text-gray-400 mt-6">Loading...</p>
           </div>
         </div>
@@ -697,7 +690,7 @@ export default function Sidebar() {
         <div className="h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
 
         {/* ─── Navigation ───────────────────────────────────────────── */}
-        <nav 
+        <nav
           className={`flex-1 px-3 py-4 overflow-y-auto ${
             hasExpanded ? '' : 'overflow-hidden'
           }`}
@@ -740,7 +733,7 @@ export default function Sidebar() {
                           className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${
                             isActive
                               ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/5'
-                              : 'text-slate-400 hover:bg-slate-800/50 hover:text-white border border-transparent'
+                              : 'text-white hover:bg-slate-800/50 hover:text-white border border-transparent'
                           }`}
                         >
                           {item.icon && (
@@ -772,7 +765,7 @@ export default function Sidebar() {
                             className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${
                               isActive
                                 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/5'
-                                : 'text-slate-400 hover:bg-slate-800/50 hover:text-white border border-transparent'
+                                : 'text-white hover:bg-slate-800/50 hover:text-white border border-transparent'
                             }`}
                           >
                             {item.icon && (
@@ -799,7 +792,7 @@ export default function Sidebar() {
                                 className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${
                                   childActive || showExpanded
                                     ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/10'
-                                    : 'text-slate-400 hover:bg-slate-800/50 hover:text-white border border-transparent'
+                                    : 'text-white hover:bg-slate-800/50 hover:text-white border border-transparent'
                                 }`}
                               >
                                 {item.icon && (
@@ -830,7 +823,7 @@ export default function Sidebar() {
                                 className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${
                                   childActive || showExpanded
                                     ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/10'
-                                    : 'text-slate-400 hover:bg-slate-800/50 hover:text-white border border-transparent'
+                                    : 'text-white hover:bg-slate-800/50 hover:text-white border border-transparent'
                                 }`}
                               >
                                 {item.icon && (
@@ -858,7 +851,7 @@ export default function Sidebar() {
                             )}
 
                             {showExpanded && (
-                              <div className="ml-6 mt-0.5 space-y-0.5 border-l border-slate-700/50 pl-2">
+                              <div className="ml-6 mt-0.5 space-y-0.5 border-l border-slate-600/60 pl-2">
                                 {item.children!.map((child) => {
                                   const childActive = pathname === child.href;
                                   return (
@@ -868,7 +861,7 @@ export default function Sidebar() {
                                       className={`flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${
                                         childActive
                                           ? 'bg-emerald-500/10 text-emerald-300'
-                                          : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+                                          : 'text-white hover:bg-slate-800/50 hover:text-white'
                                       }`}
                                     >
                                       {child.icon && (
@@ -913,10 +906,10 @@ export default function Sidebar() {
               <p className="text-sm font-semibold text-white truncate">{merchantName}</p>
               <p className="text-xs text-slate-400 truncate">Admin Account</p>
             </div>
-            <ChevronUp 
+            <ChevronUp
               className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${
                 showUserMenu ? 'rotate-180' : ''
-              }`} 
+              }`}
             />
           </button>
 
@@ -947,9 +940,9 @@ export default function Sidebar() {
                 <Settings className="w-4 h-4" />
                 Settings
               </Link>
-              
+
               <div className="border-t border-slate-700/50"></div>
-              
+
               <button
                 onClick={handleSignOut}
                 className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-500/10 transition-colors text-sm text-red-400 hover:text-red-300"
