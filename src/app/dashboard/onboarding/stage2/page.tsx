@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Users, 
-  Save, 
-  Loader2, 
+import {
+  Users,
+  Save,
+  Loader2,
   CheckCircle,
   FileText,
   User,
@@ -13,9 +13,9 @@ import {
   Plus,
   Trash2,
   Briefcase,
-  ArrowLeft // ✅ Added Back Button Icon
+  ArrowLeft,
 } from 'lucide-react';
-import { getToken } from '@/lib/auth';
+import { getStoredMerchant } from '@/lib/auth';
 
 interface Director {
   id: string;
@@ -33,25 +33,40 @@ export default function OnboardingStage2() {
 
   // ─── Directors State ──────────────────────────────────────────────
   const [directors, setDirectors] = useState<Director[]>([
-    { id: crypto.randomUUID(), fullName: '', idNumber: '', role: 'Director' }
+    { id: crypto.randomUUID(), fullName: '', idNumber: '', role: 'Director' },
   ]);
 
-  // ─── Load Data from new API ──────────────────────────────────────
+  // ─── Load Data ────────────────────────────────────────────────────
   useEffect(() => {
     const fetchOwners = async () => {
-      const token = getToken();
-      if (!token) {
-        router.push('/login');
+      // ✅ Same session helper used everywhere else
+      const cached = getStoredMerchant();
+      const merchantId = cached?.merchant_id || cached?.merchantId;
+
+      if (!cached || !merchantId) {
+        console.warn('No merchant found, redirecting to login');
+        router.push('/login?session=expired');
         return;
       }
 
       try {
-        const res = await fetch('/v1/onboarding/owners-documents', {
-          headers: { Authorization: `Bearer ${token}` }
+        const res = await fetch('/api/onboarding/owners-documents', {
+          credentials: 'include',
         });
+
+        // ✅ Only logout on explicit 401 — not on transient errors
+        if (res.status === 401) {
+          router.push('/login?session=expired');
+          return;
+        }
+
         const data = await res.json();
 
-        if (!res.ok) throw new Error(data.error || 'Failed to load owners');
+        if (!res.ok) {
+          throw new Error(
+            data.error || data.message || 'Failed to load owners'
+          );
+        }
 
         if (Array.isArray(data.directors) && data.directors.length > 0) {
           setDirectors(
@@ -59,16 +74,17 @@ export default function OnboardingStage2() {
               id: crypto.randomUUID(),
               fullName: director.fullName || '',
               idNumber: director.idNumber || '',
-              role: director.role || 'Director'
+              role: director.role || 'Director',
             }))
           );
         }
       } catch (err: any) {
-        setError(err.message);
+        setError(err.message || 'Failed to load owners');
       } finally {
         setLoading(false);
       }
     };
+
     fetchOwners();
   }, [router]);
 
@@ -76,19 +92,19 @@ export default function OnboardingStage2() {
   const addDirector = () => {
     setDirectors([
       ...directors,
-      { id: crypto.randomUUID(), fullName: '', idNumber: '', role: 'Director' }
+      { id: crypto.randomUUID(), fullName: '', idNumber: '', role: 'Director' },
     ]);
   };
 
   const removeDirector = (id: string) => {
     if (directors.length === 1) return;
-    setDirectors(directors.filter(d => d.id !== id));
+    setDirectors(directors.filter((d) => d.id !== id));
   };
 
   const updateDirector = (id: string, field: keyof Director, value: string) => {
-    setDirectors(directors.map(d => 
-      d.id === id ? { ...d, [field]: value } : d
-    ));
+    setDirectors(
+      directors.map((d) => (d.id === id ? { ...d, [field]: value } : d))
+    );
   };
 
   // ─── Save & Continue ──────────────────────────────────────────────
@@ -98,47 +114,58 @@ export default function OnboardingStage2() {
     setError('');
     setSaved(false);
 
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
+    const cached = getStoredMerchant();
+    const merchantId = cached?.merchant_id || cached?.merchantId;
+
+    if (!cached || !merchantId) {
+      router.push('/login?session=expired');
       return;
     }
 
-    // 1. Frontend Validation
+    // 1. Frontend validation
     const invalidDirector = directors.some(
-      director => !director.fullName.trim() || !director.idNumber.trim() || !director.role.trim()
+      (director) =>
+        !director.fullName.trim() ||
+        !director.idNumber.trim() ||
+        !director.role.trim()
     );
 
     if (invalidDirector) {
-      setError('Please complete the name, ID/passport number, and role for every director.');
+      setError(
+        'Please complete the name, ID/passport number, and role for every director.'
+      );
       setSaving(false);
       return;
     }
 
     try {
-      // 2. Remove temporary frontend IDs before sending
+      // 2. Strip temporary frontend IDs before sending
       const cleanDirectors = directors.map(({ id, ...director }) => director);
 
-      // 3. ✅ Use the NEW onboarding API
-      const res = await fetch('/v1/onboarding/owners-documents/submit', {
+      // 3. ✅ Proxy URL + cookie auth
+      const res = await fetch('/api/onboarding/owners-documents/submit', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ directors: cleanDirectors }),
       });
+
+      if (res.status === 401) {
+        router.push('/login?session=expired');
+        return;
+      }
 
       const data = await res.json();
 
       if (data.success) {
         setSaved(true);
-        // 4. ✅ Redirect based on the backend response
+
+        const nextStep = data.onboarding?.currentStep || 3;
         setTimeout(() => {
-          router.push(`/dashboard/onboarding/stage${data.onboarding.currentStep}`);
+          router.replace(`/dashboard/onboarding/stage${nextStep}`);
         }, 2000);
       } else {
-        setError(data.message || 'Failed to save directors');
+        setError(data.message || data.error || 'Failed to save directors');
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred while saving.');
@@ -163,9 +190,12 @@ export default function OnboardingStage2() {
           <Users className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">02 — Owners & Documents</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            02 — Owners &amp; Documents
+          </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Add your company directors and upload business documents. (Uploads are optional for now).
+            Add your company directors and upload business documents. (Uploads are
+            optional for now).
           </p>
         </div>
       </div>
@@ -176,23 +206,34 @@ export default function OnboardingStage2() {
         </div>
       )}
 
-      <form onSubmit={handleSave} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-8">
-        
+      <form
+        onSubmit={handleSave}
+        className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-8"
+      >
         {/* ─── Section 1: Directors / Owners ────────────────────────── */}
         <div>
-          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">Directors & Beneficial Owners</h3>
-          <p className="text-xs text-gray-500 mb-4">List all directors and beneficial owners of the business.</p>
+          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
+            Directors &amp; Beneficial Owners
+          </h3>
+          <p className="text-xs text-gray-500 mb-4">
+            List all directors and beneficial owners of the business.
+          </p>
 
           <div className="space-y-4">
             {directors.map((director, index) => (
-              <div key={director.id} className="flex flex-col sm:flex-row gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200 relative">
+              <div
+                key={director.id}
+                className="flex flex-col sm:flex-row gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200 relative"
+              >
                 <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                       type="text"
                       value={director.fullName}
-                      onChange={(e) => updateDirector(director.id, 'fullName', e.target.value)}
+                      onChange={(e) =>
+                        updateDirector(director.id, 'fullName', e.target.value)
+                      }
                       placeholder="Full Name"
                       className="w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     />
@@ -202,7 +243,9 @@ export default function OnboardingStage2() {
                     <input
                       type="text"
                       value={director.idNumber}
-                      onChange={(e) => updateDirector(director.id, 'idNumber', e.target.value)}
+                      onChange={(e) =>
+                        updateDirector(director.id, 'idNumber', e.target.value)
+                      }
                       placeholder="ID / Passport Number"
                       className="w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     />
@@ -211,7 +254,9 @@ export default function OnboardingStage2() {
                     <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <select
                       value={director.role}
-                      onChange={(e) => updateDirector(director.id, 'role', e.target.value)}
+                      onChange={(e) =>
+                        updateDirector(director.id, 'role', e.target.value)
+                      }
                       className="w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     >
                       <option value="Director">Director</option>
@@ -219,7 +264,9 @@ export default function OnboardingStage2() {
                       <option value="CFO">CFO / Finance Director</option>
                       <option value="COO">COO / Operations Director</option>
                       <option value="Secretary">Company Secretary</option>
-                      <option value="Shareholder">Beneficial Owner / Shareholder</option>
+                      <option value="Shareholder">
+                        Beneficial Owner / Shareholder
+                      </option>
                     </select>
                   </div>
                 </div>
@@ -247,14 +294,20 @@ export default function OnboardingStage2() {
 
         {/* ─── Section 2: Business Documents (Optional) ────────────── */}
         <div className="border-t border-gray-100 pt-6">
-          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">Business Documents (Optional)</h3>
-          <p className="text-xs text-gray-500 mb-4">Upload your company documents. This is optional for now.</p>
+          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
+            Business Documents (Optional)
+          </h3>
+          <p className="text-xs text-gray-500 mb-4">
+            Upload your company documents. This is optional for now.
+          </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
               <div className="flex items-center gap-3 mb-2">
                 <FileText className="w-5 h-5 text-indigo-500" />
-                <span className="text-sm font-medium text-gray-700">Certificate of Incorporation</span>
+                <span className="text-sm font-medium text-gray-700">
+                  Certificate of Incorporation
+                </span>
               </div>
               <div className="bg-gray-100 rounded-lg p-4 border border-gray-200 flex items-center justify-center text-gray-400 text-sm min-h-[48px]">
                 <span>Coming soon</span>
@@ -264,7 +317,9 @@ export default function OnboardingStage2() {
             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
               <div className="flex items-center gap-3 mb-2">
                 <FileText className="w-5 h-5 text-indigo-500" />
-                <span className="text-sm font-medium text-gray-700">KRA PIN Certificate</span>
+                <span className="text-sm font-medium text-gray-700">
+                  KRA PIN Certificate
+                </span>
               </div>
               <div className="bg-gray-100 rounded-lg p-4 border border-gray-200 flex items-center justify-center text-gray-400 text-sm min-h-[48px]">
                 <span>Coming soon</span>
@@ -275,7 +330,6 @@ export default function OnboardingStage2() {
 
         {/* ─── Actions ────────────────────────────────────────────────── */}
         <div className="border-t border-gray-200 pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          
           <button
             type="button"
             onClick={() => router.push('/dashboard/onboarding/stage1')}
@@ -305,7 +359,7 @@ export default function OnboardingStage2() {
               ) : (
                 <>
                   <Save className="w-4 h-4" />
-                  Save & Continue
+                  Save &amp; Continue
                 </>
               )}
             </button>

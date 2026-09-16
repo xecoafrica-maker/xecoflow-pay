@@ -2,18 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Landmark, 
-  Smartphone, 
-  Save, 
-  Loader2, 
-  Phone, 
+import {
+  Landmark,
+  Smartphone,
+  Save,
+  Loader2,
+  Phone,
   CheckCircle,
   CreditCard,
   FileText,
-  ArrowLeft
+  ArrowLeft,
 } from 'lucide-react';
-import { getToken } from '@/lib/auth';
+import { getStoredMerchant } from '@/lib/auth';
 
 const SETTLEMENT_METHODS = [
   { id: 'mpesa', label: 'M-PESA', icon: Smartphone },
@@ -36,23 +36,36 @@ export default function OnboardingStage4() {
     bank_account_holder: '',
   });
 
-  // ─── Load Settlement Data from new API ──────────────────────────
+  // ─── Load Settlement Data ────────────────────────────────────────
   useEffect(() => {
     const fetchSettlement = async () => {
-      const token = getToken();
-      if (!token) {
-        router.push('/login');
+      // ✅ Same session helper used everywhere else
+      const cached = getStoredMerchant();
+      const merchantId = cached?.merchant_id || cached?.merchantId;
+
+      if (!cached || !merchantId) {
+        console.warn('No merchant found, redirecting to login');
+        router.push('/login?session=expired');
         return;
       }
 
       try {
-        const res = await fetch('/v1/onboarding/settlement', {
-          headers: { Authorization: `Bearer ${token}` }
+        const res = await fetch('/api/onboarding/settlement', {
+          credentials: 'include',
         });
+
+        // ✅ Only logout on explicit 401
+        if (res.status === 401) {
+          router.push('/login?session=expired');
+          return;
+        }
+
         const data = await res.json();
 
         if (!res.ok) {
-          throw new Error(data.error || 'Failed to load settlement information');
+          throw new Error(
+            data.error || data.message || 'Failed to load settlement information'
+          );
         }
 
         setFormData({
@@ -63,23 +76,24 @@ export default function OnboardingStage4() {
           bank_account_holder: data.bank_account_holder || '',
         });
       } catch (err: any) {
-        console.error('❌ Failed to load Stage 4:', err);
+        console.error('Failed to load Stage 4:', err);
         setError(err.message || 'Failed to load settlement information');
       } finally {
         setLoading(false);
       }
     };
+
     fetchSettlement();
   }, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
     setSaved(false);
   };
 
   const handleMethodChange = (methodId: string) => {
-    setFormData(prev => ({ ...prev, settlement_method: methodId }));
+    setFormData((prev) => ({ ...prev, settlement_method: methodId }));
     setSaved(false);
   };
 
@@ -90,19 +104,19 @@ export default function OnboardingStage4() {
     setError('');
     setSaved(false);
 
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
+    const cached = getStoredMerchant();
+    const merchantId = cached?.merchant_id || cached?.merchantId;
+
+    if (!cached || !merchantId) {
+      router.push('/login?session=expired');
       return;
     }
 
     try {
-      const res = await fetch('/v1/onboarding/settlement/submit', {
+      const res = await fetch('/api/onboarding/settlement/submit', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           settlement_method: formData.settlement_method,
           settlement_phone: formData.settlement_phone.trim(),
@@ -112,19 +126,28 @@ export default function OnboardingStage4() {
         }),
       });
 
+      if (res.status === 401) {
+        router.push('/login?session=expired');
+        return;
+      }
+
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || data.message || 'Failed to save settlement preferences');
+        throw new Error(
+          data.error || data.message || 'Failed to save settlement preferences'
+        );
       }
 
       setSaved(true);
-      // ✅ Redirect to Stage 5 (Review & Submit)
+
+      // ✅ Redirect to Stage 5 with safe fallback
+      const nextStep = data.onboarding?.currentStep || 5;
       setTimeout(() => {
-        router.push('/dashboard/onboarding/stage5');
+        router.replace(`/dashboard/onboarding/stage${nextStep}`);
       }, 1500);
     } catch (err: any) {
-      console.error('❌ Failed to save Stage 4:', err);
+      console.error('Failed to save Stage 4:', err);
       setError(err.message || 'An error occurred while saving.');
     } finally {
       setSaving(false);
@@ -146,15 +169,19 @@ export default function OnboardingStage4() {
           <Landmark className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">04 — Settlement Preferences</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            04 — Settlement Preferences
+          </h1>
           <p className="text-sm text-gray-500 mt-1">
             Choose how you want to receive your business payouts.
           </p>
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-6">
-        
+      <form
+        onSubmit={handleSave}
+        className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-6"
+      >
         <div className="flex flex-wrap gap-3 mb-2">
           {SETTLEMENT_METHODS.map((method) => {
             const Icon = method.icon;
@@ -177,10 +204,12 @@ export default function OnboardingStage4() {
         </div>
 
         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-4">
-          {(formData.settlement_method === 'mpesa' || formData.settlement_method === 'airtel') && (
+          {(formData.settlement_method === 'mpesa' ||
+            formData.settlement_method === 'airtel') && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {formData.settlement_method === 'mpesa' ? 'M-PESA' : 'Airtel Money'} Number *
+                {formData.settlement_method === 'mpesa' ? 'M-PESA' : 'Airtel Money'}{' '}
+                Number *
               </label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -195,7 +224,11 @@ export default function OnboardingStage4() {
                 />
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                This is the number where we will send your business payouts via {formData.settlement_method === 'mpesa' ? 'M-PESA' : 'Airtel Money'}.
+                This is the number where we will send your business payouts via{' '}
+                {formData.settlement_method === 'mpesa'
+                  ? 'M-PESA'
+                  : 'Airtel Money'}
+                .
               </p>
             </div>
           )}
@@ -203,7 +236,9 @@ export default function OnboardingStage4() {
           {formData.settlement_method === 'bank' && (
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bank Name *
+                </label>
                 <div className="relative">
                   <Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
@@ -218,7 +253,9 @@ export default function OnboardingStage4() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Account Number *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Account Number *
+                </label>
                 <div className="relative">
                   <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
@@ -233,7 +270,9 @@ export default function OnboardingStage4() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Account Holder Name *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Account Holder Name *
+                </label>
                 <div className="relative">
                   <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
@@ -290,7 +329,7 @@ export default function OnboardingStage4() {
               ) : (
                 <>
                   <Save className="w-4 h-4" />
-                  Save & Continue
+                  Save &amp; Continue
                 </>
               )}
             </button>

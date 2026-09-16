@@ -13,7 +13,7 @@ import {
   ArrowLeft,
   Edit,
 } from 'lucide-react';
-import { getToken } from '@/lib/auth';
+import { getStoredMerchant } from '@/lib/auth';
 
 interface Director {
   fullName: string;
@@ -60,36 +60,39 @@ export default function OnboardingStage5() {
 
   useEffect(() => {
     const fetchSummary = async () => {
-      const token = getToken();
+      // ✅ Same session helper used everywhere else
+      const cached = getStoredMerchant();
+      const merchantId = cached?.merchant_id || cached?.merchantId;
 
-      if (!token) {
-        router.push('/login');
+      if (!cached || !merchantId) {
+        console.warn('No merchant found, redirecting to login');
+        router.push('/login?session=expired');
         return;
       }
 
       try {
-        // ✅ FIXED: Using /v1/onboarding/review instead of /api/...
-        const res = await fetch('/v1/onboarding/review', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        const res = await fetch('/api/onboarding/review', {
+          credentials: 'include',
         });
+
+        // ✅ Only logout on explicit 401
+        if (res.status === 401) {
+          router.push('/login?session=expired');
+          return;
+        }
 
         const json = await res.json();
 
         if (!res.ok) {
           throw new Error(
-            json.error || 'Failed to load onboarding information'
+            json.error || json.message || 'Failed to load onboarding information'
           );
         }
 
         setData(json);
       } catch (err: any) {
-        console.error('❌ Failed to load review:', err);
-
-        setError(
-          err.message || 'Failed to load onboarding information'
-        );
+        console.error('Failed to load review:', err);
+        setError(err.message || 'Failed to load onboarding information');
       } finally {
         setLoading(false);
       }
@@ -99,10 +102,11 @@ export default function OnboardingStage5() {
   }, [router]);
 
   const handleSubmit = async () => {
-    const token = getToken();
+    const cached = getStoredMerchant();
+    const merchantId = cached?.merchant_id || cached?.merchantId;
 
-    if (!token) {
-      router.push('/login');
+    if (!cached || !merchantId) {
+      router.push('/login?session=expired');
       return;
     }
 
@@ -110,32 +114,29 @@ export default function OnboardingStage5() {
     setError('');
 
     try {
-      // ✅ FIXED: Using /v1/onboarding/submit instead of /api/...
-      const res = await fetch('/v1/onboarding/submit', {
+      const res = await fetch('/api/onboarding/submit', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
       });
+
+      if (res.status === 401) {
+        router.push('/login?session=expired');
+        return;
+      }
 
       const json = await res.json();
 
       if (!res.ok || !json.success) {
         throw new Error(
-          json.error ||
-          json.message ||
-          'Failed to submit application'
+          json.error || json.message || 'Failed to submit application'
         );
       }
 
       router.replace('/dashboard');
     } catch (err: any) {
-      console.error('❌ Failed to submit application:', err);
-
-      setError(
-        err.message || 'An error occurred while submitting.'
-      );
+      console.error('Failed to submit application:', err);
+      setError(err.message || 'An error occurred while submitting.');
     } finally {
       setSubmitting(false);
     }
@@ -159,16 +160,16 @@ export default function OnboardingStage5() {
           </div>
           <div>
             <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">
-              05 — Review & Submit
+              05 — Review &amp; Submit
             </p>
             <h1 className="text-2xl font-bold text-gray-900">
-              Review & Submit
+              Review &amp; Submit
             </h1>
           </div>
         </div>
         <p className="text-sm text-gray-500">
-          Please review your information carefully before submitting
-          your application.
+          Please review your information carefully before submitting your
+          application.
         </p>
       </div>
 
@@ -190,14 +191,23 @@ export default function OnboardingStage5() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <ReviewItem label="Business Name" value={data?.business_name} />
             <ReviewItem label="Business Type" value={data?.business_type} />
-            <ReviewItem label="Registration Number" value={data?.business_registration_number} />
+            <ReviewItem
+              label="Registration Number"
+              value={data?.business_registration_number}
+            />
             <ReviewItem label="Trading Name" value={data?.trading_name} />
             <ReviewItem label="Industry" value={data?.industry} />
-            <ReviewItem label="Date of Registration" value={data?.date_of_registration} />
+            <ReviewItem
+              label="Date of Registration"
+              value={data?.date_of_registration}
+            />
             <ReviewItem label="Country" value={data?.country} />
             <ReviewItem label="County" value={data?.county} />
             <ReviewItem label="City" value={data?.city} />
-            <ReviewItem label="Physical Address" value={data?.physical_address} />
+            <ReviewItem
+              label="Physical Address"
+              value={data?.physical_address}
+            />
             <ReviewItem label="Email" value={data?.email} />
             <ReviewItem label="Phone" value={data?.phone} />
           </div>
@@ -212,7 +222,10 @@ export default function OnboardingStage5() {
           {data?.directors && data.directors.length > 0 ? (
             <div className="space-y-3">
               {data.directors.map((director, index) => (
-                <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div
+                  key={index}
+                  className="bg-gray-50 border border-gray-200 rounded-lg p-4"
+                >
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <ReviewItem label="Full Name" value={director.fullName} />
                     <ReviewItem label="ID / Passport" value={director.idNumber} />
@@ -234,7 +247,6 @@ export default function OnboardingStage5() {
           title="03 — Tax & Compliance"
           onEdit={() => router.push('/dashboard/onboarding/stage3')}
         >
-          {/* ✅ FIXED: Using kra_pin instead of business_registration_number */}
           <ReviewItem label="KRA PIN" value={data?.kra_pin} />
         </ReviewSection>
 
@@ -248,13 +260,20 @@ export default function OnboardingStage5() {
             label="Settlement Method"
             value={data?.settlement_method?.toUpperCase()}
           />
-          {data?.settlement_method === 'mpesa' || data?.settlement_method === 'airtel' ? (
+          {data?.settlement_method === 'mpesa' ||
+          data?.settlement_method === 'airtel' ? (
             <ReviewItem label="Payout Number" value={data?.settlement_phone} />
           ) : data?.settlement_method === 'bank' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <ReviewItem label="Bank Name" value={data?.bank_name} />
-              <ReviewItem label="Account Number" value={data?.bank_account_number} />
-              <ReviewItem label="Account Holder" value={data?.bank_account_holder} />
+              <ReviewItem
+                label="Account Number"
+                value={data?.bank_account_number}
+              />
+              <ReviewItem
+                label="Account Holder"
+                value={data?.bank_account_holder}
+              />
             </div>
           ) : null}
         </ReviewSection>
@@ -268,8 +287,8 @@ export default function OnboardingStage5() {
                 Ready to submit?
               </h3>
               <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                Please make sure all information above is accurate.
-                Once submitted, your application will be sent for review.
+                Please make sure all information above is accurate. Once
+                submitted, your application will be sent for review.
               </p>
             </div>
           </div>
@@ -301,7 +320,7 @@ export default function OnboardingStage5() {
               ) : (
                 <>
                   <CheckCircle className="w-4 h-4" />
-                  Confirm & Submit Application
+                  Confirm &amp; Submit Application
                 </>
               )}
             </button>

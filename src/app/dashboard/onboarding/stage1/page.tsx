@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Building2, 
-  Save, 
-  Loader2, 
-  MapPin, 
-  FileText, 
+import {
+  Building2,
+  Save,
+  Loader2,
+  MapPin,
+  FileText,
   CheckCircle,
   Phone,
   Mail,
@@ -17,9 +17,9 @@ import {
   Calendar,
   Check,
   Info,
-  AlertCircle
+  AlertCircle,
 } from 'lucide-react';
-import { getStoredMerchant, getToken } from '@/lib/auth';
+import { getStoredMerchant } from '@/lib/auth';
 
 export default function OnboardingStage1() {
   const router = useRouter();
@@ -31,8 +31,8 @@ export default function OnboardingStage1() {
   // ─── Form Data ────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
     // Business Identity
-    business_name: '', // Legal Name
-    trading_name: '', // Optional
+    business_name: '',
+    trading_name: '',
     // Registration
     business_type: '',
     business_registration_number: '',
@@ -56,11 +56,15 @@ export default function OnboardingStage1() {
     registered_address: '',
   });
 
-  // ─── Load Profile Data from new Onboarding API ──────────────────
+  // ─── Load Profile Data ────────────────────────────────────────────
   const fetchBusinessProfile = async () => {
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
+    // ✅ Same session helper used everywhere else
+    const cached = getStoredMerchant();
+    const merchantId = cached?.merchant_id || cached?.merchantId;
+
+    if (!cached || !merchantId) {
+      console.warn('No merchant found, redirecting to login');
+      router.push('/login?session=expired');
       return;
     }
 
@@ -68,14 +72,25 @@ export default function OnboardingStage1() {
     setError('');
 
     try {
-      const res = await fetch('/v1/onboarding/business-profile', {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await fetch('/api/onboarding/business-profile', {
+        credentials: 'include',
       });
+
+      // ✅ Only logout on explicit 401 — not on 500 or network errors
+      if (res.status === 401) {
+        router.push('/login?session=expired');
+        return;
+      }
+
       const data = await res.json();
 
-      if (!res.ok) throw new Error(data.error || 'Failed to load business profile');
+      if (!res.ok) {
+        throw new Error(
+          data.error || data.message || 'Failed to load business profile'
+        );
+      }
 
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         business_name: data.business_name || '',
         business_email: data.email || '',
@@ -109,45 +124,47 @@ export default function OnboardingStage1() {
     fetchBusinessProfile();
   }, [router]);
 
-  // ─── Handle Input Changes ────────────────────────────────────────
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  // ─── Handle Input Changes ─────────────────────────────────────────
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     const { name, value, type } = e.target as any;
-    
+
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
-      
+
       if (name === 'has_no_website' && checked) {
-        setFormData(prev => ({ ...prev, [name]: checked, website: '' }));
+        setFormData((prev) => ({ ...prev, [name]: checked, website: '' }));
       } else {
-        setFormData(prev => ({ ...prev, [name]: checked }));
+        setFormData((prev) => ({ ...prev, [name]: checked }));
       }
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
-    
+
     setSaved(false);
   };
 
-  // ─── Save & Continue (Finalize Stage 1) ─────────────────────────
+  // ─── Save & Continue ──────────────────────────────────────────────
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError('');
     setSaved(false);
 
-    const token = getToken();
-    if (!token) {
-      router.push('/login');
+    const cached = getStoredMerchant();
+    const merchantId = cached?.merchant_id || cached?.merchantId;
+
+    if (!cached || !merchantId) {
+      router.push('/login?session=expired');
       return;
     }
 
     try {
-      const res = await fetch('/v1/onboarding/business-profile/submit', {
+      const res = await fetch('/api/onboarding/business-profile/submit', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           business_name: formData.business_name,
           email: formData.business_email,
@@ -171,26 +188,35 @@ export default function OnboardingStage1() {
         }),
       });
 
+      if (res.status === 401) {
+        router.push('/login?session=expired');
+        return;
+      }
+
       const data = await res.json();
 
       if (data.success) {
         setSaved(true);
-        const cached = getStoredMerchant();
-        if (cached) {
-          localStorage.setItem('merchant', JSON.stringify({
-            ...cached,
-            business_type: formData.business_type,
-            country: formData.country,
-            phone: formData.business_phone,
-          }));
+
+        const cachedMerchant = getStoredMerchant();
+        if (cachedMerchant) {
+          localStorage.setItem(
+            'merchant',
+            JSON.stringify({
+              ...cachedMerchant,
+              business_type: formData.business_type,
+              country: formData.country,
+              phone: formData.business_phone,
+            })
+          );
         }
 
-        // ✅ FIXED: Removed router.refresh() to prevent race conditions
+        const nextStep = data.onboarding?.currentStep || 2;
         setTimeout(() => {
-          router.replace(`/dashboard/onboarding/stage${data.onboarding.currentStep}`);
+          router.replace(`/dashboard/onboarding/stage${nextStep}`);
         }, 2000);
       } else {
-        setError(data.message || 'Failed to save business details');
+        setError(data.message || data.error || 'Failed to save business details');
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred while saving.');
@@ -215,10 +241,10 @@ export default function OnboardingStage1() {
           <Building2 className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Business Profile & Registration</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Tell us about your business.
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Business Profile &amp; Registration
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">Tell us about your business.</p>
         </div>
       </div>
 
@@ -228,13 +254,19 @@ export default function OnboardingStage1() {
         </div>
       )}
 
-      <form onSubmit={handleSave} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-8">
-        
-        {/* ─── Section 1: Business Type ──────────────────────────────── */}
+      <form
+        onSubmit={handleSave}
+        className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-8"
+      >
+        {/* ─── Section 1: Business Type ─────────────────────────────── */}
         <div>
-          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">Business Type</h3>
-          <p className="text-xs text-gray-500 mb-3">Determines which other fields/documents will be required later.</p>
-          
+          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
+            Business Type
+          </h3>
+          <p className="text-xs text-gray-500 mb-3">
+            Determines which other fields/documents will be required later.
+          </p>
+
           <select
             name="business_type"
             value={formData.business_type}
@@ -252,10 +284,12 @@ export default function OnboardingStage1() {
           </select>
         </div>
 
-        {/* ─── Section 2: Business Identity ───────────────────────────── */}
+        {/* ─── Section 2: Business Identity ─────────────────────────── */}
         <div className="border-t border-gray-100 pt-6">
-          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">Business Identity</h3>
-          
+          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
+            Business Identity
+          </h3>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -269,11 +303,15 @@ export default function OnboardingStage1() {
                 placeholder="Enter your legal business name"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
-              <p className="text-xs text-gray-400 mt-1">The exact name registered with the relevant authority.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                The exact name registered with the relevant authority.
+              </p>
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Trading Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Trading Name
+              </label>
               <input
                 type="text"
                 name="trading_name"
@@ -282,15 +320,19 @@ export default function OnboardingStage1() {
                 placeholder="e.g. Premium Shop"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
-              <p className="text-xs text-gray-400 mt-1">Optional. Leave blank if the same as your legal name.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Optional. Leave blank if the same as your legal name.
+              </p>
             </div>
           </div>
         </div>
 
-        {/* ─── Section 3: Registration Information ────────────────────── */}
+        {/* ─── Section 3: Registration Information ──────────────────── */}
         <div className="border-t border-gray-100 pt-6">
-          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">Registration Information</h3>
-          
+          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
+            Registration Information
+          </h3>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -305,7 +347,10 @@ export default function OnboardingStage1() {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 required
               />
-              <p className="text-xs text-gray-400 mt-1">For Kenyan registered companies, this is the company's registration identifier—not the owner's ID number.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                For Kenyan registered companies, this is the company&apos;s
+                registration identifier—not the owner&apos;s ID number.
+              </p>
             </div>
 
             <div>
@@ -347,10 +392,12 @@ export default function OnboardingStage1() {
           </div>
         </div>
 
-        {/* ─── Section 4: Business Activity ───────────────────────────── */}
+        {/* ─── Section 4: Business Activity ─────────────────────────── */}
         <div className="border-t border-gray-100 pt-6">
-          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">Business Activity</h3>
-          
+          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
+            Business Activity
+          </h3>
+
           <div className="grid grid-cols-1 gap-4 mt-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -370,7 +417,7 @@ export default function OnboardingStage1() {
                 <option value="Education">Education</option>
                 <option value="Healthcare">Healthcare</option>
                 <option value="Hospitality">Hospitality</option>
-                <option value="Transport & Logistics">Transport & Logistics</option>
+                <option value="Transport & Logistics">Transport &amp; Logistics</option>
                 <option value="Professional Services">Professional Services</option>
                 <option value="Financial Services">Financial Services</option>
                 <option value="Telecommunications">Telecommunications</option>
@@ -402,11 +449,15 @@ export default function OnboardingStage1() {
           </div>
         </div>
 
-        {/* ─── Section 5: Business Contact ────────────────────────────── */}
+        {/* ─── Section 5: Business Contact ──────────────────────────── */}
         <div className="border-t border-gray-100 pt-6">
-          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">Business Contact</h3>
-          <p className="text-xs text-gray-500 mb-3">These are business contacts, not the owner's personal details.</p>
-          
+          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
+            Business Contact
+          </h3>
+          <p className="text-xs text-gray-500 mb-3">
+            These are business contacts, not the owner&apos;s personal details.
+          </p>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -446,7 +497,9 @@ export default function OnboardingStage1() {
 
             <div>
               <div className="flex items-center gap-3 mt-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Website
+                </label>
                 <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-500 hover:text-gray-700">
                   <input
                     type="checkbox"
@@ -472,19 +525,25 @@ export default function OnboardingStage1() {
                 </div>
               )}
               {formData.has_no_website && (
-                <p className="text-xs text-gray-400 mt-1 italic">Website skipped as per your selection.</p>
+                <p className="text-xs text-gray-400 mt-1 italic">
+                  Website skipped as per your selection.
+                </p>
               )}
             </div>
           </div>
         </div>
 
-        {/* ─── Section 6: Business Location ───────────────────────────── */}
+        {/* ─── Section 6: Business Location ─────────────────────────── */}
         <div className="border-t border-gray-100 pt-6">
-          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">Business Location</h3>
-          
+          <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
+            Business Location
+          </h3>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Country <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Country <span className="text-red-500">*</span>
+              </label>
               <select
                 name="country"
                 value={formData.country}
@@ -499,7 +558,9 @@ export default function OnboardingStage1() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">County / Region <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                County / Region <span className="text-red-500">*</span>
+              </label>
               <select
                 name="county"
                 value={formData.county}
@@ -517,7 +578,9 @@ export default function OnboardingStage1() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">City / Town <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                City / Town <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 name="city"
@@ -530,7 +593,9 @@ export default function OnboardingStage1() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Physical Address <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Physical Address <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 name="physical_address"
@@ -543,7 +608,9 @@ export default function OnboardingStage1() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Postal Code</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Postal Code
+              </label>
               <input
                 type="text"
                 name="postal_code"
@@ -553,7 +620,7 @@ export default function OnboardingStage1() {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
-            
+
             <div className="md:col-span-2 flex items-start gap-3 bg-gray-50 p-4 rounded-lg border border-gray-200 mt-2">
               <input
                 type="checkbox"
@@ -564,12 +631,17 @@ export default function OnboardingStage1() {
                 className="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
               />
               <div>
-                <label htmlFor="same_address" className="text-sm font-medium text-gray-700 cursor-pointer">
+                <label
+                  htmlFor="same_address"
+                  className="text-sm font-medium text-gray-700 cursor-pointer"
+                >
                   Operating address is the same as registered address
                 </label>
                 {!formData.same_as_registered_address && (
                   <div className="mt-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Registered Address</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Registered Address
+                    </label>
                     <input
                       type="text"
                       name="registered_address"
@@ -607,7 +679,7 @@ export default function OnboardingStage1() {
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                Save & Continue
+                Save &amp; Continue
               </>
             )}
           </button>
