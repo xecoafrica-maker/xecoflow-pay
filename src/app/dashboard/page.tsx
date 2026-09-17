@@ -431,7 +431,7 @@ export default function DashboardOverview() {
         <div className="grid lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-5">
             <div className="h-5 w-40 bg-gray-200 rounded animate-pulse mb-4" />
-            <div className="h-56 w-full bg-gray-100 rounded-lg animate-pulse" />
+            <div className="h-48 w-full bg-gray-100 rounded-lg animate-pulse" />
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-5">
             <div className="h-4 w-28 bg-gray-200 rounded animate-pulse mb-3" />
@@ -657,13 +657,13 @@ export default function DashboardOverview() {
             </div>
           </div>
 
-          {/* ─── Chart area ─── */}
-          <div className="px-5 py-4">
+          {/* ─── Chart area — tight, no extra vertical padding ─── */}
+          <div className="px-5 py-3">
             {chartData.length > 0 ? (
-              <div className="h-56 w-full">
+              <div className="h-48 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   {chartType === 'Bar' ? (
-                    <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <BarChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                       <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 11, fill: '#94a3b8', dy: 2 }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
@@ -672,10 +672,10 @@ export default function DashboardOverview() {
                         formatter={tooltipFormatter}
                         cursor={{ fill: '#f1f5f9' }}
                       />
-                      <Bar dataKey="amount" fill="#10B981" radius={[5, 5, 0, 0]} barSize={28} />
+                      <Bar dataKey="amount" fill="#10B981" radius={[5, 5, 0, 0]} barSize={26} />
                     </BarChart>
                   ) : (
-                    <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                       <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 11, fill: '#94a3b8', dy: 2 }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
@@ -689,7 +689,7 @@ export default function DashboardOverview() {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="h-56 flex flex-col items-center justify-center text-gray-400 gap-2">
+              <div className="h-48 flex flex-col items-center justify-center text-gray-400 gap-2">
                 <BarChart3 size={24} className="text-gray-300" />
                 <span className="text-[13px]">No completed transactions to chart</span>
               </div>
