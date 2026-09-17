@@ -662,7 +662,7 @@ export default function DashboardOverview() {
             {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 {chartType === 'Bar' ? (
-                  <BarChart data={chartData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+                  <BarChart data={chartData} margin={{ top: 5, right: 8, left: 8, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                     <XAxis
                       dataKey="day"
@@ -674,13 +674,7 @@ export default function DashboardOverview() {
                       textAnchor="end"
                       height={40}
                     />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: '#94a3b8' }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={60}
-                      tickFormatter={(value) => `KES ${value.toLocaleString()}`}
-                    />
+                    <YAxis hide />
                     <Tooltip
                       contentStyle={{ backgroundColor: 'white', borderRadius: '10px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '10px 14px', fontSize: 12 }}
                       formatter={tooltipFormatter}
@@ -689,7 +683,7 @@ export default function DashboardOverview() {
                     <Bar dataKey="amount" fill="#10B981" radius={[5, 5, 0, 0]} barSize={28} />
                   </BarChart>
                 ) : (
-                  <LineChart data={chartData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+                  <LineChart data={chartData} margin={{ top: 5, right: 8, left: 8, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                     <XAxis
                       dataKey="day"
@@ -701,13 +695,7 @@ export default function DashboardOverview() {
                       textAnchor="end"
                       height={40}
                     />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: '#94a3b8' }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={60}
-                      tickFormatter={(value) => `KES ${value.toLocaleString()}`}
-                    />
+                    <YAxis hide />
                     <Tooltip
                       contentStyle={{ backgroundColor: 'white', borderRadius: '10px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '10px 14px', fontSize: 12 }}
                       formatter={tooltipFormatter}
