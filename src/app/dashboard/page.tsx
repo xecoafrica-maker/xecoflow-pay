@@ -658,12 +658,12 @@ export default function DashboardOverview() {
           </div>
 
           {/* ─── Chart area — tight, no extra vertical padding ─── */}
-          <div className="px-5 py-3">
+          <div className="px-5 pt-2 pb-1">
             {chartData.length > 0 ? (
-              <div className="h-48 w-full">
+              <div className="h-44 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   {chartType === 'Bar' ? (
-                    <BarChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <BarChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: -10 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                       <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 11, fill: '#94a3b8', dy: 2 }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
@@ -675,7 +675,7 @@ export default function DashboardOverview() {
                       <Bar dataKey="amount" fill="#10B981" radius={[5, 5, 0, 0]} barSize={26} />
                     </BarChart>
                   ) : (
-                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: -10 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                       <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 11, fill: '#94a3b8', dy: 2 }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
@@ -689,7 +689,7 @@ export default function DashboardOverview() {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="h-48 flex flex-col items-center justify-center text-gray-400 gap-2">
+              <div className="h-44 flex flex-col items-center justify-center text-gray-400 gap-2">
                 <BarChart3 size={24} className="text-gray-300" />
                 <span className="text-[13px]">No completed transactions to chart</span>
               </div>
