@@ -5,49 +5,19 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Building2,
-  Save,
-  Loader2,
-  MapPin,
-  FileText,
-  CheckCircle,
-  Shield,
-  UserCircle,
-  Copy,
-  Lock,
-  Upload,
-  Palette,
-  Mail,
-  Phone,
-  Globe,
-  MessageCircle,
-  X,
+  Building2, Save, Loader2, MapPin, FileText, CheckCircle,
+  Shield, Copy, Lock, Upload, Mail, Phone, Globe, MessageCircle, X,
 } from 'lucide-react';
-import { getStoredMerchant, getToken } from '@/lib/auth';
-import { getMerchantProfile } from '@/lib/auth-api';
+import { getStoredMerchant } from '@/lib/auth';
 
-// ─── Settings Navigation Tabs ─────────────────────────────────────
 const SETTINGS_TABS = [
-  {
-    label: 'Business & Profile',
-    href: '/dashboard/settings/business',
-    icon: Building2,
-  },
-  {
-    label: 'Security & Access',
-    href: '/dashboard/settings/security',
-    icon: Shield,
-  },
-  {
-    label: 'Compliance & KYC',
-    href: '/dashboard/settings/compliance',
-    icon: FileText,
-  },
+  { label: 'Business & Profile', href: '/dashboard/settings/business', icon: Building2 },
+  { label: 'Security & Access', href: '/dashboard/settings/security', icon: Shield },
+  { label: 'Compliance & KYC', href: '/dashboard/settings/compliance', icon: FileText },
 ];
 
 function SettingsNav() {
   const pathname = usePathname();
-
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
       <div className="flex border-b border-gray-200 overflow-x-auto">
@@ -74,18 +44,7 @@ function SettingsNav() {
   );
 }
 
-// ─── Section Card Wrapper ─────────────────────────────────────────
-function SectionCard({
-  number,
-  title,
-  children,
-  className = '',
-}: {
-  number: string;
-  title: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
+function SectionCard({ number, title, children, className = '' }: any) {
   return (
     <div className={`bg-white border border-gray-200 rounded-xl p-5 ${className}`}>
       <div className="flex items-center gap-2 pb-3 mb-4 border-b border-gray-100">
@@ -101,14 +60,7 @@ function SectionCard({
   );
 }
 
-// ─── Field Label ──────────────────────────────────────────────────
-function FieldLabel({
-  children,
-  required = false,
-}: {
-  children: React.ReactNode;
-  required?: boolean;
-}) {
+function FieldLabel({ children, required = false }: any) {
   return (
     <label className="block text-[12px] font-medium text-gray-700 mb-1.5">
       {children}
@@ -125,7 +77,6 @@ export default function BusinessSettingsPage() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
 
-  // ─── Form Data ────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
     business_name: '',
     trading_name: '',
@@ -143,94 +94,60 @@ export default function BusinessSettingsPage() {
     account_email: '',
   });
 
-  // Branding
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string>('');
   const [brandColor, setBrandColor] = useState('#10B981');
 
-  // ─── Load Profile Data ────────────────────────────────────────────
-  const fetchProfile = async () => {
-    // ✅ EXACT same pattern as Withdraw Funds page
+  // ─── Load from cache ONLY — no network call ─────────────────────
+  useEffect(() => {
     const cached = getStoredMerchant();
-    const id = cached?.merchant_id || cached?.merchantId;
-    const token = getToken();
 
-    // ✅ Only redirect if BOTH token and merchant are missing
-    if (!token || !id) {
-      console.warn('⚠️ Missing session, redirecting to login');
+    if (!cached || !(cached.merchant_id || cached.merchantId)) {
+      console.warn('⚠️ No merchant — redirecting to login');
       router.push('/login?session=expired');
       return;
     }
 
-    setLoading(true);
-    setError('');
-
-    try {
-      const profile = await getMerchantProfile(token);
-
-      if (profile) {
-        setFormData({
-          business_name: profile.business_name || cached?.business_name || '',
-          trading_name:
-            profile.trading_name ||
-            profile.business_name ||
-            cached?.business_name ||
-            '',
-          business_category: profile.business_category || '',
-          business_type: profile.business_type || '',
-          description: profile.description || '',
-          support_email: profile.support_email || profile.email || cached?.email || '',
-          support_phone: profile.support_phone || profile.phone || '',
-          whatsapp_number: profile.whatsapp_number || '',
-          website: profile.website || '',
-          country: profile.country || 'Kenya',
-          county: profile.county || '',
-          physical_address:
-            profile.physical_address || profile.business_location || '',
-          merchant_id: String(id),
-          account_email: profile.email || cached?.email || '',
-        });
-        setBrandColor(profile.brand_color || '#10B981');
-        setLogoPreview(profile.logo_url || '');
-      }
-    } catch (err) {
-      console.error('Failed to load profile:', err);
-      // ✅ Don't show error — silently fall back to cached data
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchProfile();
+    setFormData({
+      business_name: cached.business_name || cached.businessName || '',
+      trading_name: cached.trading_name || cached.business_name || cached.businessName || '',
+      business_category: cached.business_category || '',
+      business_type: cached.business_type || '',
+      description: cached.description || '',
+      support_email: cached.support_email || cached.email || '',
+      support_phone: cached.support_phone || cached.phone || '',
+      whatsapp_number: cached.whatsapp_number || '',
+      website: cached.website || '',
+      country: cached.country || 'Kenya',
+      county: cached.county || '',
+      physical_address: cached.physical_address || cached.business_location || '',
+      merchant_id: String(cached.merchant_id || cached.merchantId || ''),
+      account_email: cached.email || '',
+    });
+    setBrandColor(cached.brand_color || '#10B981');
+    setLogoPreview(cached.logo_url || '');
+    setLoading(false);
   }, [router]);
 
-  // ─── Handle Input Changes ────────────────────────────────────────
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => {
+  const handleChange = (e: any) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     setSaved(false);
   };
 
-  // ─── Handle Logo Upload ──────────────────────────────────────────
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (file.size > 2 * 1024 * 1024) {
       setError('Logo must be under 2MB');
       return;
     }
-
     setLogoFile(file);
     const reader = new FileReader();
     reader.onloadend = () => setLogoPreview(reader.result as string);
     reader.readAsDataURL(file);
   };
 
-  // ─── Copy Merchant ID ────────────────────────────────────────────
   const handleCopyMerchantId = () => {
     if (!formData.merchant_id) return;
     navigator.clipboard.writeText(formData.merchant_id);
@@ -238,19 +155,17 @@ export default function BusinessSettingsPage() {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  // ─── Save Data ────────────────────────────────────────────────────
+  // ─── Save — cookie auth only, matching inflow page ──────────────
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError('');
     setSaved(false);
 
-    // ✅ Same token check as Withdraw page
-    const token = getToken();
     const cached = getStoredMerchant();
     const id = cached?.merchant_id || cached?.merchantId;
 
-    if (!token || !id) {
+    if (!id) {
       router.push('/login?session=expired');
       return;
     }
@@ -258,10 +173,8 @@ export default function BusinessSettingsPage() {
     try {
       const res = await fetch('/v1/auth/update-profile', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           trading_name: formData.trading_name,
           business_category: formData.business_category,
@@ -278,27 +191,37 @@ export default function BusinessSettingsPage() {
         }),
       });
 
+      // ✅ Only redirect on explicit 401
+      if (res.status === 401) {
+        router.push('/login?session=expired');
+        return;
+      }
+
       const data = await res.json();
 
       if (res.ok && data.success) {
+        // Update cache in place
+        const updated = {
+          ...cached,
+          trading_name: formData.trading_name,
+          business_type: formData.business_type,
+          business_category: formData.business_category,
+          support_email: formData.support_email,
+          support_phone: formData.support_phone,
+          whatsapp_number: formData.whatsapp_number,
+          website: formData.website,
+          country: formData.country,
+          county: formData.county,
+          physical_address: formData.physical_address,
+          brand_color: brandColor,
+        };
+        localStorage.setItem('merchant', JSON.stringify(updated));
+        localStorage.setItem('xecoflow_merchant', JSON.stringify(updated));
+
         setSaved(true);
-
-        // ✅ Update BOTH localStorage keys so sidebar picks up the new name
-        if (cached) {
-          const updated = {
-            ...cached,
-            trading_name: formData.trading_name,
-            business_type: formData.business_type,
-            business_category: formData.business_category,
-            business_name: cached.business_name || cached.businessName,
-          };
-          localStorage.setItem('merchant', JSON.stringify(updated));
-          localStorage.setItem('xecoflow_merchant', JSON.stringify(updated));
-        }
-
         setTimeout(() => setSaved(false), 2500);
       } else {
-        setError(data.message || data.error || 'Failed to save business details');
+        setError(data.message || data.error || 'Failed to save');
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred while saving.');
@@ -317,22 +240,19 @@ export default function BusinessSettingsPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-5">
-      {/* ─── Page Header ────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-center gap-3">
         <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-sm shadow-indigo-200">
           <Building2 className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h1 className="text-[24px] font-bold text-gray-900 tracking-tight">
-            Business Profile
-          </h1>
+          <h1 className="text-[24px] font-bold text-gray-900 tracking-tight">Business Profile</h1>
           <p className="text-[13px] text-gray-500 mt-0.5">
             Manage your public business info, customer receipts, and address.
           </p>
         </div>
       </div>
 
-      {/* ─── Settings Nav ──────────────────────────────────────────── */}
       <SettingsNav />
 
       {error && (
@@ -350,7 +270,6 @@ export default function BusinessSettingsPage() {
       )}
 
       <form onSubmit={handleSave} className="space-y-5">
-        {/* ─── Row 1: Brand & Identity + Branding Assets ─────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <SectionCard number="1" title="Brand & Identity" className="lg:col-span-2">
             <div className="space-y-4">
@@ -365,7 +284,6 @@ export default function BusinessSettingsPage() {
                   className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-[13px] text-gray-600 cursor-not-allowed"
                 />
               </div>
-
               <div>
                 <FieldLabel>Public Display / Trading Name</FieldLabel>
                 <input
@@ -377,7 +295,6 @@ export default function BusinessSettingsPage() {
                   className="w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-lg text-[13px] focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                 />
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <FieldLabel required>Business Category</FieldLabel>
@@ -415,7 +332,6 @@ export default function BusinessSettingsPage() {
                   </select>
                 </div>
               </div>
-
               <div>
                 <FieldLabel>Description</FieldLabel>
                 <textarea
@@ -437,11 +353,7 @@ export default function BusinessSettingsPage() {
                 <div className="flex items-center gap-3">
                   <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white font-bold text-xl shadow-md shrink-0 overflow-hidden">
                     {logoPreview ? (
-                      <img
-                        src={logoPreview}
-                        alt="Logo"
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={logoPreview} alt="Logo" className="w-full h-full object-cover" />
                     ) : (
                       formData.trading_name?.charAt(0).toUpperCase() || 'W'
                     )}
@@ -451,12 +363,7 @@ export default function BusinessSettingsPage() {
                       <Upload className="w-3.5 h-3.5" />
                       Upload Logo
                     </div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleLogoUpload}
-                      className="hidden"
-                    />
+                    <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
                   </label>
                 </div>
                 <p className="text-[11px] text-gray-400 mt-2">Max size 2MB · PNG or JPG</p>
@@ -490,7 +397,6 @@ export default function BusinessSettingsPage() {
           </SectionCard>
         </div>
 
-        {/* ─── Row 2: Contact Details + Merchant Identifier ──────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           <SectionCard number="4" title="Customer Contact Details" className="lg:col-span-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -508,7 +414,6 @@ export default function BusinessSettingsPage() {
                   />
                 </div>
               </div>
-
               <div>
                 <FieldLabel required>Support Phone</FieldLabel>
                 <div className="relative">
@@ -523,7 +428,6 @@ export default function BusinessSettingsPage() {
                   />
                 </div>
               </div>
-
               <div>
                 <FieldLabel>WhatsApp Number</FieldLabel>
                 <div className="relative">
@@ -538,7 +442,6 @@ export default function BusinessSettingsPage() {
                   />
                 </div>
               </div>
-
               <div>
                 <FieldLabel>Website URL</FieldLabel>
                 <div className="relative">
@@ -586,7 +489,6 @@ export default function BusinessSettingsPage() {
                   </button>
                 </div>
               </div>
-
               <div>
                 <FieldLabel>Account Owner Email (Read-Only)</FieldLabel>
                 <div className="relative">
@@ -603,7 +505,6 @@ export default function BusinessSettingsPage() {
           </SectionCard>
         </div>
 
-        {/* ─── Row 3: Location & Address ─────────────────────────────── */}
         <SectionCard number="5" title="Location & Address">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
@@ -620,7 +521,6 @@ export default function BusinessSettingsPage() {
                 <option value="Rwanda">Rwanda</option>
               </select>
             </div>
-
             <div>
               <FieldLabel required>County</FieldLabel>
               <select
@@ -640,7 +540,6 @@ export default function BusinessSettingsPage() {
                 <option value="Other">Other</option>
               </select>
             </div>
-
             <div className="sm:col-span-2">
               <FieldLabel required>Physical Address</FieldLabel>
               <div className="relative">
@@ -658,11 +557,10 @@ export default function BusinessSettingsPage() {
           </div>
         </SectionCard>
 
-        {/* ─── Actions ───────────────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 pt-2">
           <button
             type="button"
-            onClick={fetchProfile}
+            onClick={() => window.location.reload()}
             className="px-5 py-2.5 bg-white border border-gray-300 rounded-lg text-[13px] font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
             Cancel
