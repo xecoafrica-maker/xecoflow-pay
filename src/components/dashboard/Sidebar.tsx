@@ -231,12 +231,11 @@ const sidebarSections: SidebarSection[] = [
         icon: Settings,
         label: 'Account Settings',
         children: [
-          { icon: Building, label: 'Profile', href: '/dashboard/business/identity' },
-          { icon: Building, label: 'Security', href: '/dashboard/business/identity' },
-          { icon: Users, label: 'Password', href: '/dashboard/business/team' },
-          { icon: BarChart3, label: 'Kyc Details', href: '/dashboard/business/reports' },
-          { icon: Bell, label: 'Preferences', href: '/dashboard/account/preferences' },
-          { icon: Activity, label: 'Activity Logs', href: '/dashboard/activity-logs' },
+          { icon: Building, label: 'Business & Profile', href: '/dashboard/settings/business' },
+          { icon: Shield, label: 'Security & Access', href: '/dashboard/settings/security' },
+          { icon: FileText, label: 'Compliance & KYC', href: '/dashboard/settings/compliance' },
+          { icon: FileText, label: 'Activity Logs', href: '/dashboard/activity-logs' },
+
         ],
       },
     ],
@@ -927,14 +926,14 @@ export default function Sidebar() {
 
               {/* Menu Items */}
               <Link
-                href="/dashboard/account/profile"
+                href="/dashboard/settings/business"
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-700/50 transition-colors text-sm text-slate-300 hover:text-white"
               >
                 <UserCircle className="w-4 h-4" />
                 Profile
               </Link>
               <Link
-                href="/dashboard/account/preferences"
+                href="/dashboard/settings/business"
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-700/50 transition-colors text-sm text-slate-300 hover:text-white"
               >
                 <Settings className="w-4 h-4" />

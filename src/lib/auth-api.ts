@@ -51,7 +51,7 @@ export interface LoginResponse {
   token?: string;
   refreshToken?: string;
   attempts_remaining?: number;
-  sessionDuration?: number; // ← Added: session duration in seconds
+  sessionDuration?: number;
   merchant?: {
     merchantId: number;
     merchant_id?: number;
@@ -65,6 +65,7 @@ export interface LoginResponse {
 }
 
 export interface MerchantProfile {
+  // ─── Core (existing) ────────────────────────────────────────────
   merchant_id: number;
   business_name: string;
   email: string;
@@ -96,6 +97,20 @@ export interface MerchantProfile {
     idNumber: string;
     role: string;
   }>;
+
+  // ─── Business Profile additions ─────────────────────────────────
+  trading_name?: string;
+  business_category?: string;
+  description?: string;
+  support_email?: string;
+  support_phone?: string;
+  whatsapp_number?: string;
+  website?: string;
+  county?: string;
+  physical_address?: string;
+  brand_color?: string;
+  logo_url?: string;
+  merchantId?: number; // camelCase alias for some responses
 }
 
 // ─── REGISTER ──────────────────────────────────────────────────────
@@ -119,15 +134,15 @@ export async function registerMerchant(data: RegisterRequest): Promise<RegisterR
   try {
     const res = await fetch(AUTH_API_BASE + '/v1/auth/register', {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
     });
-    
+
     const responseData = await res.json();
     console.log('📥 Register response:', responseData);
-    
+
     if (!res.ok) {
       if (responseData.message && responseData.message.includes('settlement_phone')) {
         throw new Error('Settlement phone error. Please try again.');
@@ -137,7 +152,7 @@ export async function registerMerchant(data: RegisterRequest): Promise<RegisterR
       }
       throw new Error(responseData.message || 'Registration failed. Please try again.');
     }
-    
+
     if (responseData.success && responseData.data) {
       return {
         success: true,
@@ -155,7 +170,7 @@ export async function registerMerchant(data: RegisterRequest): Promise<RegisterR
         rawSecret: responseData.data.apiSecret
       };
     }
-    
+
     return {
       success: true,
       message: responseData.message || 'Registration successful',
@@ -172,19 +187,18 @@ export async function registerMerchant(data: RegisterRequest): Promise<RegisterR
 // ─── LOGIN ──────────────────────────────────────────────────────────
 export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> {
   console.log('📤 Login request to:', AUTH_API_BASE + '/v1/auth/login');
-  
+
   try {
     const res = await fetch(AUTH_API_BASE + '/v1/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    
+
     const responseData = await res.json();
     console.log('📥 Login response:', responseData);
     console.log('📥 Login status:', res.status);
-    
-    // ─── 401: Invalid credentials ──────────────────────────────────
+
     if (res.status === 401) {
       console.log('🔴 401 Unauthorized - Invalid credentials');
       let message = responseData.message || 'Invalid email or password';
@@ -196,8 +210,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
         attempts_remaining: attempts
       };
     }
-    
-    // ─── 423: Account locked ──────────────────────────────────────
+
     if (res.status === 423) {
       console.log('🔴 423 Account locked');
       return {
@@ -207,8 +220,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
         lock_until: responseData.lock_until
       };
     }
-    
-    // ─── 403: Email not verified ──────────────────────────────────
+
     if (res.status === 403) {
       console.log('🔴 403 Email not verified');
       return {
@@ -217,8 +229,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
         message: responseData.message || 'Please verify your email before logging in.'
       };
     }
-    
-    // ─── Other errors ──────────────────────────────────────────────
+
     if (!res.ok) {
       console.log('🔴 Other error:', res.status);
       return {
@@ -226,8 +237,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
         message: responseData.message || 'Login failed'
       };
     }
-    
-    // ─── Success ────────────────────────────────────────────────────
+
     if (responseData.success && responseData.data) {
       const data = responseData.data;
       console.log('✅ Login successful');
@@ -235,7 +245,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
         success: true,
         token: data.accessToken || data.token,
         refreshToken: data.refreshToken,
-        sessionDuration: SESSION_DURATION_SECONDS, // ← Added: 5 minutes
+        sessionDuration: SESSION_DURATION_SECONDS,
         merchant: {
           merchantId: data.merchantId,
           merchant_id: data.merchantId,
@@ -248,15 +258,14 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
         }
       };
     }
-    
-    // ─── Fallback success ──────────────────────────────────────────
+
     if (responseData.success) {
       const token = responseData.token || responseData.data?.token;
       const merchantData = responseData.merchant || responseData.data;
       return {
         success: true,
         token: token,
-        sessionDuration: SESSION_DURATION_SECONDS, // ← Added: 5 minutes
+        sessionDuration: SESSION_DURATION_SECONDS,
         merchant: {
           merchantId: merchantData?.merchantId || merchantData?.merchant_id,
           merchant_id: merchantData?.merchant_id || merchantData?.merchantId,
@@ -269,7 +278,7 @@ export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> 
         }
       };
     }
-    
+
     return {
       success: false,
       message: responseData.message || 'Login failed'
@@ -321,7 +330,7 @@ export async function getMerchantProfile(token: string): Promise<MerchantProfile
   }
   const json = await res.json();
   console.log('📥 Profile response:', json);
-  
+
   if (json.success && json.data) {
     return json.data;
   }
