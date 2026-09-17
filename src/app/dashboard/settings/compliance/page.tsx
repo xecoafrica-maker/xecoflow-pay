@@ -285,14 +285,13 @@ export default function ComplianceSettingsPage() {
 
   // ─── Fetch Review Data ─────────────────────────────────────────
   useEffect(() => {
+    // ✅ EXACT same pattern as Withdraw Funds page
     const cached = getStoredMerchant();
-    const merchantId = cached?.merchant_id || cached?.merchantId;
-
-    // ✅ Multi-key token check
+    const id = cached?.merchant_id || cached?.merchantId;
     const token = getToken();
 
     // ✅ Only redirect if BOTH token and merchant are missing
-    if (!token || !merchantId) {
+    if (!token || !id) {
       console.warn('⚠️ Missing session, redirecting to login');
       router.push('/login?session=expired');
       return;
@@ -302,7 +301,7 @@ export default function ComplianceSettingsPage() {
       try {
         const res = await fetch('/api/onboarding/review', {
           credentials: 'include',
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         // ✅ Only logout on explicit 401

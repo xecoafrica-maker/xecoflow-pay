@@ -147,12 +147,13 @@ export default function SecuritySettingsPage() {
 
   // ─── Load Recovery Questions ─────────────────────────────────────
   useEffect(() => {
+    // ✅ EXACT same pattern as Withdraw Funds page
     const cached = getStoredMerchant();
-    const merchantId = cached?.merchant_id || cached?.merchantId;
+    const id = cached?.merchant_id || cached?.merchantId;
     const token = getToken();
 
     // ✅ Only redirect if BOTH token and merchant are missing
-    if (!token || !merchantId) {
+    if (!token || !id) {
       console.warn('⚠️ Missing session, redirecting to login');
       router.push('/login?session=expired');
       return;
@@ -161,10 +162,10 @@ export default function SecuritySettingsPage() {
     const load = async () => {
       try {
         const res = await fetch(
-          `/api/security-questions?merchantId=${merchantId}`,
+          `/api/security-questions?merchantId=${id}`,
           {
             credentials: 'include',
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            headers: { Authorization: `Bearer ${token}` },
           }
         );
 
@@ -226,8 +227,12 @@ export default function SecuritySettingsPage() {
     setPwSaving(true);
 
     try {
+      // ✅ Same session check as Withdraw page
       const token = getToken();
-      if (!token) {
+      const cached = getStoredMerchant();
+      const id = cached?.merchant_id || cached?.merchantId;
+
+      if (!token || !id) {
         router.push('/login?session=expired');
         return;
       }
@@ -293,11 +298,12 @@ export default function SecuritySettingsPage() {
     setError('');
     setSaved(false);
 
+    // ✅ Same session check as Withdraw page
     const cached = getStoredMerchant();
-    const merchantId = cached?.merchant_id || cached?.merchantId;
+    const id = cached?.merchant_id || cached?.merchantId;
     const token = getToken();
 
-    if (!token || !merchantId) {
+    if (!token || !id) {
       router.push('/login?session=expired');
       return;
     }
@@ -333,7 +339,7 @@ export default function SecuritySettingsPage() {
           Authorization: `Bearer ${token}`,
         },
         credentials: 'include',
-        body: JSON.stringify({ merchantId, questions: pairs }),
+        body: JSON.stringify({ merchantId: id, questions: pairs }),
       });
 
       // ✅ Only logout on explicit 401

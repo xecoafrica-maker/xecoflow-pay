@@ -36,12 +36,14 @@ export default function AccountsPage() {
 
   // ─── Load Profile ────────────────────────────────────────────────
   useEffect(() => {
+    // ✅ EXACT same pattern as Withdraw Funds page
     const cached = getStoredMerchant();
-    const merchantId = cached?.merchant_id || cached?.merchantId;
+    const id = cached?.merchant_id || cached?.merchantId;
     const token = getToken();
 
-    // ✅ Only redirect if BOTH are missing
-    if (!token || !merchantId) {
+    // ✅ Only redirect if BOTH token and merchant are missing
+    if (!token || !id) {
+      console.warn('⚠️ Missing session, redirecting to login');
       router.push('/login?session=expired');
       return;
     }
@@ -84,8 +86,12 @@ export default function AccountsPage() {
 
     setDeleting(true);
     try {
+      // ✅ Same session check as Withdraw page
       const token = getToken();
-      if (!token) {
+      const cached = getStoredMerchant();
+      const id = cached?.merchant_id || cached?.merchantId;
+
+      if (!token || !id) {
         router.push('/login?session=expired');
         return;
       }
@@ -123,12 +129,13 @@ export default function AccountsPage() {
   }
 
   // ─── Derived Values ──────────────────────────────────────────────
+  const cachedMerchant = getStoredMerchant();
   const businessName =
-    profile?.business_name || getStoredMerchant()?.business_name || '—';
+    profile?.business_name || cachedMerchant?.business_name || '—';
   const merchantId =
     profile?.merchant_id ||
-    getStoredMerchant()?.merchant_id ||
-    getStoredMerchant()?.merchantId ||
+    cachedMerchant?.merchant_id ||
+    cachedMerchant?.merchantId ||
     '—';
   const status = (profile?.status || 'PENDING').toUpperCase();
   const businessType = profile?.business_type || '—';

@@ -150,13 +150,14 @@ export default function BusinessSettingsPage() {
 
   // ─── Load Profile Data ────────────────────────────────────────────
   const fetchProfile = async () => {
-    // ✅ Multi-key token check
-    const token = getToken();
+    // ✅ EXACT same pattern as Withdraw Funds page
     const cached = getStoredMerchant();
-    const merchantId = cached?.merchant_id || cached?.merchantId;
+    const id = cached?.merchant_id || cached?.merchantId;
+    const token = getToken();
 
-    // ✅ Only redirect if BOTH are missing
-    if (!token || !merchantId) {
+    // ✅ Only redirect if BOTH token and merchant are missing
+    if (!token || !id) {
+      console.warn('⚠️ Missing session, redirecting to login');
       router.push('/login?session=expired');
       return;
     }
@@ -186,7 +187,7 @@ export default function BusinessSettingsPage() {
           county: profile.county || '',
           physical_address:
             profile.physical_address || profile.business_location || '',
-          merchant_id: String(merchantId),
+          merchant_id: String(id),
           account_email: profile.email || cached?.email || '',
         });
         setBrandColor(profile.brand_color || '#10B981');
@@ -244,8 +245,12 @@ export default function BusinessSettingsPage() {
     setError('');
     setSaved(false);
 
+    // ✅ Same token check as Withdraw page
     const token = getToken();
-    if (!token) {
+    const cached = getStoredMerchant();
+    const id = cached?.merchant_id || cached?.merchantId;
+
+    if (!token || !id) {
       router.push('/login?session=expired');
       return;
     }
@@ -255,7 +260,7 @@ export default function BusinessSettingsPage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           trading_name: formData.trading_name,
@@ -279,7 +284,6 @@ export default function BusinessSettingsPage() {
         setSaved(true);
 
         // ✅ Update BOTH localStorage keys so sidebar picks up the new name
-        const cached = getStoredMerchant();
         if (cached) {
           const updated = {
             ...cached,
