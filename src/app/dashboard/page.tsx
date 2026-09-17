@@ -93,10 +93,6 @@ interface OnboardingStep {
 const STATUS_FILTERS = ['All', 'Completed', 'Pending', 'Failed', 'AWAITING_CUSTOMER_PIN'];
 const chartTypes = ['Bar', 'Line'];
 
-const getCurrentMonth = () => {
-  return new Date().toLocaleDateString('en-US', { month: 'long' });
-};
-
 const COMPLETED_KEYWORDS = ['COMPLETED', 'SUCCESS', 'SETTLED', 'PAID'];
 const FAILED_KEYWORDS = ['FAILED', 'ERROR', 'DECLINED', 'CANCELLED', 'CANCELED', 'REVERSED'];
 const PENDING_KEYWORDS = ['PENDING', 'AWAITING', 'PROCESSING', 'INITIATED'];
@@ -115,12 +111,10 @@ const isCompleted = (tx: Transaction) => deriveStatus(tx) === 'Completed';
 // ─── Skeleton Components ──────────────────────────────────────────
 const SkeletonCard = () => (
   <div className="bg-white border border-gray-200 rounded-xl p-5 animate-pulse">
-    <div className="flex items-center justify-between mb-3">
-      <div className="w-10 h-10 rounded-lg bg-gray-200" />
-      <div className="w-16 h-4 bg-gray-200 rounded" />
-    </div>
-    <div className="h-7 w-24 bg-gray-200 rounded mb-1" />
-    <div className="h-4 w-32 bg-gray-200 rounded" />
+    <div className="w-9 h-9 rounded-lg bg-gray-200 mb-4" />
+    <div className="h-8 w-28 bg-gray-200 rounded mb-2" />
+    <div className="h-3 w-32 bg-gray-100 rounded mb-2" />
+    <div className="h-3 w-24 bg-gray-100 rounded" />
   </div>
 );
 
@@ -312,15 +306,46 @@ export default function DashboardOverview() {
     if (!loading && merchantId && !hasLoggedView.current) logView();
   }, [loading, merchantId, merchantName, log]);
 
-  const currentMonth = getCurrentMonth();
-
+  // ─── Stat Cards (redesigned — left-aligned, big value, mini trend row) ───
   const generateStats = () => {
     if (!stats && transactions.length === 0) {
       return [
-        { label: 'Available Balance', value: 'KES 0', change: 'Ready to withdraw', up: true, icon: Wallet, color: 'text-emerald-500', bg: 'bg-emerald-50' },
-        { label: 'Total Processed', value: 'KES 0', change: 'This month', up: true, icon: TrendingUp, color: 'text-blue-500', bg: 'bg-blue-50' },
-        { label: 'Transactions', value: '0', change: 'This month', up: true, icon: BarChart3, color: 'text-amber-500', bg: 'bg-amber-50' },
-        { label: 'Total Withdrawn', value: 'KES 0', change: 'All withdrawals', up: true, icon: ArrowUpLeft, color: 'text-purple-500', bg: 'bg-purple-50' },
+        {
+          label: 'Available Balance',
+          value: 'KES 0',
+          trend: 'Ready to withdraw',
+          trendUp: true,
+          icon: Wallet,
+          iconBg: 'bg-emerald-50',
+          iconColor: 'text-emerald-500',
+        },
+        {
+          label: 'Total Processed',
+          value: 'KES 0',
+          trend: 'This month',
+          trendUp: true,
+          icon: TrendingUp,
+          iconBg: 'bg-blue-50',
+          iconColor: 'text-blue-500',
+        },
+        {
+          label: 'Transactions',
+          value: '0',
+          trend: 'This month',
+          trendUp: true,
+          icon: BarChart3,
+          iconBg: 'bg-amber-50',
+          iconColor: 'text-amber-500',
+        },
+        {
+          label: 'Total Withdrawn',
+          value: 'KES 0',
+          trend: 'All time',
+          trendUp: true,
+          icon: ArrowUpLeft,
+          iconBg: 'bg-purple-50',
+          iconColor: 'text-purple-500',
+        },
       ];
     }
 
@@ -337,10 +362,42 @@ export default function DashboardOverview() {
     const totalWithdrawn = 0;
 
     return [
-      { label: 'Available Balance', value: `KES ${availableBalance.toLocaleString()}`, change: 'Ready to withdraw', up: true, icon: Wallet, color: 'text-emerald-500', bg: 'bg-emerald-50' },
-      { label: 'Total Processed', value: `KES ${completedAmount.toLocaleString()}`, change: 'Completed this month', up: completedAmount > 0, icon: TrendingUp, color: 'text-blue-500', bg: 'bg-blue-50' },
-      { label: 'Transactions', value: totalTransactions.toString(), change: `${todayTransactions} today`, up: todayTransactions > 0, icon: BarChart3, color: 'text-amber-500', bg: 'bg-amber-50' },
-      { label: 'Total Withdrawn', value: `KES ${totalWithdrawn.toLocaleString()}`, change: 'All withdrawals', up: true, icon: ArrowUpLeft, color: 'text-purple-500', bg: 'bg-purple-50' },
+      {
+        label: 'Available Balance',
+        value: `KES ${availableBalance.toLocaleString()}`,
+        trend: 'Ready to withdraw',
+        trendUp: true,
+        icon: Wallet,
+        iconBg: 'bg-emerald-50',
+        iconColor: 'text-emerald-500',
+      },
+      {
+        label: 'Total Processed',
+        value: `KES ${completedAmount.toLocaleString()}`,
+        trend: 'Completed this month',
+        trendUp: completedAmount > 0,
+        icon: TrendingUp,
+        iconBg: 'bg-blue-50',
+        iconColor: 'text-blue-500',
+      },
+      {
+        label: 'Transactions',
+        value: totalTransactions.toString(),
+        trend: `${todayTransactions} today`,
+        trendUp: todayTransactions > 0,
+        icon: BarChart3,
+        iconBg: 'bg-amber-50',
+        iconColor: 'text-amber-500',
+      },
+      {
+        label: 'Total Withdrawn',
+        value: `KES ${totalWithdrawn.toLocaleString()}`,
+        trend: 'All time',
+        trendUp: true,
+        icon: ArrowUpLeft,
+        iconBg: 'bg-purple-50',
+        iconColor: 'text-purple-500',
+      },
     ];
   };
 
@@ -509,19 +566,18 @@ export default function DashboardOverview() {
       {/* ─── Page Header ────────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div>
-          <p className="text-sm text-gray-400">
+          <p className="text-xs text-gray-400 uppercase tracking-wider font-medium">
             {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
           </p>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-[28px] font-bold text-gray-900 mt-1 tracking-tight">
             {new Date().getHours() < 12 ? 'Good Morning' : new Date().getHours() < 17 ? 'Good Afternoon' : 'Good Evening'}, {merchantName}
           </h1>
           <p className="text-sm text-gray-500 mt-1">Here's what's happening with your business today.</p>
         </div>
 
-        {/* ─── Support Button ─── */}
         <Link
           href="/dashboard/support"
-          className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium transition-colors shrink-0"
+          className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium transition-colors shadow-sm shrink-0"
         >
           <Headphones className="w-4 h-4 text-gray-500" />
           Support
@@ -618,54 +674,104 @@ export default function DashboardOverview() {
         </div>
       )}
 
-      {/* ─── Stats Cards ────────────────────────────────────────────── */}
+      {/* ─── Stat Cards (redesigned) ────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {statsData.map((stat) => (
-          <div key={stat.label} className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-all">
-            <div className="flex items-center justify-between mb-3">
-              <div className={`w-10 h-10 rounded-lg ${stat.bg} flex items-center justify-center`}>
-                <stat.icon size={20} className={stat.color} />
-              </div>
-              <span className={`text-xs font-medium flex items-center gap-1 ${stat.up ? 'text-emerald-500' : 'text-red-500'}`}>
-                {stat.up ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
-                {stat.change}
+          <div
+            key={stat.label}
+            className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md hover:border-gray-300 transition-all"
+          >
+            {/* Icon top-left */}
+            <div className={`w-9 h-9 rounded-lg ${stat.iconBg} flex items-center justify-center mb-4`}>
+              <stat.icon size={18} className={stat.iconColor} />
+            </div>
+
+            {/* Big value */}
+            <p className="text-[28px] font-bold text-gray-900 tracking-tight leading-none mb-2">
+              {stat.value}
+            </p>
+
+            {/* Label */}
+            <p className="text-[13px] text-gray-500 mb-2">{stat.label}</p>
+
+            {/* Trend row */}
+            <div className="flex items-center gap-1 text-xs">
+              {stat.trendUp ? (
+                <ArrowUp size={12} className="text-emerald-500 shrink-0" />
+              ) : (
+                <ArrowDown size={12} className="text-red-500 shrink-0" />
+              )}
+              <span className={stat.trendUp ? 'text-emerald-600' : 'text-red-600'}>
+                {stat.trend}
               </span>
             </div>
-            <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-            <p className="text-xs text-gray-400 mt-1">{stat.label}</p>
           </div>
         ))}
       </div>
 
       {/* ─── Two-column layout ─────────────────────────────────────── */}
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-6 overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl overflow-hidden">
+          {/* ─── Card Header: title + all controls in one row ─── */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 pt-5 pb-4 border-b border-gray-100">
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Transaction Analytics</h2>
-              <p className="text-sm text-gray-500">Completed transaction amounts (KES)</p>
-              {filteredTransactions.filter(isCompleted).length > 0 && (
-                <p className="text-xs text-gray-400 mt-1">
-                  {filteredTransactions.filter(isCompleted).length} completed transactions
-                </p>
-              )}
+              <h2 className="text-base font-semibold text-gray-900">Transaction Analytics</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {filteredTransactions.filter(isCompleted).length > 0
+                  ? `${filteredTransactions.filter(isCompleted).length} completed transactions`
+                  : 'Completed transaction amounts'}
+              </p>
             </div>
-            <div className="flex items-center gap-3 mt-3 sm:mt-0">
+
+            {/* All controls in one place */}
+            <div className="flex flex-wrap items-center gap-2">
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none"
+                className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none hover:bg-gray-100 transition-colors"
               >
                 {STATUS_FILTERS.map((opt) => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
+
+              <div className="flex gap-0.5 bg-gray-50 border border-gray-200 rounded-lg p-0.5">
+                {chartTypes.map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setChartType(type)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                      chartType === type
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-0.5 bg-gray-50 border border-gray-200 rounded-lg p-0.5">
+                {['7D', '30D', '90D'].map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setTimeRange(range)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                      timeRange === range || timeRange === range.replace('D', ' Days')
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {range}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* ─── Chart area — compact when empty ─── */}
-          {chartData.length > 0 ? (
-            <>
+          {/* ─── Chart area ─── */}
+          <div className="px-6 py-5">
+            {chartData.length > 0 ? (
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   {chartType === 'Bar' ? (
@@ -673,8 +779,7 @@ export default function DashboardOverview() {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                       <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 12, fill: '#94a3b8', dy: 2 }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '12px 16px' }}
+                      <Tooltip                        contentStyle={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '12px 16px' }}
                         formatter={tooltipFormatter}
                         cursor={{ fill: '#f1f5f9' }}
                       />
@@ -694,44 +799,13 @@ export default function DashboardOverview() {
                   )}
                 </ResponsiveContainer>
               </div>
-
-              <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gray-100">
-                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-                  {chartTypes.map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setChartType(type)}
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                        chartType === type ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-                <div className="w-px h-6 bg-gray-200 mx-2" />
-                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-                  {['7 Days', '30 Days', '90 Days'].map((range) => (
-                    <button
-                      key={range}
-                      onClick={() => setTimeRange(range)}
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                        timeRange === range ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      {range}
-                    </button>
-                  ))}
-                </div>
+            ) : (
+              <div className="py-10 flex flex-col items-center justify-center text-gray-400 gap-2">
+                <BarChart3 size={28} className="text-gray-300" />
+                <span className="text-sm">No completed transactions to chart</span>
               </div>
-            </>
-          ) : (
-            /* Compact empty state — no padding gap */
-            <div className="flex flex-col items-center justify-center text-gray-400 gap-2 py-6">
-              <BarChart3 size={28} className="text-gray-300" />
-              <span className="text-sm">No completed transactions to chart</span>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* ─── Quick Actions ──────────────────────────────────────── */}
