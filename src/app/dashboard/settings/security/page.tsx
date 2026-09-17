@@ -19,7 +19,7 @@ import {
   ChevronRight,
   MessageSquare,
 } from 'lucide-react';
-import { getStoredMerchant, getToken } from '@/lib/auth';
+import { getStoredMerchant } from '@/lib/auth';
 import SettingsTabs from '@/components/settings/SettingsTabs';
 
 // ─── Question Bank ─────────────────────────────────────────────────
@@ -147,27 +147,20 @@ export default function SecuritySettingsPage() {
 
   // ─── Load Recovery Questions ─────────────────────────────────────
   useEffect(() => {
-    // ✅ EXACT same pattern as Withdraw Funds page
     const cached = getStoredMerchant();
     const id = cached?.merchant_id || cached?.merchantId;
-    const token = getToken();
 
-    // ✅ Only redirect if BOTH token and merchant are missing
-    if (!token || !id) {
-      console.warn('⚠️ Missing session, redirecting to login');
+    if (!id) {
+      console.warn('⚠️ No merchant — redirecting to login');
       router.push('/login?session=expired');
       return;
     }
 
     const load = async () => {
       try {
-        const res = await fetch(
-          `/api/security-questions?merchantId=${id}`,
-          {
-            credentials: 'include',
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
+        const res = await fetch(`/api/security-questions?merchantId=${id}`, {
+          credentials: 'include',
+        });
 
         // ✅ Only logout on explicit 401
         if (res.status === 401) {
@@ -227,12 +220,10 @@ export default function SecuritySettingsPage() {
     setPwSaving(true);
 
     try {
-      // ✅ Same session check as Withdraw page
-      const token = getToken();
       const cached = getStoredMerchant();
       const id = cached?.merchant_id || cached?.merchantId;
 
-      if (!token || !id) {
+      if (!id) {
         router.push('/login?session=expired');
         return;
       }
@@ -240,10 +231,8 @@ export default function SecuritySettingsPage() {
       // TODO: wire to real endpoint when ready
       // const res = await fetch('/v1/auth/change-password', {
       //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     Authorization: `Bearer ${token}`,
-      //   },
+      //   headers: { 'Content-Type': 'application/json' },
+      //   credentials: 'include',
       //   body: JSON.stringify({ currentPassword, newPassword }),
       // });
       await new Promise((r) => setTimeout(r, 800));
@@ -298,12 +287,10 @@ export default function SecuritySettingsPage() {
     setError('');
     setSaved(false);
 
-    // ✅ Same session check as Withdraw page
     const cached = getStoredMerchant();
     const id = cached?.merchant_id || cached?.merchantId;
-    const token = getToken();
 
-    if (!token || !id) {
+    if (!id) {
       router.push('/login?session=expired');
       return;
     }
@@ -334,10 +321,7 @@ export default function SecuritySettingsPage() {
     try {
       const res = await fetch('/api/security-questions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ merchantId: id, questions: pairs }),
       });

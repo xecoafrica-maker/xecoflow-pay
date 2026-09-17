@@ -17,14 +17,13 @@ import {
   X,
   AlertTriangle,
 } from 'lucide-react';
-import { getStoredMerchant, getToken } from '@/lib/auth';
-import { getMerchantProfile, MerchantProfile } from '@/lib/auth-api';
+import { getStoredMerchant } from '@/lib/auth';
 
 export default function AccountsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [profile, setProfile] = useState<MerchantProfile | null>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
   // ─── Delete Account State ────────────────────────────────────────
@@ -34,33 +33,20 @@ export default function AccountsPage() {
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
 
-  // ─── Load Profile ────────────────────────────────────────────────
+  // ─── Load Profile — cache first, no token check ─────────────────
   useEffect(() => {
-    // ✅ EXACT same pattern as Withdraw Funds page
     const cached = getStoredMerchant();
     const id = cached?.merchant_id || cached?.merchantId;
-    const token = getToken();
 
-    // ✅ Only redirect if BOTH token and merchant are missing
-    if (!token || !id) {
-      console.warn('⚠️ Missing session, redirecting to login');
+    if (!id) {
+      console.warn('⚠️ No merchant — redirecting to login');
       router.push('/login?session=expired');
       return;
     }
 
-    const load = async () => {
-      try {
-        const data = await getMerchantProfile(token);
-        setProfile(data);
-      } catch (err: any) {
-        console.error('Failed to load account details:', err);
-        setError(err.message || 'Failed to load account details');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
+    // Read from cache immediately
+    setProfile(cached);
+    setLoading(false);
   }, [router]);
 
   // ─── Copy to Clipboard ───────────────────────────────────────────
@@ -86,12 +72,10 @@ export default function AccountsPage() {
 
     setDeleting(true);
     try {
-      // ✅ Same session check as Withdraw page
-      const token = getToken();
       const cached = getStoredMerchant();
       const id = cached?.merchant_id || cached?.merchantId;
 
-      if (!token || !id) {
+      if (!id) {
         router.push('/login?session=expired');
         return;
       }
@@ -99,10 +83,8 @@ export default function AccountsPage() {
       // TODO: wire to real endpoint
       // const res = await fetch('/v1/auth/delete-account', {
       //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     Authorization: `Bearer ${token}`,
-      //   },
+      //   headers: { 'Content-Type': 'application/json' },
+      //   credentials: 'include',
       //   body: JSON.stringify({ password: deletePassword, confirm: 'DELETE' }),
       // });
 
@@ -129,14 +111,10 @@ export default function AccountsPage() {
   }
 
   // ─── Derived Values ──────────────────────────────────────────────
-  const cachedMerchant = getStoredMerchant();
   const businessName =
-    profile?.business_name || cachedMerchant?.business_name || '—';
+    profile?.business_name || profile?.businessName || '—';
   const merchantId =
-    profile?.merchant_id ||
-    cachedMerchant?.merchant_id ||
-    cachedMerchant?.merchantId ||
-    '—';
+    profile?.merchant_id || profile?.merchantId || '—';
   const status = (profile?.status || 'PENDING').toUpperCase();
   const businessType = profile?.business_type || '—';
   const createdAt = profile?.created_at;

@@ -19,7 +19,7 @@ import {
   Download,
   Info,
 } from 'lucide-react';
-import { getStoredMerchant, getToken } from '@/lib/auth';
+import { getStoredMerchant } from '@/lib/auth';
 import SettingsTabs from '@/components/settings/SettingsTabs';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -32,7 +32,6 @@ interface Director {
 }
 
 interface ReviewData {
-  // Business Profile
   business_name?: string;
   business_type?: string;
   business_registration_number?: string;
@@ -41,8 +40,6 @@ interface ReviewData {
   country_of_registration?: string;
   industry?: string;
   business_description?: string;
-
-  // Contact
   email?: string;
   phone?: string;
   country?: string;
@@ -50,21 +47,13 @@ interface ReviewData {
   city?: string;
   physical_address?: string;
   postal_code?: string;
-
-  // Directors
   directors?: Director[];
-
-  // Tax
   kra_pin?: string;
-
-  // Settlement
   settlement_method?: string;
   settlement_phone?: string;
   bank_name?: string;
   bank_account_number?: string;
   bank_account_holder?: string;
-
-  // KYC status
   kyc_status?: KYCStatus;
   kyc_reviewer_note?: string;
   kyc_submitted_at?: string;
@@ -247,18 +236,12 @@ function DocumentRow({
   return (
     <div className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
       <div className="flex items-center gap-3 min-w-0">
-        <div
-          className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${statusConfig.bg}`}
-        >
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${statusConfig.bg}`}>
           <Icon className={`w-4 h-4 ${statusConfig.iconColor}`} />
         </div>
         <div className="min-w-0">
-          <p className="text-[13px] font-medium text-gray-900 truncate">
-            {label}
-          </p>
-          <p className={`text-[11px] ${statusConfig.textColor}`}>
-            {statusConfig.text}
-          </p>
+          <p className="text-[13px] font-medium text-gray-900 truncate">{label}</p>
+          <p className={`text-[11px] ${statusConfig.textColor}`}>{statusConfig.text}</p>
         </div>
       </div>
 
@@ -283,25 +266,49 @@ export default function ComplianceSettingsPage() {
   const [error, setError] = useState('');
   const [data, setData] = useState<ReviewData | null>(null);
 
-  // ─── Fetch Review Data ─────────────────────────────────────────
+  // ─── Load — cache-first, no token check ─────────────────────────
   useEffect(() => {
-    // ✅ EXACT same pattern as Withdraw Funds page
     const cached = getStoredMerchant();
     const id = cached?.merchant_id || cached?.merchantId;
-    const token = getToken();
 
-    // ✅ Only redirect if BOTH token and merchant are missing
-    if (!token || !id) {
-      console.warn('⚠️ Missing session, redirecting to login');
+    if (!id) {
+      console.warn('⚠️ No merchant — redirecting to login');
       router.push('/login?session=expired');
       return;
+    }
+
+    // Show cached data immediately (if any), so page isn't blank
+    if (cached) {
+      setData({
+        business_name: cached.business_name || cached.businessName,
+        trading_name: cached.trading_name,
+        business_type: cached.business_type,
+        business_registration_number: cached.business_registration_number,
+        industry: cached.industry || cached.business_category,
+        email: cached.email,
+        phone: cached.phone,
+        country: cached.country,
+        county: cached.county,
+        city: cached.city,
+        physical_address: cached.physical_address || cached.business_location,
+        postal_code: cached.postal_code,
+        kra_pin: cached.kra_pin,
+        settlement_method: cached.settlement_method,
+        settlement_phone: cached.settlement_phone,
+        bank_name: cached.bank_name,
+        bank_account_number: cached.bank_account_number,
+        bank_account_holder: cached.bank_account_holder,
+        kyc_status: cached.kyc_status,
+        kyc_reviewer_note: cached.kyc_reviewer_note,
+        kyc_submitted_at: cached.kyc_submitted_at,
+        directors: cached.directors,
+      });
     }
 
     const fetchSummary = async () => {
       try {
         const res = await fetch('/api/onboarding/review', {
           credentials: 'include',
-          headers: { Authorization: `Bearer ${token}` },
         });
 
         // ✅ Only logout on explicit 401
@@ -310,18 +317,17 @@ export default function ComplianceSettingsPage() {
           return;
         }
 
-        const json = await res.json();
-
+        // ✅ Endpoint missing or error → keep cached data, don't logout
         if (!res.ok) {
-          throw new Error(
-            json.error || json.message || 'Failed to load compliance information'
-          );
+          console.warn('⚠️ Review endpoint returned', res.status, '— using cached data');
+          return;
         }
 
+        const json = await res.json();
         setData(json);
       } catch (err: any) {
-        console.error('Failed to load compliance review:', err);
-        setError(err.message || 'Failed to load compliance information');
+        // ✅ Network error → keep cached data, don't logout
+        console.warn('⚠️ Failed to load compliance review (using cache):', err?.message);
       } finally {
         setLoading(false);
       }
