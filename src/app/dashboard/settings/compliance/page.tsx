@@ -19,7 +19,7 @@ import {
   Download,
   Info,
 } from 'lucide-react';
-import { getStoredMerchant } from '@/lib/auth';
+import { getStoredMerchant, getToken } from '@/lib/auth';
 import SettingsTabs from '@/components/settings/SettingsTabs';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -129,7 +129,7 @@ function StatusBanner({
     <div className={`border rounded-xl p-4 ${config.tone}`}>
       <div className="flex items-start gap-3">
         <div className={`w-9 h-9 rounded-lg ${config.iconBg} flex items-center justify-center shrink-0`}>
-          <Icon className={`w-4.5 h-4.5 ${config.iconColor}`} />
+          <Icon className={`w-4 h-4 ${config.iconColor}`} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -288,7 +288,12 @@ export default function ComplianceSettingsPage() {
     const cached = getStoredMerchant();
     const merchantId = cached?.merchant_id || cached?.merchantId;
 
-    if (!cached || !merchantId) {
+    // ✅ Multi-key token check
+    const token = getToken();
+
+    // ✅ Only redirect if BOTH token and merchant are missing
+    if (!token || !merchantId) {
+      console.warn('⚠️ Missing session, redirecting to login');
       router.push('/login?session=expired');
       return;
     }
@@ -297,8 +302,10 @@ export default function ComplianceSettingsPage() {
       try {
         const res = await fetch('/api/onboarding/review', {
           credentials: 'include',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
+        // ✅ Only logout on explicit 401
         if (res.status === 401) {
           router.push('/login?session=expired');
           return;
@@ -398,7 +405,10 @@ export default function ComplianceSettingsPage() {
             label="Country of Registration"
             value={data?.country_of_registration}
           />
-          <ReviewItem label="Business Description" value={data?.business_description} />
+          <ReviewItem
+            label="Business Description"
+            value={data?.business_description}
+          />
         </div>
       </SectionCard>
 
@@ -503,15 +513,13 @@ export default function ComplianceSettingsPage() {
       {/* ─── 6. Uploaded Documents ────────────────────────────────── */}
       <SectionCard number="6" icon={FolderOpen} title="Uploaded Documents">
         <div className="divide-y divide-gray-100">
-          <DocumentRow
-            label="Certificate of Incorporation"
-            status="pending"
-          />
+          <DocumentRow label="Certificate of Incorporation" status="pending" />
           <DocumentRow label="KRA PIN Certificate" status="pending" />
           <DocumentRow label="Directors' National IDs" status="pending" />
         </div>
         <p className="text-[11px] text-gray-400 mt-4 leading-relaxed">
-          Document statuses update automatically as your onboarding submission is reviewed.
+          Document statuses update automatically as your onboarding submission is
+          reviewed.
         </p>
       </SectionCard>
 

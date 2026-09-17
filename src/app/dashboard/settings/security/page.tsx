@@ -149,8 +149,11 @@ export default function SecuritySettingsPage() {
   useEffect(() => {
     const cached = getStoredMerchant();
     const merchantId = cached?.merchant_id || cached?.merchantId;
+    const token = getToken();
 
-    if (!merchantId) {
+    // ✅ Only redirect if BOTH token and merchant are missing
+    if (!token || !merchantId) {
+      console.warn('⚠️ Missing session, redirecting to login');
       router.push('/login?session=expired');
       return;
     }
@@ -159,9 +162,13 @@ export default function SecuritySettingsPage() {
       try {
         const res = await fetch(
           `/api/security-questions?merchantId=${merchantId}`,
-          { credentials: 'include' }
+          {
+            credentials: 'include',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }
         );
 
+        // ✅ Only logout on explicit 401
         if (res.status === 401) {
           router.push('/login?session=expired');
           return;
@@ -169,7 +176,11 @@ export default function SecuritySettingsPage() {
 
         if (res.ok) {
           const data = await res.json();
-          if (data.success && Array.isArray(data.data) && data.data.length === 3) {
+          if (
+            data.success &&
+            Array.isArray(data.data) &&
+            data.data.length === 3
+          ) {
             setAlreadySetUp(true);
             setPairs(
               data.data.map((q: any) => ({
@@ -180,7 +191,7 @@ export default function SecuritySettingsPage() {
           }
         }
       } catch {
-        // Silent
+        // Silent — network glitch shouldn't kill the page
       } finally {
         setLoading(false);
       }
@@ -222,7 +233,14 @@ export default function SecuritySettingsPage() {
       }
 
       // TODO: wire to real endpoint when ready
-      // const res = await fetch('/v1/auth/change-password', { ... });
+      // const res = await fetch('/v1/auth/change-password', {
+      //   method: 'POST',
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //     Authorization: `Bearer ${token}`,
+      //   },
+      //   body: JSON.stringify({ currentPassword, newPassword }),
+      // });
       await new Promise((r) => setTimeout(r, 800));
 
       setPwSaved(true);
@@ -277,8 +295,9 @@ export default function SecuritySettingsPage() {
 
     const cached = getStoredMerchant();
     const merchantId = cached?.merchant_id || cached?.merchantId;
+    const token = getToken();
 
-    if (!merchantId) {
+    if (!token || !merchantId) {
       router.push('/login?session=expired');
       return;
     }
@@ -309,11 +328,15 @@ export default function SecuritySettingsPage() {
     try {
       const res = await fetch('/api/security-questions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         credentials: 'include',
         body: JSON.stringify({ merchantId, questions: pairs }),
       });
 
+      // ✅ Only logout on explicit 401
       if (res.status === 401) {
         router.push('/login?session=expired');
         return;
@@ -398,7 +421,11 @@ export default function SecuritySettingsPage() {
                   onClick={() => setShowCurrentPw((v) => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  {showCurrentPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showCurrentPw ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -420,7 +447,11 @@ export default function SecuritySettingsPage() {
                   onClick={() => setShowNewPw((v) => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showNewPw ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -442,7 +473,11 @@ export default function SecuritySettingsPage() {
                   onClick={() => setShowConfirmPw((v) => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  {showConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showConfirmPw ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -541,7 +576,11 @@ export default function SecuritySettingsPage() {
         title="Account Recovery"
         description="Set 3 security questions. If you forget your password, we'll use them to confirm you're the real owner."
         action={
-          alreadySetUp ? <Badge tone="success">Set up</Badge> : <Badge tone="warning">Not set up</Badge>
+          alreadySetUp ? (
+            <Badge tone="success">Set up</Badge>
+          ) : (
+            <Badge tone="warning">Not set up</Badge>
+          )
         }
       >
         {loading ? (
@@ -551,8 +590,9 @@ export default function SecuritySettingsPage() {
         ) : (
           <form onSubmit={handleSave} className="space-y-5">
             <div className="text-[12px] text-gray-500 leading-relaxed bg-gray-50 border border-gray-200 rounded-lg p-3">
-              Answers are <strong className="text-gray-700">case-insensitive</strong> and stored{' '}
-              <strong className="text-gray-700">securely hashed</strong> — nobody, including us, can read them.
+              Answers are <strong className="text-gray-700">case-insensitive</strong> and
+              stored <strong className="text-gray-700">securely hashed</strong> — nobody,
+              including us, can read them.
             </div>
 
             {alreadySetUp && !saved && (
@@ -602,7 +642,9 @@ export default function SecuritySettingsPage() {
                       <option
                         key={q}
                         value={q}
-                        disabled={pairs.some((p, i) => i !== index && p.question === q)}
+                        disabled={pairs.some(
+                          (p, i) => i !== index && p.question === q
+                        )}
                       >
                         {q}
                       </option>
@@ -650,7 +692,9 @@ export default function SecuritySettingsPage() {
                 ) : (
                   <>
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    {alreadySetUp ? 'Replace Recovery Questions' : 'Save Recovery Questions'}
+                    {alreadySetUp
+                      ? 'Replace Recovery Questions'
+                      : 'Save Recovery Questions'}
                   </>
                 )}
               </button>
@@ -731,16 +775,33 @@ export default function SecuritySettingsPage() {
       >
         <div className="divide-y divide-gray-100">
           {[
-            { device: 'Chrome · Windows', location: 'Nairobi, KE', time: 'Today, 10:24 AM', status: 'Success' },
-            { device: 'Safari · iPhone', location: 'Nairobi, KE', time: 'Yesterday, 6:12 PM', status: 'Success' },
-            { device: 'Chrome · Windows', location: 'Nairobi, KE', time: '3 days ago', status: 'Success' },
+            {
+              device: 'Chrome · Windows',
+              location: 'Nairobi, KE',
+              time: 'Today, 10:24 AM',
+              status: 'Success',
+            },
+            {
+              device: 'Safari · iPhone',
+              location: 'Nairobi, KE',
+              time: 'Yesterday, 6:12 PM',
+              status: 'Success',
+            },
+            {
+              device: 'Chrome · Windows',
+              location: 'Nairobi, KE',
+              time: '3 days ago',
+              status: 'Success',
+            },
           ].map((log, i) => (
             <div
               key={i}
               className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
             >
               <div>
-                <p className="text-[13px] font-medium text-gray-900">{log.device}</p>
+                <p className="text-[13px] font-medium text-gray-900">
+                  {log.device}
+                </p>
                 <p className="text-[11px] text-gray-500 mt-0.5">
                   {log.location} · {log.time}
                 </p>

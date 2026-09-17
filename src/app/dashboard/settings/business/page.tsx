@@ -102,7 +102,13 @@ function SectionCard({
 }
 
 // ─── Field Label ──────────────────────────────────────────────────
-function FieldLabel({ children, required = false }: { children: React.ReactNode; required?: boolean }) {
+function FieldLabel({
+  children,
+  required = false,
+}: {
+  children: React.ReactNode;
+  required?: boolean;
+}) {
   return (
     <label className="block text-[12px] font-medium text-gray-700 mb-1.5">
       {children}
@@ -133,7 +139,6 @@ export default function BusinessSettingsPage() {
     country: 'Kenya',
     county: '',
     physical_address: '',
-    // Read-only
     merchant_id: '',
     account_email: '',
   });
@@ -145,9 +150,14 @@ export default function BusinessSettingsPage() {
 
   // ─── Load Profile Data ────────────────────────────────────────────
   const fetchProfile = async () => {
+    // ✅ Multi-key token check
     const token = getToken();
-    if (!token) {
-      router.push('/login');
+    const cached = getStoredMerchant();
+    const merchantId = cached?.merchant_id || cached?.merchantId;
+
+    // ✅ Only redirect if BOTH are missing
+    if (!token || !merchantId) {
+      router.push('/login?session=expired');
       return;
     }
 
@@ -156,34 +166,35 @@ export default function BusinessSettingsPage() {
 
     try {
       const profile = await getMerchantProfile(token);
-      const stored = getStoredMerchant();
 
       if (profile) {
         setFormData({
-          business_name: profile.business_name || '',
-          trading_name: profile.trading_name || profile.business_name || '',
+          business_name: profile.business_name || cached?.business_name || '',
+          trading_name:
+            profile.trading_name ||
+            profile.business_name ||
+            cached?.business_name ||
+            '',
           business_category: profile.business_category || '',
           business_type: profile.business_type || '',
           description: profile.description || '',
-          support_email: profile.support_email || profile.email || '',
-          support_phone: profile.support_phone || '',
+          support_email: profile.support_email || profile.email || cached?.email || '',
+          support_phone: profile.support_phone || profile.phone || '',
           whatsapp_number: profile.whatsapp_number || '',
           website: profile.website || '',
           country: profile.country || 'Kenya',
           county: profile.county || '',
-          physical_address: profile.physical_address || profile.business_location || '',
-          merchant_id:
-            stored?.merchantId ||
-            stored?.merchant_id ||
-            profile.merchant_id ||
-            '',
-          account_email: profile.email || stored?.email || '',
+          physical_address:
+            profile.physical_address || profile.business_location || '',
+          merchant_id: String(merchantId),
+          account_email: profile.email || cached?.email || '',
         });
         setBrandColor(profile.brand_color || '#10B981');
         setLogoPreview(profile.logo_url || '');
       }
     } catch (err) {
       console.error('Failed to load profile:', err);
+      // ✅ Don't show error — silently fall back to cached data
     } finally {
       setLoading(false);
     }
@@ -235,7 +246,7 @@ export default function BusinessSettingsPage() {
 
     const token = getToken();
     if (!token) {
-      router.push('/login');
+      router.push('/login?session=expired');
       return;
     }
 
@@ -264,23 +275,26 @@ export default function BusinessSettingsPage() {
 
       const data = await res.json();
 
-      if (data.success) {
+      if (res.ok && data.success) {
         setSaved(true);
+
+        // ✅ Update BOTH localStorage keys so sidebar picks up the new name
         const cached = getStoredMerchant();
         if (cached) {
-          localStorage.setItem(
-            'merchant',
-            JSON.stringify({
-              ...cached,
-              trading_name: formData.trading_name,
-              business_type: formData.business_type,
-              business_category: formData.business_category,
-            })
-          );
+          const updated = {
+            ...cached,
+            trading_name: formData.trading_name,
+            business_type: formData.business_type,
+            business_category: formData.business_category,
+            business_name: cached.business_name || cached.businessName,
+          };
+          localStorage.setItem('merchant', JSON.stringify(updated));
+          localStorage.setItem('xecoflow_merchant', JSON.stringify(updated));
         }
+
         setTimeout(() => setSaved(false), 2500);
       } else {
-        setError(data.message || 'Failed to save business details');
+        setError(data.message || data.error || 'Failed to save business details');
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred while saving.');
@@ -334,7 +348,6 @@ export default function BusinessSettingsPage() {
       <form onSubmit={handleSave} className="space-y-5">
         {/* ─── Row 1: Brand & Identity + Branding Assets ─────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* Brand & Identity (2 columns) */}
           <SectionCard number="1" title="Brand & Identity" className="lg:col-span-2">
             <div className="space-y-4">
               <div>
@@ -413,7 +426,6 @@ export default function BusinessSettingsPage() {
             </div>
           </SectionCard>
 
-          {/* Branding Assets (1 column) */}
           <SectionCard number="2" title="Branding Assets">
             <div className="space-y-5">
               <div>
@@ -421,7 +433,11 @@ export default function BusinessSettingsPage() {
                 <div className="flex items-center gap-3">
                   <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white font-bold text-xl shadow-md shrink-0 overflow-hidden">
                     {logoPreview ? (
-                      <img src={logoPreview} alt="Logo" className="w-full h-full object-cover" />
+                      <img
+                        src={logoPreview}
+                        alt="Logo"
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       formData.trading_name?.charAt(0).toUpperCase() || 'W'
                     )}
@@ -472,7 +488,6 @@ export default function BusinessSettingsPage() {
 
         {/* ─── Row 2: Contact Details + Merchant Identifier ──────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* Contact Details (2 columns) */}
           <SectionCard number="4" title="Customer Contact Details" className="lg:col-span-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -537,7 +552,6 @@ export default function BusinessSettingsPage() {
             </div>
           </SectionCard>
 
-          {/* Merchant Identifier (1 column) */}
           <SectionCard number="3" title="Merchant Identifier">
             <div className="space-y-4">
               <div>
