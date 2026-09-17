@@ -33,6 +33,7 @@ import {
   Users,
   Loader2,
   ArrowUpLeft,
+  Headphones,
 } from 'lucide-react';
 import {
   BarChart,
@@ -506,7 +507,7 @@ export default function DashboardOverview() {
   return (
     <div className="max-w-[1400px] mx-auto space-y-6">
       {/* ─── Page Header ────────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div>
           <p className="text-sm text-gray-400">
             {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
@@ -516,6 +517,15 @@ export default function DashboardOverview() {
           </h1>
           <p className="text-sm text-gray-500 mt-1">Here's what's happening with your business today.</p>
         </div>
+
+        {/* ─── Support Button ─── */}
+        <Link
+          href="/dashboard/support"
+          className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium transition-colors shrink-0"
+        >
+          <Headphones className="w-4 h-4 text-gray-500" />
+          Support
+        </Link>
       </div>
 
       {/* ─── Onboarding ─────────────────────────────────────────────── */}
@@ -630,7 +640,7 @@ export default function DashboardOverview() {
       {/* ─── Two-column layout ─────────────────────────────────────── */}
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-6 overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
             <div>
               <h2 className="text-lg font-bold text-gray-900">Transaction Analytics</h2>
               <p className="text-sm text-gray-500">Completed transaction amounts (KES)</p>
@@ -653,74 +663,73 @@ export default function DashboardOverview() {
             </div>
           </div>
 
-          {/* ─── Chart area ─── */}
+          {/* ─── Chart area — compact when empty ─── */}
           {chartData.length > 0 ? (
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                {chartType === 'Bar' ? (
-                  <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 12, fill: '#94a3b8', dy: 2 }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '12px 16px' }}
-                      formatter={tooltipFormatter}
-                      cursor={{ fill: '#f1f5f9' }}
-                    />
-                    <Bar dataKey="amount" fill="#10B981" radius={[6, 6, 0, 0]} barSize={32} />
-                  </BarChart>
-                ) : (
-                  <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                    <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 12, fill: '#94a3b8', dy: 2 }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '12px 16px' }}
-                      formatter={tooltipFormatter}
-                    />
-                    <Line type="monotone" dataKey="amount" stroke="#10B981" strokeWidth={3} dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: '#10B981' }} />
-                  </LineChart>
-                )}
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            /* Compact empty state — no big gap */
-            <div className="py-12 flex flex-col items-center justify-center text-gray-400 gap-2">
-              <BarChart3 size={32} className="text-gray-300" />
-              <span className="text-sm">No completed transactions to chart</span>
-            </div>
-          )}
+            <>
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  {chartType === 'Bar' ? (
+                    <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                      <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 12, fill: '#94a3b8', dy: 2 }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '12px 16px' }}
+                        formatter={tooltipFormatter}
+                        cursor={{ fill: '#f1f5f9' }}
+                      />
+                      <Bar dataKey="amount" fill="#10B981" radius={[6, 6, 0, 0]} barSize={32} />
+                    </BarChart>
+                  ) : (
+                    <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                      <XAxis dataKey="day" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 12, fill: '#94a3b8', dy: 2 }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '12px 16px' }}
+                        formatter={tooltipFormatter}
+                      />
+                      <Line type="monotone" dataKey="amount" stroke="#10B981" strokeWidth={3} dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: '#10B981' }} />
+                    </LineChart>
+                  )}
+                </ResponsiveContainer>
+              </div>
 
-          {/* Hide the chart-type / range controls when there's no chart to control */}
-          {chartData.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gray-100">
-              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-                {chartTypes.map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => setChartType(type)}
-                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                      chartType === type ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    {type}
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                  {chartTypes.map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setChartType(type)}
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                        chartType === type ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+                <div className="w-px h-6 bg-gray-200 mx-2" />
+                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                  {['7 Days', '30 Days', '90 Days'].map((range) => (
+                    <button
+                      key={range}
+                      onClick={() => setTimeRange(range)}
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                        timeRange === range ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {range}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="w-px h-6 bg-gray-200 mx-2" />
-              <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-                {['7 Days', '30 Days', '90 Days'].map((range) => (
-                  <button
-                    key={range}
-                    onClick={() => setTimeRange(range)}
-                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                      timeRange === range ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    {range}
-                  </button>
-                ))}
-              </div>
+            </>
+          ) : (
+            /* Compact empty state — no padding gap */
+            <div className="flex flex-col items-center justify-center text-gray-400 gap-2 py-6">
+              <BarChart3 size={28} className="text-gray-300" />
+              <span className="text-sm">No completed transactions to chart</span>
             </div>
           )}
         </div>
