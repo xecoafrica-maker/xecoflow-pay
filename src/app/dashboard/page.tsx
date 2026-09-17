@@ -599,9 +599,9 @@ export default function DashboardOverview() {
       {/* ─── Two-column layout ─────────────────────────────────────── */}
       <div className="grid lg:grid-cols-3 gap-4">
         {/* ─── Analytics Card ─── */}
-        <div className="lg:col-span-2 self-start bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col">
           {/* ─── Single-row header with title + controls ─── */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 px-5 py-3.5 border-b border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 px-5 py-3.5 border-b border-gray-100 shrink-0">
             <div className="min-w-0">
               <h2 className="text-[15px] font-semibold text-gray-900 leading-tight">Transaction Analytics</h2>
               <p className="text-[11px] text-gray-500 mt-0.5">
@@ -657,76 +657,74 @@ export default function DashboardOverview() {
             </div>
           </div>
 
-          {/* ─── Chart area ─── */}
-          <div className="px-5 pt-2 pb-3">
+          {/* ─── Chart area — flex-1 so it fills whatever height the card stretches to ─── */}
+          <div className="flex-1 px-5 pt-2 pb-3 min-h-[200px]">
             {chartData.length > 0 ? (
-              <div className="h-48 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  {chartType === 'Bar' ? (
-                    <BarChart data={chartData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                      <XAxis
-                        dataKey="day"
-                        tick={{ fontSize: 11, fill: '#94a3b8' }}
-                        axisLine={false}
-                        tickLine={false}
-                        interval={0}
-                        angle={-25}
-                        textAnchor="end"
-                        height={40}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 11, fill: '#94a3b8' }}
-                        axisLine={false}
-                        tickLine={false}
-                        width={60}
-                        tickFormatter={(value) => `KES ${value.toLocaleString()}`}
-                      />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: 'white', borderRadius: '10px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '10px 14px', fontSize: 12 }}
-                        formatter={tooltipFormatter}
-                        cursor={{ fill: '#f1f5f9' }}
-                      />
-                      <Bar dataKey="amount" fill="#10B981" radius={[5, 5, 0, 0]} barSize={28} />
-                    </BarChart>
-                  ) : (
-                    <LineChart data={chartData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                      <XAxis
-                        dataKey="day"
-                        tick={{ fontSize: 11, fill: '#94a3b8' }}
-                        axisLine={false}
-                        tickLine={false}
-                        interval={0}
-                        angle={-25}
-                        textAnchor="end"
-                        height={40}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 11, fill: '#94a3b8' }}
-                        axisLine={false}
-                        tickLine={false}
-                        width={60}
-                        tickFormatter={(value) => `KES ${value.toLocaleString()}`}
-                      />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: 'white', borderRadius: '10px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '10px 14px', fontSize: 12 }}
-                        formatter={tooltipFormatter}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="amount"
-                        stroke="#10B981"
-                        strokeWidth={2.5}
-                        dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
-                        activeDot={{ r: 6, fill: '#10B981' }}
-                      />
-                    </LineChart>
-                  )}
-                </ResponsiveContainer>
-              </div>
+              <ResponsiveContainer width="100%" height="100%">
+                {chartType === 'Bar' ? (
+                  <BarChart data={chartData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: 11, fill: '#94a3b8' }}
+                      axisLine={false}
+                      tickLine={false}
+                      interval={0}
+                      angle={-25}
+                      textAnchor="end"
+                      height={40}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: '#94a3b8' }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={60}
+                      tickFormatter={(value) => `KES ${value.toLocaleString()}`}
+                    />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: 'white', borderRadius: '10px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '10px 14px', fontSize: 12 }}
+                      formatter={tooltipFormatter}
+                      cursor={{ fill: '#f1f5f9' }}
+                    />
+                    <Bar dataKey="amount" fill="#10B981" radius={[5, 5, 0, 0]} barSize={28} />
+                  </BarChart>
+                ) : (
+                  <LineChart data={chartData} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: 11, fill: '#94a3b8' }}
+                      axisLine={false}
+                      tickLine={false}
+                      interval={0}
+                      angle={-25}
+                      textAnchor="end"
+                      height={40}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: '#94a3b8' }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={60}
+                      tickFormatter={(value) => `KES ${value.toLocaleString()}`}
+                    />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: 'white', borderRadius: '10px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '10px 14px', fontSize: 12 }}
+                      formatter={tooltipFormatter}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="amount"
+                      stroke="#10B981"
+                      strokeWidth={2.5}
+                      dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, fill: '#10B981' }}
+                    />
+                  </LineChart>
+                )}
+              </ResponsiveContainer>
             ) : (
-              <div className="h-48 flex flex-col items-center justify-center text-gray-400 gap-2">
+              <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2">
                 <BarChart3 size={24} className="text-gray-300" />
                 <span className="text-[13px]">No completed transactions to chart</span>
               </div>
