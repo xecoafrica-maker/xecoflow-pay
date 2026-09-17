@@ -599,7 +599,7 @@ export default function DashboardOverview() {
       {/* ─── Two-column layout ─────────────────────────────────────── */}
       <div className="grid lg:grid-cols-3 gap-4">
         {/* ─── Analytics Card ─── */}
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col">
           {/* ─── Single-row header with title + controls ─── */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 px-5 py-3.5 border-b border-gray-100">
             <div className="min-w-0">
@@ -658,15 +658,15 @@ export default function DashboardOverview() {
           </div>
 
           {/* ─── Chart area — tight, no extra vertical padding ─── */}
-          <div className="px-5 pt-2 pb-1">
+          <div className="px-5 pt-1 pb-1 flex-1">
             {chartData.length > 0 ? (
-              <div className="h-44 w-full">
+              <div className="h-36 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   {chartType === 'Bar' ? (
-                    <BarChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: -10 }}>
+                    <BarChart data={chartData} margin={{ top: 2, right: 5, left: 0, bottom: -20 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                      <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: '#94a3b8', dy: 2 }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
+                      <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
                       <Tooltip
                         contentStyle={{ backgroundColor: 'white', borderRadius: '10px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '10px 14px', fontSize: 12 }}
                         formatter={tooltipFormatter}
@@ -675,10 +675,10 @@ export default function DashboardOverview() {
                       <Bar dataKey="amount" fill="#10B981" radius={[5, 5, 0, 0]} barSize={26} />
                     </BarChart>
                   ) : (
-                    <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: -10 }}>
+                    <LineChart data={chartData} margin={{ top: 2, right: 5, left: 0, bottom: -20 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                      <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: '#94a3b8', dy: 2 }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
+                      <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={(value) => `KES ${value.toLocaleString()}`} />
                       <Tooltip
                         contentStyle={{ backgroundColor: 'white', borderRadius: '10px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', padding: '10px 14px', fontSize: 12 }}
                         formatter={tooltipFormatter}
@@ -689,7 +689,7 @@ export default function DashboardOverview() {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="h-44 flex flex-col items-center justify-center text-gray-400 gap-2">
+              <div className="h-36 flex flex-col items-center justify-center text-gray-400 gap-2">
                 <BarChart3 size={24} className="text-gray-300" />
                 <span className="text-[13px]">No completed transactions to chart</span>
               </div>
