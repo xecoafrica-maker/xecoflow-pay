@@ -1,55 +1,37 @@
 // src/app/dashboard/transactions/inflow/page.tsx
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  ArrowUpRight,
   CheckCircle,
   Clock,
   XCircle,
   Search,
-  Download,
-  Filter,
-  RefreshCw,
-  X,
   Copy,
   Printer,
   Mail,
-  Hash,
-  CreditCard,
   Phone,
-  TrendingUp,
   Wallet,
   Smartphone,
-  Coins,
   ArrowDownRight,
-  Loader2,
-  FileSpreadsheet,
-  FileText,
   Calendar,
+  Loader2,
 } from 'lucide-react';
-import { getStoredMerchant } from '@/lib/auth';
+import { useSession } from '@/hooks/useSession';
 import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface Transaction {
   id: string;
-  user_id?: string;
   amount: string;
   phone_number: string | null;
-  business_shortcode?: string | null;
   status: string;
   payment_status: string;
-  source: string;
-  request_type: string;
+  request_type?: string;
   checkout_id?: string | null;
   mpesa_receipt: string | null;
-  result_code?: string | null;
-  result_desc?: string | null;
   created_at: string;
   completed_at?: string | null;
-  updated_at?: string;
   channel?: 'STK_PUSH' | 'C2B';
 }
 
@@ -59,12 +41,11 @@ interface InflowTransaction {
   customer: string;
   phone: string;
   maskedPhone: string;
-  email: string;
   amount: number;
   method: string;
   channel: string;
   category: string;
-  status: string;
+  status: 'Completed' | 'Pending' | 'Failed';
   ref: string;
   description: string;
   date: string;
@@ -88,50 +69,59 @@ interface DateRange {
   preset: DatePreset;
 }
 
-// ─── Colors ──────────────────────────────────────────────────────────
-const statusColors = {
+// ─── Constants ──────────────────────────────────────────────────────
+const STATUS_COLORS = {
   Completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   Pending: 'bg-amber-50 text-amber-700 border-amber-200',
   Failed: 'bg-red-50 text-red-700 border-red-200',
-};
+} as const;
 
-const statusIcons = {
+const STATUS_ICONS = {
   Completed: CheckCircle,
   Pending: Clock,
   Failed: XCircle,
-};
+} as const;
 
-const statusBadgeColors = {
+const STATUS_DOT = {
   Completed: 'bg-emerald-500',
   Pending: 'bg-amber-500',
   Failed: 'bg-red-500',
-};
+} as const;
 
-// ─── Only 2 categories: M-PESA STK Push (STK) and M-PESA Paybill (C2B)
-const categoryIcons: Record<string, any> = {
+const CATEGORY_ICONS: Record<string, typeof Smartphone> = {
   'M-PESA STK Push': Smartphone,
   'M-PESA Paybill': Wallet,
 };
 
-const categoryColors: Record<string, string> = {
+const CATEGORY_COLORS: Record<string, string> = {
   'M-PESA STK Push': 'bg-blue-50 text-blue-600 border-blue-200',
   'M-PESA Paybill': 'bg-teal-50 text-teal-600 border-teal-200',
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────
-const startOfDay = (d: Date) => {
+const DATE_PRESETS: DatePreset[] = [
+  'Today',
+  'Yesterday',
+  'Last 7 days',
+  'Last 30 days',
+  'This month',
+  'Last month',
+  'Custom',
+];
+
+// ─── Helpers ────────────────────────────────────────────────────────
+function startOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
-};
+}
 
-const endOfDay = (d: Date) => {
+function endOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(23, 59, 59, 999);
   return x;
-};
+}
 
-const getPresetRange = (preset: DatePreset): { from: Date; to: Date } => {
+function getPresetRange(preset: DatePreset): { from: Date; to: Date } {
   const now = new Date();
   const today = startOfDay(now);
   const endToday = endOfDay(now);
@@ -170,123 +160,150 @@ const getPresetRange = (preset: DatePreset): { from: Date; to: Date } => {
       return { from: startOfDay(from), to: endOfDay(to) };
     }
   }
-};
+}
 
-const formatRangeCaption = (range: DateRange) => {
+function formatRangeCaption(range: DateRange) {
   if (!range.from || !range.to) return '—';
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' };
-  const fromStr = range.from.toLocaleDateString('en-US', opts);
-  const toStr = range.to.toLocaleDateString('en-US', opts);
-  return `${fromStr} – ${toStr}`;
-};
+  const opts: Intl.DateTimeFormatOptions = {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  };
+  return `${range.from.toLocaleDateString('en-US', opts)} – ${range.to.toLocaleDateString('en-US', opts)}`;
+}
 
-const toInputDate = (d: Date | null) => {
+function toInputDate(d: Date | null) {
   if (!d) return '';
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
-};
+}
 
-// Mask phone: keep country code + last 3, mask the middle
-const maskPhone = (phone: string | null | undefined): string => {
+function maskPhone(phone: string | null | undefined): string {
   if (!phone) return '—';
   const cleaned = phone.replace(/\s+/g, '');
   if (cleaned.length < 6) return cleaned;
-  const head = cleaned.slice(0, 6);
-  const tail = cleaned.slice(-3);
-  return `${head}***${tail}`;
-};
+  return `${cleaned.slice(0, 6)}***${cleaned.slice(-3)}`;
+}
 
-// ─── Status derivation ────────────────────────────────────────────────
-const COMPLETED_KEYWORDS = ['COMPLETED', 'SUCCESS', 'SETTLED', 'PAID'];
-const FAILED_KEYWORDS = ['FAILED', 'ERROR', 'DECLINED', 'CANCELLED', 'CANCELED', 'REVERSED'];
-const PENDING_KEYWORDS = ['PENDING', 'AWAITING', 'PROCESSING', 'INITIATED'];
-
-const deriveStatus = (tx: Transaction): 'Completed' | 'Pending' | 'Failed' => {
+function deriveStatus(tx: Transaction): 'Completed' | 'Pending' | 'Failed' {
   const combined = `${tx.status || ''} ${tx.payment_status || ''}`.toUpperCase();
 
-  if (FAILED_KEYWORDS.some((k) => combined.includes(k))) return 'Failed';
-  if (COMPLETED_KEYWORDS.some((k) => combined.includes(k))) return 'Completed';
-  if (PENDING_KEYWORDS.some((k) => combined.includes(k))) return 'Pending';
-
+  if (['FAILED', 'ERROR', 'DECLINED', 'CANCELLED', 'CANCELED', 'REVERSED'].some((k) => combined.includes(k))) {
+    return 'Failed';
+  }
+  if (['COMPLETED', 'SUCCESS', 'SETTLED', 'PAID'].some((k) => combined.includes(k))) {
+    return 'Completed';
+  }
+  if (['PENDING', 'AWAITING', 'PROCESSING', 'INITIATED'].some((k) => combined.includes(k))) {
+    return 'Pending';
+  }
   if (tx.mpesa_receipt) return 'Completed';
-
   return 'Pending';
-};
+}
 
-// ─── Skeleton Components ──────────────────────────────────────────
-const SkeletonSummaryCard = () => (
-  <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm animate-pulse">
-    <div className="flex items-center justify-between">
-      <div>
-        <div className="h-3 w-24 bg-gray-200 rounded mb-2" />
-        <div className="h-6 w-20 bg-gray-200 rounded" />
+function formatDate(dateStr: string) {
+  if (!dateStr) return '—';
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function formatTime(dateStr: string) {
+  if (!dateStr) return '—';
+  return new Date(dateStr).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function getInitials(name: string) {
+  if (!name) return '??';
+  if (name.startsWith('0') || name.startsWith('+') || name.startsWith('254')) {
+    return name.slice(0, 2);
+  }
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+// ─── Small UI pieces ────────────────────────────────────────────────
+function SummaryCard({
+  title,
+  value,
+  icon: Icon,
+  color,
+}: {
+  title: string;
+  value: string | number;
+  icon: React.ElementType;
+  color: string;
+}) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">
+            {title}
+          </p>
+          <p className="text-xl font-bold text-gray-900 mt-1">{value}</p>
+        </div>
+        <div className={`p-2.5 rounded-xl ${color}`}>
+          <Icon className="w-5 h-5" />
+        </div>
       </div>
-      <div className="w-10 h-10 rounded-xl bg-gray-200" />
     </div>
-  </div>
-);
+  );
+}
 
-const SkeletonTransactionRow = () => (
-  <tr className="border-b border-gray-100">
-    <td className="px-3 py-3.5">
-      <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
-    </td>
-    <td className="px-3 py-3.5">
-      <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-1" />
-      <div className="h-3 w-16 bg-gray-100 rounded animate-pulse" />
-    </td>
-    <td className="px-3 py-3.5">
-      <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-full bg-gray-200 animate-pulse" />
-        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
-      </div>
-    </td>
-    <td className="px-3 py-3.5">
-      <div className="h-4 w-16 bg-gray-200 rounded animate-pulse ml-auto" />
-    </td>
-    <td className="px-3 py-3.5">
-      <div className="h-6 w-32 bg-gray-200 rounded-full animate-pulse" />
-    </td>
-    <td className="px-3 py-3.5">
-      <div className="h-6 w-24 bg-gray-200 rounded-full animate-pulse" />
-    </td>
-  </tr>
-);
+function StatusBadge({ status }: { status: 'Completed' | 'Pending' | 'Failed' }) {
+  const Icon = STATUS_ICONS[status] || Clock;
+  const color = STATUS_COLORS[status] || 'bg-gray-50 text-gray-700 border-gray-200';
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color} whitespace-nowrap`}
+    >
+      <Icon className="w-3 h-3" />
+      {status}
+    </span>
+  );
+}
 
-// ─── Summary Card ────────────────────────────────────────────────────
-const SummaryCard = ({ title, value, icon: Icon, color }: any) => (
-  <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{title}</p>
-        <p className="text-xl font-bold text-gray-900 mt-1">{value}</p>
-      </div>
-      <div className={`p-2.5 rounded-xl ${color}`}>
-        <Icon className="w-5 h-5" />
-      </div>
-    </div>
-  </div>
-);
+function CategoryBadge({ category }: { category: string }) {
+  const Icon = CATEGORY_ICONS[category] || Wallet;
+  const color = CATEGORY_COLORS[category] || 'bg-gray-50 text-gray-600 border-gray-200';
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color} whitespace-nowrap`}
+    >
+      <Icon className="w-3 h-3" />
+      {category}
+    </span>
+  );
+}
 
+// ─── Main Page ──────────────────────────────────────────────────────
 export default function InflowPage() {
-  const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
   const { log, ActivityActions } = useActivityLogger();
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTransaction, setSelectedTransaction] = useState<InflowTransaction | null>(null);
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<InflowTransaction | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filterChannel, setFilterChannel] = useState<ChannelFilter>('all');
-  const [merchantId, setMerchantId] = useState<string>('');
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
-  // Date range state
   const initialRange = getPresetRange('This month');
   const [dateRange, setDateRange] = useState<DateRange>({
     from: initialRange.from,
@@ -296,141 +313,98 @@ export default function InflowPage() {
   const [customRangeOpen, setCustomRangeOpen] = useState(false);
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
+
   const dateMenuRef = useRef<HTMLDivElement>(null);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
-
   const hasLoggedView = useRef(false);
-  const isLoggingView = useRef(false);
 
-  // ─── Fetch Merged Inflow (STK Push + C2B) ────────────────────────
-  const fetchTransactions = async () => {
+  // ─── Fetch transactions ───────────────────────────────────────────
+  const fetchTransactions = useCallback(async () => {
+    if (!user?.merchantId) return;
+
     try {
       setLoading(true);
 
-      const cached = getStoredMerchant();
-      let id = merchantId;
-
-      if (!id && cached) {
-        id = String(cached.merchant_id || cached.merchantId);
-        setMerchantId(id);
-      }
-
-      if (!id) {
-        console.warn('No merchant ID available');
-        setLoading(false);
-        return;
-      }
-
-      const params = new URLSearchParams();
-      params.append('merchantId', id);
-      params.append('limit', '500');
+      const params = new URLSearchParams({
+        merchantId: user.merchantId,
+        limit: '500',
+      });
 
       const response = await fetch(`/api/transactions/inflow?${params.toString()}`, {
         credentials: 'include',
+        cache: 'no-store',
       });
+
       const data = await response.json();
 
       if (data.success) {
         setTransactions(data.data || []);
         setLastFetched(new Date());
-        if (data.meta) {
-          console.log(
-            `📊 [INFLOW] Loaded ${data.meta.stkCount} STK + ${data.meta.c2bCount} C2B = ${data.meta.total} total (${data.meta.dedupedCount} deduped)`
-          );
-        }
-      } else {
-        console.error('Failed to fetch inflow:', data.error || data.message);
       }
-    } catch (error) {
-      console.error('Error fetching inflow:', error);
+    } catch {
+      // Silent fail — UI already shows empty state
     } finally {
       setLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [user?.merchantId]);
 
-  // ─── Log View ──────────────────────────────────────────────────────
+  // Load data once session is ready
   useEffect(() => {
-    const logView = async () => {
-      if (isLoggingView.current || hasLoggedView.current || transactions.length === 0) {
-        return;
-      }
-
-      try {
-        isLoggingView.current = true;
-
-        const cached = getStoredMerchant();
-        const id = merchantId || cached?.merchant_id || cached?.merchantId;
-
-        if (id) {
-          await log(
-            ActivityActions.VIEW_INFLOW,
-            `Viewed ${transactions.length} inflow transactions`
-          );
-          hasLoggedView.current = true;
-        }
-      } catch (error) {
-        console.debug('Inflow view logging skipped:', error);
-      } finally {
-        isLoggingView.current = false;
-      }
-    };
-
-    if (!loading && transactions.length > 0 && !hasLoggedView.current) {
-      logView();
+    if (!sessionLoading && user?.merchantId) {
+      fetchTransactions();
     }
-  }, [loading, transactions.length, merchantId, log]);
+  }, [sessionLoading, user?.merchantId, fetchTransactions]);
 
-  // ─── Transform Transactions ────────────────────────────────────────
+  // Activity log (once)
+  useEffect(() => {
+    if (loading || transactions.length === 0 || hasLoggedView.current) return;
+
+    hasLoggedView.current = true;
+    log(
+      ActivityActions.VIEW_INFLOW,
+      `Viewed ${transactions.length} inflow transactions`
+    ).catch(() => {
+      // non-blocking
+    });
+  }, [loading, transactions.length, log, ActivityActions]);
+
+  // ─── Transform ────────────────────────────────────────────────────
   const transformToInflow = (tx: Transaction): InflowTransaction => {
     const isC2B = tx.channel === 'C2B';
-
     const category = isC2B ? 'M-PESA Paybill' : 'M-PESA STK Push';
     const status = deriveStatus(tx);
     const amountValue = parseFloat(tx.amount) || 0;
 
-    const customerName = isC2B
-      ? 'M-PESA Paybill'
-      : (tx.phone_number || 'Unknown Customer');
-    const phoneValue = isC2B ? '—' : (tx.phone_number || 'N/A');
-
     return {
       id: tx.id,
       receipt: tx.mpesa_receipt || null,
-      customer: customerName,
-      phone: phoneValue,
+      customer: isC2B ? 'M-PESA Paybill' : tx.phone_number || 'Unknown Customer',
+      phone: isC2B ? '—' : tx.phone_number || 'N/A',
       maskedPhone: isC2B ? '—' : maskPhone(tx.phone_number),
-      email: isC2B ? '—' : `${tx.phone_number || 'user'}@example.com`,
       amount: amountValue,
-      method: isC2B ? 'M-PESA Paybill' : 'M-PESA STK Push',
-      channel: isC2B ? 'M-PESA Paybill' : 'M-PESA STK Push',
-      category: category,
-      status: status,
+      method: category,
+      channel: category,
+      category,
+      status,
       ref: tx.checkout_id || tx.id.slice(0, 12),
       description: isC2B
         ? 'Manual M-PESA Paybill payment'
-        : `${tx.request_type || 'Payment'}${tx.phone_number ? ' - ' + tx.phone_number : ''}`,
+        : `${tx.request_type || 'Payment'}${tx.phone_number ? ` - ${tx.phone_number}` : ''}`,
       date: tx.created_at,
       settlementDate: tx.completed_at || tx.created_at,
     };
   };
 
-  const getInflowData = (): InflowTransaction[] => {
-    return transactions.map(transformToInflow);
-  };
-
-  // ─── Filter Chain: date → channel → search ────────────────────────
+  // ─── Filtered data ────────────────────────────────────────────────
   const filteredData = useMemo(() => {
-    const data = getInflowData();
+    const data = transactions.map(transformToInflow);
 
-    // 1. Date filter
     const dateFiltered = data.filter((item) => {
       if (!dateRange.from || !dateRange.to) return true;
       const d = new Date(item.date).getTime();
       return d >= dateRange.from.getTime() && d <= dateRange.to.getTime();
     });
 
-    // 2. Channel filter
     const channelFiltered = dateFiltered.filter((item) => {
       if (filterChannel === 'all') return true;
       if (filterChannel === 'stk') return item.channel === 'M-PESA STK Push';
@@ -438,8 +412,7 @@ export default function InflowPage() {
       return true;
     });
 
-    // 3. Search filter
-    const term = searchTerm.toLowerCase();
+    const term = searchTerm.toLowerCase().trim();
     const searched = !term
       ? channelFiltered
       : channelFiltered.filter(
@@ -449,20 +422,15 @@ export default function InflowPage() {
             item.phone?.toLowerCase().includes(term) ||
             item.id?.toLowerCase().includes(term) ||
             item.ref?.toLowerCase().includes(term) ||
-            item.method?.toLowerCase().includes(term) ||
-            item.channel?.toLowerCase().includes(term) ||
             item.status?.toLowerCase().includes(term) ||
-            item.category?.toLowerCase().includes(term) ||
             item.amount.toString().includes(term)
         );
 
-    // 4. Sort newest first
     return [...searched].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
   }, [transactions, dateRange, filterChannel, searchTerm]);
 
-  // ✅ Total Inflow only counts Completed transactions
   const totalInflow = filteredData
     .filter((t) => t.status === 'Completed')
     .reduce((sum, t) => sum + t.amount, 0);
@@ -471,7 +439,7 @@ export default function InflowPage() {
   const pendingCount = filteredData.filter((t) => t.status === 'Pending').length;
   const failedCount = filteredData.filter((t) => t.status === 'Failed').length;
 
-  // ─── Date Range Handlers ──────────────────────────────────────────
+  // ─── Date handlers ────────────────────────────────────────────────
   const applyPreset = (preset: DatePreset) => {
     if (preset === 'Custom') {
       setCustomFrom(toInputDate(dateRange.from));
@@ -488,100 +456,23 @@ export default function InflowPage() {
     if (!customFrom || !customTo) return;
     const from = startOfDay(new Date(customFrom));
     const to = endOfDay(new Date(customTo));
-    if (from > to) {
-      alert('Start date must be before end date');
-      return;
-    }
+    if (from > to) return;
     setDateRange({ from, to, preset: 'Custom' });
     setCustomRangeOpen(false);
   };
 
-  // Close menus when clicking outside
+  // Close date menu on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dateMenuRef.current && !dateMenuRef.current.contains(e.target as Node)) {
         setCustomRangeOpen(false);
-      }
-      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
-        setShowExportMenu(false);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // ─── Export ──────────────────────────────────────────────────────
-  const exportToCSV = (data: InflowTransaction[]) => {
-    const headers = [
-      'M-PESA Receipt',
-      'Date',
-      'Time',
-      'Phone (Masked)',
-      'Amount (KES)',
-      'Method',
-      'Channel',
-      'Category',
-      'Status',
-      'Reference',
-      'Description',
-    ];
-
-    const rows = data.map((tx) => [
-      tx.receipt || '—',
-      formatDate(tx.date),
-      formatTime(tx.date),
-      tx.maskedPhone,
-      tx.amount.toFixed(2),
-      tx.method,
-      tx.channel,
-      tx.category,
-      tx.status,
-      tx.ref,
-      tx.description,
-    ]);
-
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    return csvContent;
-  };
-
-  const handleExport = (format: 'csv' | 'excel') => {
-    if (filteredData.length === 0) {
-      alert('No transactions to export');
-      return;
-    }
-
-    setIsExporting(true);
-    setShowExportMenu(false);
-
-    try {
-      const csvData = exportToCSV(filteredData);
-      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-
-      const from = dateRange.from ? toInputDate(dateRange.from) : 'all';
-      const to = dateRange.to ? toInputDate(dateRange.to) : 'all';
-      const filename = `inflow_${from}_to_${to}.${format === 'csv' ? 'csv' : 'xlsx'}`;
-
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      log(
-        'Exported transactions',
-        `Exported ${filteredData.length} inflow transactions as ${format.toUpperCase()}`
-      );
-    } catch (error) {
-      console.error('Export failed:', error);
-      alert('Failed to export transactions. Please try again.');
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
+  // ─── Actions ──────────────────────────────────────────────────────
   const handleRefresh = async () => {
     setIsRefreshing(true);
     hasLoggedView.current = false;
@@ -594,7 +485,7 @@ export default function InflowPage() {
     await log(
       'Viewed transaction details',
       `Viewed details for transaction ${tx.receipt || tx.id} - Amount: KES ${tx.amount}`
-    );
+    ).catch(() => {});
   };
 
   const handleCopy = (text: string, id: string) => {
@@ -603,285 +494,101 @@ export default function InflowPage() {
     setTimeout(() => setCopiedId(null), 1500);
   };
 
-  const getInitials = (name: string) => {
-    if (!name) return '??';
-    if (name.startsWith('0') || name.startsWith('+') || name.startsWith('254')) {
-      return name.slice(0, 2);
-    }
-    return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
-  };
-
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return '-';
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  const formatTime = (dateStr: string) => {
-    if (!dateStr) return '-';
-    const d = new Date(dateStr);
-    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const StatusBadge = ({ status }: { status: string }) => {
-    const StatusIcon = statusIcons[status as keyof typeof statusIcons] || Clock;
-    const colorKey = status as keyof typeof statusColors;
-    const color = statusColors[colorKey] || 'bg-gray-50 text-gray-700 border-gray-200';
+  // ─── Loading / Auth states ────────────────────────────────────────
+  if (sessionLoading) {
     return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color} whitespace-nowrap`}>
-        <StatusIcon className="w-3 h-3" />
-        {status}
-      </span>
-    );
-  };
-
-  const CategoryBadge = ({ category }: { category: string }) => {
-    const Icon = categoryIcons[category] || Wallet;
-    const color = categoryColors[category as keyof typeof categoryColors] || 'bg-gray-50 text-gray-600 border-gray-200';
-    return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${color} whitespace-nowrap`}>
-        <Icon className="w-3 h-3" />
-        {category}
-      </span>
-    );
-  };
-
-  // ─── Auth ─────────────────────────────────────────────────────────
-  useEffect(() => {
-    let merchant = null;
-    let id = '';
-
-    try {
-      const stored = localStorage.getItem('merchant');
-      if (stored) {
-        merchant = JSON.parse(stored);
-        id = String(merchant.merchant_id || merchant.merchantId || '');
-      }
-    } catch (e) {
-      console.error('Failed to parse merchant data', e);
-    }
-
-    if (!merchant || !id) {
-      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
-      router.push('/login?session=expired');
-      return;
-    }
-
-    setMerchantId(id);
-    fetchTransactions();
-  }, [router]);
-
-  // ─── Skeleton Loading State ───────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="max-w-[1400px] mx-auto space-y-6 px-4 sm:px-6">
-        {/* Header skeleton */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gray-200 animate-pulse" />
-            <div>
-              <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2" />
-              <div className="h-4 w-64 bg-gray-200 rounded animate-pulse" />
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <div className="h-10 w-24 bg-gray-200 rounded-xl animate-pulse" />
-            <div className="h-10 w-28 bg-gray-200 rounded-xl animate-pulse" />
-          </div>
-        </div>
-
-        {/* Summary cards skeleton */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <SkeletonSummaryCard key={i} />
-          ))}
-        </div>
-
-        {/* Filters skeleton */}
-        <div className="flex flex-col lg:flex-row gap-3">
-          <div className="flex-1">
-            <div className="h-11 w-full bg-gray-200 rounded-xl animate-pulse" />
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <div className="h-11 w-40 bg-gray-200 rounded-xl animate-pulse" />
-            <div className="h-11 w-32 bg-gray-200 rounded-xl animate-pulse" />
-            <div className="h-11 w-32 bg-gray-200 rounded-xl animate-pulse hidden sm:block" />
-          </div>
-        </div>
-
-        {/* Table skeleton */}
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-          <div className="overflow-y-auto max-h-[500px]">
-            <table className="w-full text-sm table-fixed min-w-[850px]">
-              <thead className="sticky top-0 z-10">
-                <tr className="border-b border-gray-200 bg-gray-100">
-                  <th className="w-[140px] px-3 py-3.5">
-                    <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
-                  </th>
-                  <th className="w-[140px] px-3 py-3.5">
-                    <div className="h-3 w-20 bg-gray-200 rounded animate-pulse" />
-                  </th>
-                  <th className="w-[160px] px-3 py-3.5">
-                    <div className="h-3 w-20 bg-gray-200 rounded animate-pulse" />
-                  </th>
-                  <th className="w-[120px] px-3 py-3.5">
-                    <div className="h-3 w-14 bg-gray-200 rounded animate-pulse ml-auto" />
-                  </th>
-                  <th className="w-[170px] px-3 py-3.5">
-                    <div className="h-3 w-20 bg-gray-200 rounded animate-pulse" />
-                  </th>
-                  <th className="w-[120px] px-3 py-3.5 pl-5">
-                    <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                  <SkeletonTransactionRow key={i} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
       </div>
     );
   }
 
-  const datePresets: DatePreset[] = [
-    'Today',
-    'Yesterday',
-    'Last 7 days',
-    'Last 30 days',
-    'This month',
-    'Last month',
-    'Custom',
-  ];
+  if (!user) {
+    return null; // useSession already redirects
+  }
 
+  // ─── Render ───────────────────────────────────────────────────────
   return (
-    <div className="max-w-[1400px] mx-auto space-y-6 px-4 sm:px-6">
-      {/* ─── Page Header ────────────────────────────────────────────── */}
+    <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl shadow-sm shadow-emerald-200">
-              <ArrowDownRight className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Inflow Transactions</h1>
-              <p className="text-sm text-gray-500">All incoming payments received by your business</p>
-            </div>
-          </div>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            Inflow
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Incoming payments via M-PESA STK Push and Paybill
+          </p>
         </div>
-        <div className="flex gap-3">
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2 disabled:opacity-50 shadow-sm"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
-
-          <div className="relative" ref={exportMenuRef}>
-            <button
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              disabled={isExporting}
-              className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-sm shadow-emerald-200 disabled:opacity-50"
-            >
-              {isExporting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              {isExporting ? 'Exporting...' : 'Export'}
-            </button>
-
-            {showExportMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
-                <button
-                  onClick={() => handleExport('csv')}
-                  className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors border-b border-gray-100"
-                >
-                  <FileText className="w-4 h-4 text-emerald-500" />
-                  <span>Export as CSV</span>
-                </button>
-                <button
-                  onClick={() => handleExport('excel')}
-                  className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center gap-3 transition-colors"
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-                  <span>Export as Excel</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={isRefreshing || loading}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+        >
+          <Loader2
+            className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
+          />
+          Refresh
+        </button>
       </div>
 
-      {/* ─── Summary Cards (Sticky) ─────────────────────────────────── */}
-      <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm -mx-4 px-4 py-3 -mt-1 border-b border-gray-200/50">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <SummaryCard
-            title="Total Inflow"
-            value={`KES ${totalInflow.toLocaleString()}`}
-            icon={TrendingUp}
-            color="bg-emerald-50 text-emerald-500"
-          />
-          <SummaryCard
-            title="Successful"
-            value={completedCount}
-            icon={CheckCircle}
-            color="bg-green-50 text-green-500"
-          />
-          <SummaryCard
-            title="Pending"
-            value={pendingCount}
-            icon={Clock}
-            color="bg-amber-50 text-amber-500"
-          />
-          <SummaryCard
-            title="Failed"
-            value={failedCount}
-            icon={XCircle}
-            color="bg-red-50 text-red-500"
-          />
-        </div>
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <SummaryCard
+          title="Total Inflow"
+          value={`KES ${totalInflow.toLocaleString()}`}
+          icon={ArrowDownRight}
+          color="bg-emerald-50 text-emerald-500"
+        />
+        <SummaryCard
+          title="Successful"
+          value={completedCount}
+          icon={CheckCircle}
+          color="bg-green-50 text-green-500"
+        />
+        <SummaryCard
+          title="Pending"
+          value={pendingCount}
+          icon={Clock}
+          color="bg-amber-50 text-amber-500"
+        />
+        <SummaryCard
+          title="Failed"
+          value={failedCount}
+          icon={XCircle}
+          color="bg-red-50 text-red-500"
+        />
       </div>
 
-      {/* ─── Filters & Search (Sticky) ──────────────────────────────── */}
-      <div className="sticky top-[88px] z-10 bg-gray-50/95 backdrop-blur-sm -mx-4 px-4 py-3 -mt-1 border-b border-gray-200/50">
+      {/* Filters */}
+      <div className="sticky top-[88px] z-10 bg-gray-50/95 backdrop-blur-sm -mx-4 px-4 py-3 border-b border-gray-200/50">
         <div className="flex flex-col lg:flex-row gap-3">
-          {/* Search */}
           <div className="flex-1 relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-gray-400" />
-            </div>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by M-PESA receipt, phone, amount…"
+              placeholder="Search by receipt, phone, amount…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm"
             />
           </div>
 
-          {/* Filters */}
           <div className="flex gap-2 flex-wrap items-center">
             <select
               value={filterChannel}
               onChange={(e) => setFilterChannel(e.target.value as ChannelFilter)}
-              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 appearance-none pr-10 shadow-sm"
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm"
             >
               <option value="all">All Channels</option>
               <option value="stk">M-PESA STK Push</option>
               <option value="c2b">M-PESA Paybill</option>
             </select>
 
-            {/* Date preset dropdown + range caption */}
             <div className="relative" ref={dateMenuRef}>
               <button
                 onClick={() => setCustomRangeOpen((v) => !v)}
-                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm whitespace-nowrap"
+                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2 shadow-sm"
               >
                 <Calendar className="w-4 h-4" />
                 {dateRange.preset}
@@ -890,7 +597,7 @@ export default function InflowPage() {
               {customRangeOpen && (
                 <div className="absolute right-0 mt-2 w-60 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
                   <div className="py-1">
-                    {datePresets.map((preset) => (
+                    {DATE_PRESETS.map((preset) => (
                       <button
                         key={preset}
                         onClick={() => applyPreset(preset)}
@@ -937,13 +644,11 @@ export default function InflowPage() {
               )}
             </div>
 
-            {/* Range caption */}
-            <div className="hidden sm:flex items-center px-3 py-2 bg-white rounded-xl text-xs text-gray-500 border border-gray-200 whitespace-nowrap">
+            <div className="hidden sm:flex items-center px-3 py-2 bg-white rounded-xl text-xs text-gray-500 border border-gray-200">
               {formatRangeCaption(dateRange)}
             </div>
 
-            {/* Transaction count */}
-            <div className="flex items-center px-4 py-2 bg-gray-50 rounded-xl text-sm text-gray-500 border border-gray-200 whitespace-nowrap">
+            <div className="flex items-center px-4 py-2 bg-gray-50 rounded-xl text-sm text-gray-500 border border-gray-200">
               <span className="font-medium text-gray-700">{filteredData.length}</span>
               <span className="ml-1">transactions</span>
             </div>
@@ -951,22 +656,61 @@ export default function InflowPage() {
         </div>
       </div>
 
-      {/* ─── Table ──────────────────────────────────────────────────── */}
+      {/* Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-y-auto max-h-[500px]">
           <table className="w-full text-sm table-fixed min-w-[850px]">
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-gray-200 bg-gray-100">
-                <th className="w-[140px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">M-PESA Receipt</th>
-                <th className="w-[140px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date &amp; Time</th>
-                <th className="w-[160px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
-                <th className="w-[120px] px-3 py-3.5 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
-                <th className="w-[170px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
-                <th className="w-[120px] px-3 py-3.5 pl-5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                <th className="w-[140px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  M-PESA Receipt
+                </th>
+                <th className="w-[140px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Date & Time
+                </th>
+                <th className="w-[160px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Customer
+                </th>
+                <th className="w-[120px] px-3 py-3.5 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Amount
+                </th>
+                <th className="w-[170px] px-3 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Category
+                </th>
+                <th className="w-[120px] px-3 py-3.5 pl-5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  Status
+                </th>
               </tr>
             </thead>
             <tbody>
-              {filteredData.length === 0 ? (
+              {loading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="border-b border-gray-100">
+                    <td className="px-3 py-3.5">
+                      <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
+                    </td>
+                    <td className="px-3 py-3.5">
+                      <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-1" />
+                      <div className="h-3 w-16 bg-gray-100 rounded animate-pulse" />
+                    </td>
+                    <td className="px-3 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-gray-200 animate-pulse" />
+                        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+                      </div>
+                    </td>
+                    <td className="px-3 py-3.5">
+                      <div className="h-4 w-16 bg-gray-200 rounded animate-pulse ml-auto" />
+                    </td>
+                    <td className="px-3 py-3.5">
+                      <div className="h-6 w-32 bg-gray-200 rounded-full animate-pulse" />
+                    </td>
+                    <td className="px-3 py-3.5">
+                      <div className="h-6 w-24 bg-gray-200 rounded-full animate-pulse" />
+                    </td>
+                  </tr>
+                ))
+              ) : filteredData.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-3 py-16 text-center">
                     <div className="flex flex-col items-center gap-4">
@@ -974,7 +718,9 @@ export default function InflowPage() {
                         <ArrowDownRight className="w-14 h-14 text-emerald-400" />
                       </div>
                       <div>
-                        <p className="text-gray-500 font-medium text-lg">No inflow transactions</p>
+                        <p className="text-gray-500 font-medium text-lg">
+                          No inflow transactions
+                        </p>
                         <p className="text-sm text-gray-400 mt-1">
                           {transactions.length > 0
                             ? 'No transactions match your filters'
@@ -991,11 +737,10 @@ export default function InflowPage() {
                     onClick={() => handleViewDetails(tx)}
                     className="border-b border-gray-100 hover:bg-gray-50/70 transition-colors cursor-pointer group"
                   >
-                    {/* M-PESA Receipt */}
                     <td className="px-3 py-3.5">
                       {tx.receipt ? (
                         <div className="flex items-center gap-1.5 group/receipt">
-                          <span className="font-mono text-xs text-gray-700 group-hover:text-emerald-600 transition-colors tracking-normal">
+                          <span className="font-mono text-xs text-gray-700 group-hover:text-emerald-600 transition-colors">
                             {tx.receipt}
                           </span>
                           <button
@@ -1017,38 +762,34 @@ export default function InflowPage() {
                         <span className="font-mono text-xs text-gray-300">—</span>
                       )}
                     </td>
-
-                    {/* Date & Time */}
                     <td className="px-3 py-3.5">
                       <div className="flex flex-col">
-                        <span className="text-sm text-gray-700">{formatDate(tx.date)}</span>
-                        <span className="text-xs text-gray-400">{formatTime(tx.date)}</span>
+                        <span className="text-sm text-gray-700">
+                          {formatDate(tx.date)}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {formatTime(tx.date)}
+                        </span>
                       </div>
                     </td>
-
-                    {/* Customer (masked) */}
                     <td className="px-3 py-3.5">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center text-emerald-700 font-semibold text-xs flex-shrink-0">
                           {getInitials(tx.customer)}
                         </div>
-                        <span className="text-sm text-gray-900 truncate font-mono">{tx.maskedPhone}</span>
+                        <span className="text-sm text-gray-900 truncate font-mono">
+                          {tx.maskedPhone}
+                        </span>
                       </div>
                     </td>
-
-                    {/* Amount */}
                     <td className="px-3 py-3.5 text-right">
                       <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">
                         KES {tx.amount.toLocaleString()}
                       </span>
                     </td>
-
-                    {/* Category */}
                     <td className="px-3 py-3.5 pr-6">
                       <CategoryBadge category={tx.category} />
                     </td>
-
-                    {/* Status */}
                     <td className="px-3 py-3.5 pl-5">
                       <StatusBadge status={tx.status} />
                     </td>
@@ -1062,30 +803,37 @@ export default function InflowPage() {
         {filteredData.length > 0 && (
           <div className="px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-2 bg-gray-50/80">
             <span className="text-xs text-gray-500">
-              Showing {filteredData.length} of {getInflowData().length} transactions
+              Showing {filteredData.length} of {transactions.length} transactions
             </span>
             <span className="text-xs text-gray-500 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              Last updated: {lastFetched ? lastFetched.toLocaleString() : '—'}
+              Last updated:{' '}
+              {lastFetched ? lastFetched.toLocaleString() : '—'}
             </span>
           </div>
         )}
       </div>
 
-      {/* ─── View Details Modal ──────────────────────────────────────── */}
+      {/* Details Modal */}
       {showModal && selectedTransaction && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={() => setShowModal(false)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200"
+            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
               <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${statusBadgeColors[selectedTransaction.status as keyof typeof statusBadgeColors] || 'bg-gray-500'}`} />
-                <h3 className="text-lg font-bold text-gray-900">Transaction Details</h3>
+                <div
+                  className={`w-3 h-3 rounded-full ${
+                    STATUS_DOT[selectedTransaction.status] || 'bg-gray-500'
+                  }`}
+                />
+                <h3 className="text-lg font-bold text-gray-900">
+                  Transaction Details
+                </h3>
                 {selectedTransaction.receipt && (
                   <span className="text-xs text-gray-500 font-mono ml-2">
                     #{selectedTransaction.receipt}
@@ -1096,7 +844,7 @@ export default function InflowPage() {
                 onClick={() => setShowModal(false)}
                 className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
               >
-                <X className="w-5 h-5 text-gray-500" />
+                <XCircle className="w-5 h-5 text-gray-500" />
               </button>
             </div>
 
@@ -1104,30 +852,38 @@ export default function InflowPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Customer</p>
+                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">
+                      Customer
+                    </p>
                     <div className="flex items-center gap-3 mt-2">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center text-emerald-700 font-semibold text-sm flex-shrink-0">
                         {getInitials(selectedTransaction.customer)}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium text-gray-900 font-mono truncate">{selectedTransaction.phone}</p>
+                        <p className="font-medium text-gray-900 font-mono truncate">
+                          {selectedTransaction.phone}
+                        </p>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <Phone className="w-3 h-3 flex-shrink-0" />
-                          <span className="truncate">Mobile Money</span>
+                          <span>Mobile Money</span>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">M-PESA Receipt</p>
+                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">
+                      M-PESA Receipt
+                    </p>
                     <div className="flex items-center justify-between mt-1">
                       <p className="font-mono text-sm text-gray-900 break-all">
                         {selectedTransaction.receipt || '—'}
                       </p>
                       {selectedTransaction.receipt && (
                         <button
-                          onClick={() => handleCopy(selectedTransaction.receipt!, 'modal-receipt')}
+                          onClick={() =>
+                            handleCopy(selectedTransaction.receipt!, 'modal-receipt')
+                          }
                           className="p-1.5 rounded hover:bg-gray-200 transition-colors"
                           title="Copy receipt"
                         >
@@ -1142,17 +898,27 @@ export default function InflowPage() {
                   </div>
 
                   <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Reference</p>
-                    <p className="font-mono text-sm text-gray-900 mt-1 break-all">{selectedTransaction.ref}</p>
+                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">
+                      Reference
+                    </p>
+                    <p className="font-mono text-sm text-gray-900 mt-1 break-all">
+                      {selectedTransaction.ref}
+                    </p>
                   </div>
 
                   <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Description</p>
-                    <p className="text-sm text-gray-700 mt-1 break-words">{selectedTransaction.description}</p>
+                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">
+                      Description
+                    </p>
+                    <p className="text-sm text-gray-700 mt-1 break-words">
+                      {selectedTransaction.description}
+                    </p>
                   </div>
 
                   <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Category</p>
+                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">
+                      Category
+                    </p>
                     <div className="mt-1">
                       <CategoryBadge category={selectedTransaction.category} />
                     </div>
@@ -1161,8 +927,10 @@ export default function InflowPage() {
 
                 <div className="space-y-4">
                   <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-4 border border-emerald-200/50">
-                    <p className="text-xs text-gray-500 uppercase font-medium tracking-wider">Amount</p>
-                    <p className="text-3xl font-bold text-emerald-700 mt-1 break-words">
+                    <p className="text-xs text-gray-500 uppercase font-medium tracking-wider">
+                      Amount
+                    </p>
+                    <p className="text-3xl font-bold text-emerald-700 mt-1">
                       KES {selectedTransaction.amount.toLocaleString()}
                     </p>
                     <div className="mt-2">
@@ -1171,24 +939,35 @@ export default function InflowPage() {
                   </div>
 
                   <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">Payment Details</p>
+                    <p className="text-xs text-gray-400 uppercase font-medium tracking-wider">
+                      Payment Details
+                    </p>
                     <div className="mt-2 space-y-2">
                       <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                         <span className="text-sm text-gray-500">Method</span>
-                        <span className="text-sm font-medium text-gray-900 text-right truncate ml-2">{selectedTransaction.method}</span>
+                        <span className="text-sm font-medium text-gray-900">
+                          {selectedTransaction.method}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                         <span className="text-sm text-gray-500">Channel</span>
-                        <span className="text-sm text-gray-900 text-right truncate ml-2">{selectedTransaction.channel}</span>
+                        <span className="text-sm text-gray-900">
+                          {selectedTransaction.channel}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                        <span className="text-sm text-gray-500">Settlement Date</span>
-                        <span className="text-sm text-gray-900 text-right">{formatDate(selectedTransaction.settlementDate)}</span>
+                        <span className="text-sm text-gray-500">
+                          Settlement Date
+                        </span>
+                        <span className="text-sm text-gray-900">
+                          {formatDate(selectedTransaction.settlementDate)}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-500">Date &amp; Time</span>
-                        <span className="text-sm text-gray-900 text-right">
-                          {formatDate(selectedTransaction.date)} {formatTime(selectedTransaction.date)}
+                        <span className="text-sm text-gray-500">Date & Time</span>
+                        <span className="text-sm text-gray-900">
+                          {formatDate(selectedTransaction.date)}{' '}
+                          {formatTime(selectedTransaction.date)}
                         </span>
                       </div>
                     </div>
@@ -1198,7 +977,12 @@ export default function InflowPage() {
 
               <div className="mt-6 pt-4 border-t border-gray-100 flex flex-wrap gap-3">
                 <button
-                  onClick={() => handleCopy(selectedTransaction.receipt || selectedTransaction.id, 'modal-copy')}
+                  onClick={() =>
+                    handleCopy(
+                      selectedTransaction.receipt || selectedTransaction.id,
+                      'modal-copy'
+                    )
+                  }
                   className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2"
                 >
                   <Copy className="w-4 h-4" />
