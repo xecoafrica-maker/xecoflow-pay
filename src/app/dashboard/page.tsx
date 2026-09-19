@@ -240,42 +240,65 @@ export default function DashboardOverview() {
     setFilteredTransactions(filtered);
   }, [transactions, statusFilter]);
 
+  // ─── Auth & data bootstrap ────────────────────────────────────────
+  //
+  // The dashboard's source of truth for auth is the xeco_session
+  // HttpOnly cookie. JavaScript cannot read it, so we ask the BFF's
+  // /api/auth/session endpoint, which reads the cookie server-side and
+  // returns the user's public profile.
+  //
+  // If the response is 401, the session is expired or invalid — send
+  // the user back to /login. If it's 200, use the returned profile to
+  // load dashboard data.
+  //
+  // We do NOT read localStorage. We do NOT redirect based on client
+  // state. The middleware already guards /dashboard at the edge.
   useEffect(() => {
-    let merchant = null;
-    let merchantIdValue = null;
-    let merchantNameValue = 'Merchant';
+    let cancelled = false;
 
-    try {
-      const stored = localStorage.getItem('merchant');
-      if (stored) {
-        merchant = JSON.parse(stored);
-        merchantIdValue = merchant.merchantId || merchant.merchant_id;
-        merchantNameValue = merchant.businessName || merchant.business_name || 'Merchant';
-      }
-    } catch (e) {
-      console.error('Failed to parse merchant data', e);
-    }
-
-    if (!merchant || !merchantIdValue) {
-      router.push('/login?session=expired');
-      return;
-    }
-
-    setMerchantId(String(merchantIdValue));
-    setMerchantName(merchantNameValue);
-
-    const fetchData = async () => {
+    const loadDashboard = async () => {
       try {
-        await fetchDashboardData(String(merchantIdValue));
-        await fetchOnboarding();
+        const sessionRes = await fetch('/api/auth/session', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        if (cancelled) return;
+
+        if (!sessionRes.ok) {
+          router.replace('/login?session=expired');
+          return;
+        }
+
+        const sessionData = await sessionRes.json();
+        const user = sessionData?.user;
+
+        if (!user?.merchantId) {
+          router.replace('/login?session=expired');
+          return;
+        }
+
+        setMerchantId(String(user.merchantId));
+        setMerchantName(user.businessName || 'Merchant');
+
+        try {
+          await fetchDashboardData(String(user.merchantId));
+          await fetchOnboarding();
+        } catch (error) {
+          console.error('Failed to fetch dashboard data:', error);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
       } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-      } finally {
-        setLoading(false);
+        console.error('Failed to check session:', error);
+        if (!cancelled) router.replace('/login?session=expired');
       }
     };
 
-    fetchData();
+    loadDashboard();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   useEffect(() => {

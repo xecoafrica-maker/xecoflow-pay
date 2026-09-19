@@ -1,31 +1,66 @@
 // next.config.ts
 import type { NextConfig } from "next";
 
+// Which environment are we building for?
+// - `npm run dev`              → development
+// - `npm run build` + `start`  → production
+// - `next build` in CI         → production
+const isProduction = process.env.NODE_ENV === "production";
+
+// Where the backend lives in each environment.
+const BACKEND_URL = isProduction
+  ? "https://xecoflow-2gen.onrender.com"
+  : "http://localhost:3001";
+
 const nextConfig: NextConfig = {
   async rewrites() {
-    return [
+    const rules = [
       {
-        source: '/api/:path*',
-        destination: 'https://xecoflow-2gen.onrender.com/v1/:path*',
+        source: "/v1/:path*",
+        destination: `${BACKEND_URL}/v1/:path*`,
       },
-      {
-        source: '/v1/:path*',
-        destination: 'https://xecoflow-2gen.onrender.com/v1/:path*',
-      },
-    ]
+    ];
+
+    // The /api/* rewrite is a transition shim. It forwards /api/* calls
+    // to the backend because the BFF was not yet implemented. Locally,
+    // we want /api/* to hit our own route handlers so we can develop
+    // and test the BFF. In production, we keep the old shim until every
+    // BFF route exists.
+    //
+    // When the migration is complete, delete this block entirely so
+    // production also uses the BFF.
+    if (isProduction) {
+      rules.unshift({
+        source: "/api/:path*",
+        destination: `${BACKEND_URL}/v1/:path*`,
+      });
+    }
+
+    return rules;
   },
 
-  // ✅ ADD CSP HEADERS TO ALLOW WEBSOCKET
   async headers() {
+    // script-src must include 'unsafe-eval' in dev — Next.js/Turbopack
+    // uses eval() for HMR, error stack traces, and module reconstruction.
+    // In production, neither eval() nor inline scripts are needed; any
+    // script-src that permits them effectively disables CSP as an XSS
+    // defense.
+    const scriptSrc = isProduction
+      ? "'self'"
+      : "'self' 'unsafe-eval' 'unsafe-inline'";
+
     return [
       {
-        source: '/(.*)',
+        source: "/(.*)",
         headers: [
           {
-            key: 'Content-Security-Policy',
+            key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+              `script-src ${scriptSrc}`,
+              // React and Next.js generate inline styles. 'unsafe-inline'
+              // is required for style-src; this is a much narrower risk
+              // than 'unsafe-inline' on script-src.
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "connect-src 'self'",
@@ -35,20 +70,24 @@ const nextConfig: NextConfig = {
               "ws://*.onrender.com",
               "https://api.ipify.org",
               "https://api.my-ip.io",
-              "https://ipapi.co"
-            ].join(' ')
-          }
-        ]
-      }
+              "https://ipapi.co",
+              "frame-ancestors 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+              "object-src 'none'",
+            ].join(" "),
+          },
+        ],
+      },
     ];
   },
 
-  // ✅ REMOVE console.log / info / debug IN PRODUCTION
-  // Keeps console.error and console.warn so real issues still surface.
+  // Strip console.log / info / debug in production. Keep error and warn
+  // so real issues still surface in production logs.
   compiler: {
     removeConsole:
-      process.env.NODE_ENV === 'production'
-        ? { exclude: ['error', 'warn'] }
+      process.env.NODE_ENV === "production"
+        ? { exclude: ["error", "warn"] }
         : false,
   },
 };

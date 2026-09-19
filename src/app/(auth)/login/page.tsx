@@ -1,9 +1,8 @@
-﻿// src/app/(auth)/login/page.tsx
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Mail,
   Lock,
@@ -11,27 +10,18 @@ import {
   EyeOff,
   ArrowRight,
   AlertCircle,
-  Clock,
   Loader2,
   AlertTriangle,
   X,
   ChevronRight,
   CheckCircle2,
 } from 'lucide-react';
-import { useActivityLogger } from '@/hooks/useActivityLogger';
 
 // ─── Constants ──────────────────────────────────────────────────────
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MS = 2 * 60 * 1000; // 2 minutes
+const MAX_LOGIN_ATTEMPTS_UX = 5;
 const TOAST_DURATION = 5000;
 
 // ─── Types ──────────────────────────────────────────────────────────
-interface LoginAttempt {
-  count: number;
-  timestamp: number;
-  lockedUntil?: number;
-}
-
 type ToastType = 'error' | 'warning' | 'info' | 'success';
 
 interface ToastItem {
@@ -55,6 +45,7 @@ function Toast({
 }) {
   const [isExiting, setIsExiting] = useState(false);
 
+  // Replaced incorrect useState with useEffect for proper timer cleanup
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsExiting(true);
@@ -99,10 +90,7 @@ function Toast({
   };
 
   const style = styles[type];
-  const Icon =
-    type === 'success' ? CheckCircle2 :
-    type === 'error' ? AlertTriangle :
-    AlertCircle;
+  const Icon = type === 'success' ? CheckCircle2 : type === 'error' ? AlertTriangle : AlertCircle;
 
   return (
     <div
@@ -128,6 +116,7 @@ function Toast({
             setTimeout(onClose, 300);
           }}
           className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-colors"
+          aria-label="Close notification"
         >
           <X className="w-4 h-4 text-gray-400" />
         </button>
@@ -139,7 +128,6 @@ function Toast({
 // ─── Main Component ─────────────────────────────────────────────────
 export default function LoginPage() {
   const router = useRouter();
-  const { log, ActivityActions } = useActivityLogger();
 
   // Form state
   const [email, setEmail] = useState('');
@@ -153,33 +141,12 @@ export default function LoginPage() {
   const [passwordError, setPasswordError] = useState('');
   const [formError, setFormError] = useState('');
 
-  // Lockout
-  const [isLocked, setIsLocked] = useState(false);
-  const [lockoutTimeLeft, setLockoutTimeLeft] = useState(0);
-  const [attemptsRemaining, setAttemptsRemaining] = useState(MAX_LOGIN_ATTEMPTS);
+  // In-memory UX lockout state. Server enforces actual lockout.
+  const [failedAttempts, setFailedAttempts] = useState(0);
 
   // Toasts
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const toastId = useRef(0);
-  const lockTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // ─── ✅ SESSION CHECK ONLY — NO AUTO-REDIRECT ────────────────────
-  // We only LOG the session state. We do NOT redirect.
-  // Auto-redirecting from login page causes infinite loops
-  // when the destination page disagrees about session state.
-  // If user has a valid session, the dashboard will handle it
-  // when they navigate there (or via middleware).
-  useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    const merchant = localStorage.getItem('merchant');
-    
-    console.log('=== LOGIN PAGE MOUNT ===');
-    console.log('auth_token:', token ? '✅ Present' : '❌ Missing');
-    console.log('merchant:', merchant ? '✅ Present' : '❌ Missing');
-    
-    // No redirect — user stays on login page.
-    // This is intentional.
-  }, []);
 
   // ─── Helpers ──────────────────────────────────────────────────────
   const showToast = useCallback((type: ToastType, title: string, message: string) => {
@@ -191,98 +158,15 @@ export default function LoginPage() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const formatLockoutTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    if (mins > 0 && secs > 0) return `${mins}m ${secs}s`;
-    if (mins > 0) return `${mins}m`;
-    return `${secs}s`;
-  };
-
-  const getAttemptKey = (emailValue: string) =>
-    `login_attempts_${emailValue.trim().toLowerCase() || 'anonymous'}`;
-
-  // ─── Lockout Logic (UX only - server is source of truth) ─────────
-  const startLockTimer = useCallback((lockedUntil: number) => {
-    if (lockTimerRef.current) clearInterval(lockTimerRef.current);
-
-    lockTimerRef.current = setInterval(() => {
-      const remaining = Math.ceil((lockedUntil - Date.now()) / 1000);
-      if (remaining <= 0) {
-        setIsLocked(false);
-        setLockoutTimeLeft(0);
-        if (lockTimerRef.current) clearInterval(lockTimerRef.current);
-        localStorage.removeItem(getAttemptKey(email));
-        setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
-      } else {
-        setLockoutTimeLeft(remaining);
+  const handleFailedAttempt = useCallback(() => {
+    setFailedAttempts((prev) => {
+      const newCount = prev + 1;
+      if (newCount >= MAX_LOGIN_ATTEMPTS_UX) {
+        showToast('warning', 'Security Delay', 'Multiple failed attempts. A temporary delay is now active.');
       }
-    }, 1000);
-  }, [email]);
-
-  const resetAttempts = useCallback(() => {
-    localStorage.removeItem(getAttemptKey(email));
-    setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
-    setIsLocked(false);
-    setLockoutTimeLeft(0);
-  }, [email]);
-
-  const trackFailedAttempt = useCallback(() => {
-    const key = getAttemptKey(email);
-    let data: LoginAttempt = { count: 0, timestamp: Date.now() };
-
-    try {
-      const stored = localStorage.getItem(key);
-      if (stored) data = JSON.parse(stored);
-    } catch {
-      // ignore
-    }
-
-    data.count += 1;
-    data.timestamp = Date.now();
-
-    if (data.count >= MAX_LOGIN_ATTEMPTS) {
-      data.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
-      setIsLocked(true);
-      startLockTimer(data.lockedUntil);
-      setFormError('Too many failed attempts. Please try again in 2 minutes.');
-      showToast('error', 'Account Locked', 'Too many failed attempts. Please try again in 2 minutes.');
-    }
-
-    localStorage.setItem(key, JSON.stringify(data));
-    setAttemptsRemaining(Math.max(0, MAX_LOGIN_ATTEMPTS - data.count));
-  }, [email, showToast, startLockTimer]);
-
-  // Load existing lockout state when email changes
-  useEffect(() => {
-    const key = getAttemptKey(email);
-    try {
-      const stored = localStorage.getItem(key);
-      if (!stored) {
-        setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
-        setIsLocked(false);
-        return;
-      }
-
-      const data: LoginAttempt = JSON.parse(stored);
-
-      if (data.lockedUntil && data.lockedUntil > Date.now()) {
-        setIsLocked(true);
-        setLockoutTimeLeft(Math.ceil((data.lockedUntil - Date.now()) / 1000));
-        startLockTimer(data.lockedUntil);
-      } else if (Date.now() - data.timestamp > LOCKOUT_DURATION_MS) {
-        resetAttempts();
-      } else {
-        setAttemptsRemaining(Math.max(0, MAX_LOGIN_ATTEMPTS - data.count));
-      }
-    } catch {
-      // ignore
-    }
-
-    return () => {
-      if (lockTimerRef.current) clearInterval(lockTimerRef.current);
-    };
-  }, [email, startLockTimer, resetAttempts]);
+      return newCount;
+    });
+  }, [showToast]);
 
   // ─── Validation ───────────────────────────────────────────────────
   const validateForm = (): boolean => {
@@ -299,11 +183,9 @@ export default function LoginPage() {
       valid = false;
     }
 
+    // no password length check. Server is the sole authority on password validity.
     if (!password) {
       setPasswordError('Password is required');
-      valid = false;
-    } else if (password.length < 8) {
-      setPasswordError('Password must be at least 8 characters');
       valid = false;
     }
 
@@ -317,12 +199,6 @@ export default function LoginPage() {
     setEmailError('');
     setPasswordError('');
 
-    // UX only - server is source of truth for lockout
-    if (isLocked) {
-      setFormError(`Too many failed attempts. Please try again in ${formatLockoutTime(lockoutTimeLeft)}`);
-      return;
-    }
-
     if (!validateForm()) return;
 
     setLoading(true);
@@ -334,12 +210,11 @@ export default function LoginPage() {
         body: JSON.stringify({
           email: email.trim(),
           password,
-          rememberMe: rememberMe,
+          rememberMe,
         }),
-        credentials: 'include',
+        credentials: 'include', // Ensures HttpOnly cookies are sent/received
       });
 
-      // ─── Handle non-JSON responses safely ──────────────────────────
       const contentType = response.headers.get('content-type') || '';
       let data: any = {};
 
@@ -350,11 +225,10 @@ export default function LoginPage() {
         data = { message: text || 'An error occurred' };
       }
 
-      // ─── ERROR HANDLING ──────────────────────────────────────────
-
-      if (response.status === 429) {
-        const retryAfter = data.retryAfter || 30;
-        setFormError(`Too many login attempts. Please wait ${retryAfter} seconds.`);
+      // ─── Error Handling ──────────────────────────────────────────
+      if (response.status === 429 || response.status === 423) {
+        const retryAfter = data.retryAfter || 60;
+        setFormError(data.message || `Too many failed attempts. Please wait ${retryAfter} seconds.`);
         setLoading(false);
         return;
       }
@@ -366,135 +240,40 @@ export default function LoginPage() {
       }
 
       if (response.status === 401) {
-        if (data.code === 'TOKEN_BLACKLISTED') {
-          setFormError('Your session has been revoked. Please login again.');
-        } else {
-          setFormError(data.message || 'Invalid email or password. Please check your credentials.');
-        }
-        trackFailedAttempt();
-        setLoading(false);
-        return;
-      }
-
-      // ✅ Server lockout (423) - source of truth
-      if (response.status === 423) {
-        setFormError(data.message || 'Too many failed attempts. Please try again later.');
+        handleFailedAttempt();
+        // Generic message prevents user enumeration attacks
+        setFormError('Invalid email or password. Please check your credentials.');
         setLoading(false);
         return;
       }
 
       if (response.status >= 500) {
-        setFormError(data.message || 'We are experiencing technical difficulties. Please try again later.');
+        setFormError('We are experiencing technical difficulties. Please try again later.');
         setLoading(false);
         return;
       }
 
-      // ─── ✅ ✅ ✅ OTP VERIFICATION CHECK ──────────────────────────────
-      // If OTP is required, redirect to OTP verification page
-      if (data.success && data.requiresOTP) {
-        // ─── STORE TEMP TOKEN AND EMAIL IN BOTH STORAGES ──────────────
-        localStorage.setItem('otp_temp_token', data.tempToken);
-        localStorage.setItem('otp_email', data.email);
-        sessionStorage.setItem('otp_temp_token', data.tempToken);
-        sessionStorage.setItem('otp_email', data.email);
+      // ─── Success Handling ────────────────────────────────────────
+      if (data.success) {
+        setFailedAttempts(0);
         
-        console.log('🔐 OTP required, redirecting to verify-otp page');
-        console.log('📧 Email:', data.email);
-        console.log('🔑 TempToken:', data.tempToken ? 'Present' : 'Missing');
-        console.log('✅ Stored otp_email in localStorage:', localStorage.getItem('otp_email'));
-        console.log('✅ Stored otp_temp_token in localStorage');
-        
-        // Clear failed attempts
-        localStorage.removeItem(getAttemptKey(email));
-        setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
-        setIsLocked(false);
-
-        // Redirect to OTP verification
-        router.push(`/verify-otp?email=${encodeURIComponent(data.email)}&token=${encodeURIComponent(data.tempToken)}`);
-        setLoading(false);
+        if (data.requiresOTP) {
+          // Backend has set the short-lived OTP cookie. Redirect to verify.
+          router.push('/verify-otp');
+        } else {
+          // Replaced setTimeout hack with clean history-replacing navigation.
+          // Guarantees a fresh application state and proper cookie propagation.
+          window.location.replace('/dashboard');
+        }
         return;
       }
 
-      // ─── ✅ ✅ ✅ NORMAL LOGIN SUCCESS ──────────────────────────────────
-
-      const merchant = data.data || data.merchant || {};
-
-      // ✅ Check if merchant data is valid
-      if (!merchant.merchantId && !merchant.merchant_id) {
-        setFormError('Login succeeded but no merchant data received.');
-        setLoading(false);
-        return;
-      }
-
-      console.log('✅ Login successful, merchant data:', merchant);
-
-      // ─── Create merchant data ──────────────────────────────────────
-      const merchantData = {
-        merchantId: merchant.merchantId || merchant.merchant_id,
-        businessName: merchant.businessName || merchant.business_name,
-        email: merchant.email,
-        phone: merchant.phone || '',
-        status: merchant.status || 'ACTIVE',
-        role: merchant.role || 'merchant',
-        merchant_id: merchant.merchantId || merchant.merchant_id,
-        business_name: merchant.businessName || merchant.business_name,
-        emailVerified: merchant.emailVerified || merchant.email_verified || false,
-      };
-
-      // ─── Store in localStorage ─────────────────────────────────────
-      localStorage.setItem('merchant', JSON.stringify(merchantData));
-      localStorage.setItem('merchant_id', String(merchantData.merchantId));
-      localStorage.setItem('user_role', merchantData.role);
-      // Remove any lingering OTP token
-      localStorage.removeItem('otp_temp_token');
-      localStorage.removeItem('otp_email');
-      sessionStorage.removeItem('otp_temp_token');
-      sessionStorage.removeItem('otp_email');
-
-      console.log('✅ Stored merchant_id:', localStorage.getItem('merchant_id'));
-
-      // ─── Clear failed attempts ──────────────────────────────────────
-      localStorage.removeItem(getAttemptKey(email));
-      setAttemptsRemaining(MAX_LOGIN_ATTEMPTS);
-      setIsLocked(false);
-
-      // ─── Log activity ──────────────────────────────────────────────
-      try {
-        await log(
-          ActivityActions.LOGIN || 'LOGIN',
-          `Successful login for ${merchantData.email} (Role: ${merchantData.role})`
-        );
-      } catch (logError) {
-        console.debug('Activity logging skipped:', logError);
-      }
-
-      showToast('success', 'Welcome Back!', `Signed in as ${merchantData.businessName}`);
-
-      // ─── Redirect ──────────────────────────────────────────────────
-      console.log('🔄 Redirecting to dashboard');
-      setTimeout(() => {
-        window.location.href = '/dashboard';
-      }, 100);
-
-    } catch (err: any) {
-      console.error('Login error:', err);
-
-      if (err.name === 'AbortError' || err.message?.includes('abort')) {
-        setFormError('Request timed out. Please check your connection and try again.');
-      } else if (err.name === 'TypeError' || err.message?.includes('fetch')) {
-        setFormError('Unable to connect to server. Please check your internet connection.');
-      } else {
-        setFormError('Something went wrong. Please try again or contact support if the issue persists.');
-      }
-
-      try {
-        await log(
-          'Failed login attempt',
-          `Failed login for ${email}: ${err.message || 'Unknown error'}`
-        );
-      } catch (logError) {
-        console.debug('Activity logging skipped:', logError);
-      }
+      // Fallback for unexpected 200 OK without success flag
+      setFormError('Unexpected response from server. Please try again.');
+    } catch (err) {
+      // no console.error to prevent potential leakage of request details/PII in production.
+      // Auth failures are logged server-side via the BFF proxy.
+      setFormError('Unable to connect to server. Please check your internet connection.');
     } finally {
       setLoading(false);
     }
@@ -503,7 +282,6 @@ export default function LoginPage() {
   // ─── Render ───────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#0a2540] dark:to-[#0f1f3a] flex items-center justify-center p-4 sm:p-6 md:p-8">
-      {/* Toasts */}
       {toasts.map((t) => (
         <Toast
           key={t.id}
@@ -584,8 +362,9 @@ export default function LoginPage() {
               </p>
             </div>
 
+            {/* Added role="alert" for screen reader accessibility */}
             {formError && (
-              <div className="mb-5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3.5 flex items-start gap-2.5">
+              <div role="alert" className="mb-5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3.5 flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-red-700 dark:text-red-400">Error</p>
@@ -620,9 +399,9 @@ export default function LoginPage() {
                         : 'border-gray-200 dark:border-gray-700 focus:ring-indigo-500/20 focus:border-indigo-500'
                     }`}
                     required
-                    autoFocus
-                    disabled={isLocked || loading}
+                    disabled={loading}
                     autoComplete="email"
+                    // Removed autoFocus to prevent aggressive keyboard pop-up on mobile
                   />
                 </div>
                 {emailError && (
@@ -658,14 +437,16 @@ export default function LoginPage() {
                         : 'border-gray-200 dark:border-gray-700 focus:ring-indigo-500/20 focus:border-indigo-500'
                     }`}
                     required
-                    disabled={isLocked || loading}
+                    disabled={loading}
                     autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2"
-                    disabled={isLocked || loading}
+                    disabled={loading}
+                    // Added aria-label for screen reader accessibility
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? (
                       <EyeOff className="w-4 h-4 text-gray-400 hover:text-gray-600" />
@@ -689,7 +470,7 @@ export default function LoginPage() {
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    disabled={isLocked || loading}
+                    disabled={loading}
                   />
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     Remember for 30 days
@@ -699,42 +480,37 @@ export default function LoginPage() {
                   href="/forgot-password"
                   className="text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
                 >
-                  Forgot Password?
+                  Forgot Password
                 </Link>
               </div>
 
-              {!isLocked && attemptsRemaining < MAX_LOGIN_ATTEMPTS && attemptsRemaining > 0 && (
-                <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg">
+              {/* role="alert" for screen reader accessibility */}
+              {failedAttempts > 0 && failedAttempts < MAX_LOGIN_ATTEMPTS_UX && (
+                <div role="alert" className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg">
                   <AlertCircle className="w-4 h-4" />
                   <span>
-                    {attemptsRemaining} login attempt{attemptsRemaining !== 1 ? 's' : ''} remaining
+                    {MAX_LOGIN_ATTEMPTS_UX - failedAttempts} login attempt{MAX_LOGIN_ATTEMPTS_UX - failedAttempts !== 1 ? 's' : ''} remaining before security delay.
                   </span>
                 </div>
               )}
 
-              {isLocked ? (
-                <div className="w-full py-3.5 bg-gray-400 text-white rounded-xl font-semibold text-sm flex items-center justify-center gap-2 cursor-not-allowed">
-                  <Clock className="w-4 h-4" />
-                  Try again in {formatLockoutTime(lockoutTimeLeft)}
-                </div>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={loading || !email || !password}
-                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/10 flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    <>
-                      Sign In <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              )}
+              <button
+                type="submit"
+                // password disable condition to allow form validation to provide explicit error feedback
+                disabled={loading}
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/10 flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    Sign In <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
             </form>
 
             <div className="mt-6 space-y-3.5">
