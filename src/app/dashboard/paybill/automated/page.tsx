@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { useSession } from '@/hooks/useSession';
 
 interface MerchantData {
   businessName: string;
@@ -23,6 +24,7 @@ interface MerchantData {
 
 export default function AutomatedPayBillPage() {
   const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
   const posterRef = useRef<HTMLDivElement>(null);
 
   const [merchant, setMerchant] = useState<MerchantData | null>(null);
@@ -34,40 +36,43 @@ export default function AutomatedPayBillPage() {
   const NAVY = '#0f172a';
   const ACCENT = '#10B981';
 
-  useEffect(() => {
-    // ✅ Read merchant data from localStorage (same pattern as transactions page)
-    let storedMerchant: any = null;
-    let id = '';
+  // ─── Fetch Merchant Profile Securely ─────────────────────────────
+  const fetchMerchantProfile = useCallback(async () => {
+    if (!user?.merchantId) return;
 
     try {
-      const stored = localStorage.getItem('merchant');
-      if (stored) {
-        storedMerchant = JSON.parse(stored);
-        id = String(storedMerchant.merchant_id || storedMerchant.merchantId || '');
+      const res = await fetch(`/api/auth/account/details?merchantId=${user.merchantId}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.data) {
+          setMerchant({
+            businessName: data.data.business_name || 'Xeco BIZ Account',
+            virtualAccount: String(user.merchantId),
+            shortcode: '4049263',
+            merchantId: String(user.merchantId),
+          });
+        }
       }
-    } catch (e) {
-      console.error('Failed to parse merchant data', e);
+    } catch {
+      // Silent fail — defaults remain
+    } finally {
+      setLoading(false);
     }
+  }, [user?.merchantId]);
 
-    // ❌ No merchant data — redirect to login
-    if (!storedMerchant || !id) {
-      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
-      router.push('/login?session=expired');
-      return;
+  // Load profile once session is ready
+  useEffect(() => {
+    if (!sessionLoading && user?.merchantId) {
+      fetchMerchantProfile();
+    } else if (!sessionLoading && !user) {
+      // useSession already redirects, but guard against race conditions
+      setLoading(false);
     }
-
-    // ✅ Merchant data found
-    setMerchant({
-      businessName:
-        storedMerchant.businessName ||
-        storedMerchant.business_name ||
-        'Xeco BIZ Account',
-      virtualAccount: String(id),
-      shortcode: '4049263',
-      merchantId: String(id),
-    });
-    setLoading(false);
-  }, [router]);
+  }, [sessionLoading, user?.merchantId, fetchMerchantProfile]);
 
   const handleCopyDetails = useCallback(() => {
     if (!merchant) return;
@@ -118,6 +123,19 @@ export default function AutomatedPayBillPage() {
     window.open(`https://api.whatsapp.com/send?text=${msg}`, '_blank');
   }, [merchant]);
 
+  // ─── Loading / Auth states ───────────────────────────────────────
+  if (sessionLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-teal-600" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null; // useSession already redirects
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -138,8 +156,9 @@ export default function AutomatedPayBillPage() {
             <button
               onClick={() => router.back()}
               className="p-2 hover:bg-white rounded-lg transition-colors"
+              aria-label="Go back"
             >
-              <ArrowLeft className="w-5 h-5 text-slate-600" />
+              <ArrowLeft className="w-5 h-5 text-slate-600" aria-hidden="true" />
             </button>
             <div>
               <h1 className="text-lg font-semibold text-slate-900">PayBill Sticker</h1>
@@ -149,14 +168,15 @@ export default function AutomatedPayBillPage() {
           <button
             onClick={handleCopyDetails}
             className="flex items-center gap-2 px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-700"
+            aria-label={copied ? 'Copied to clipboard' : 'Copy PayBill details'}
           >
-            {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+            {copied ? <Check className="w-4 h-4 text-emerald-600" aria-hidden="true" /> : <Copy className="w-4 h-4" aria-hidden="true" />}
             {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-3 sm:p-5 mb-5 no-print">
-          <div ref={posterRef} className="sticker">
+          <div ref={posterRef} className="sticker" role="img" aria-label={`PayBill sticker for ${bizName}, PayBill ${paybill}, Account ${account}`}>
             <div className="sticker-header">
               <div className="sticker-brand">
                 <span className="sticker-brand-xeco">Xeco</span>
@@ -204,21 +224,21 @@ export default function AutomatedPayBillPage() {
             disabled={exporting}
             className="flex items-center justify-center gap-2 py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-60 bg-teal-600 hover:bg-teal-700 transition-colors"
           >
-            {exporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+            {exporting ? <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" /> : <Download className="w-5 h-5" aria-hidden="true" />}
             {exporting ? 'Generating…' : 'Download PDF'}
           </button>
           <button
             onClick={handlePrint}
             className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white border border-slate-200 font-semibold text-sm text-slate-800 hover:bg-slate-50 transition-colors"
           >
-            <Printer className="w-5 h-5" />
+            <Printer className="w-5 h-5" aria-hidden="true" />
             Print sticker
           </button>
           <button
             onClick={handleShareWhatsApp}
             className="flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-sm transition-colors"
           >
-            <Share2 className="w-5 h-5" />
+            <Share2 className="w-5 h-5" aria-hidden="true" />
             WhatsApp
           </button>
         </div>

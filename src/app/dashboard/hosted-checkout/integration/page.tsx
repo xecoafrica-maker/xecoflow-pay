@@ -19,8 +19,7 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import { getStoredMerchant } from '@/lib/auth';
-import { getMerchantProfile } from '@/lib/auth-api';
+import { useSession } from '@/hooks/useSession';
 
 const PAYMENT_METHODS = [
   { id: 'mpesa', label: 'M-PESA', icon: Smartphone, available: true },
@@ -39,11 +38,9 @@ interface PaymentResponse {
 export default function HostedCheckoutIntegration() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, loading: sessionLoading } = useSession();
 
-  const [merchantId, setMerchantId] = useState<string>('');
   const [merchantName, setMerchantName] = useState<string>('');
-  const [apiKey, setApiKey] = useState<string>('');
-  const [apiSecret, setApiSecret] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +73,7 @@ export default function HostedCheckoutIntegration() {
   const customerRef = searchParams.get('reference') || ('REF-' + Date.now());
   const returnUrl = searchParams.get('return_url') || '/dashboard/transactions';
 
-  // ─── WebSocket Connection ─────────────────────────────────────────
+  // ── WebSocket Connection ─────────────────────────────────────────
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -88,8 +85,6 @@ export default function HostedCheckoutIntegration() {
         const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 
                        (typeof window !== 'undefined' && window.location.origin) ||
                        'https://xecoflow-2gen.onrender.com';
-
-        console.log('🔌 [WS] Connecting to:', WS_URL);
 
         const { io } = await import('socket.io-client');
 
@@ -103,93 +98,58 @@ export default function HostedCheckoutIntegration() {
         });
 
         socketInstance.on('connect', () => {
-          if (isMounted) {
-            console.log('✅ [WS] Connected:', socketInstance.id);
-            setIsSocketConnected(true);
-          }
+          if (isMounted) setIsSocketConnected(true);
         });
 
         socketInstance.on('disconnect', () => {
-          if (isMounted) {
-            console.log('❌ [WS] Disconnected');
-            setIsSocketConnected(false);
-          }
+          if (isMounted) setIsSocketConnected(false);
         });
 
-        socketInstance.on('connect_error', (error: any) => {
-          console.warn('⚠️ [WS] Connection error (non-blocking):', error?.message);
-          if (isMounted) {
-            setIsSocketConnected(false);
-          }
+        socketInstance.on('connect_error', () => {
+          if (isMounted) setIsSocketConnected(false);
         });
 
         socketInstance.on('payment:status', (data: any) => {
-          console.log('📡 [WS] Payment status update:', data);
-          
           if (isMounted) {
             if (data.status === 'COMPLETED' || data.status === 'SETTLED') {
               setPaymentStatus('success');
-              if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
-              }
-              if (data.mpesaReceipt) {
-                console.log('📋 Receipt:', data.mpesaReceipt);
-              }
+              if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
             } else if (data.status === 'FAILED' || data.status === 'DECLINED') {
               setPaymentStatus('error');
               setErrorMessage(data.resultDesc || 'Payment failed. Please try again.');
               setShowRetry(true);
-              if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
-              }
+              if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
             }
           }
         });
 
         socketRef.current = socketInstance;
-
-      } catch (error) {
-        console.warn('⚠️ [WS] WebSocket not available, using polling fallback only');
+      } catch {
         setIsWebSocketAvailable(false);
         setIsSocketConnected(false);
       }
     };
 
-    const timeoutId = setTimeout(() => {
-      initWebSocket();
-    }, 500);
+    const timeoutId = setTimeout(initWebSocket, 500);
 
     return () => {
       isMounted = false;
       clearTimeout(timeoutId);
-      if (socketInstance) {
-        socketInstance.disconnect();
-        socketInstance = null;
-      }
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      if (socketInstance) socketInstance.disconnect();
+      if (socketRef.current) socketRef.current.disconnect();
     };
   }, []);
 
-  // ─── Register for Payment Updates ────────────────────────────────
+  // ── Register for Payment Updates ────────────────────────────────
   const registerForPaymentUpdates = (checkoutId: string, transactionId: string) => {
     try {
       if (socketRef.current && socketRef.current.connected) {
-        socketRef.current.emit('register:payment', {
-          checkoutId: checkoutId,
-          transactionId: transactionId,
-        });
-        console.log(`📡 [WS] Registered for checkout: ${checkoutId}, transaction: ${transactionId}`);
+        socketRef.current.emit('register:payment', { checkoutId, transactionId });
         return true;
       }
-    } catch (error) {
-      console.warn('⚠️ [WS] Registration failed (non-blocking):', error);
+    } catch {
+      // Fallback to polling
     }
-    console.warn('⚠️ [WS] Socket not connected, using polling fallback');
     return false;
   };
 
@@ -198,19 +158,14 @@ export default function HostedCheckoutIntegration() {
     setPollingCount(0);
     setShowRetry(false);
     
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
+    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
 
     pollingIntervalRef.current = setInterval(async () => {
       setPollingCount((prev) => {
         const newCount = prev + 1;
         
         if (newCount >= MAX_POLLING_ATTEMPTS) {
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
+          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
           setPaymentStatus('error');
           setErrorMessage('Payment is taking longer than expected. Please check your M-PESA app.');
           setShowRetry(true);
@@ -220,32 +175,24 @@ export default function HostedCheckoutIntegration() {
       });
 
       try {
-        const res = await fetch(`/api/product-links/status/${txId}`, {
-          credentials: 'include',
-        });
+        const res = await fetch(`/api/product-links/status/${txId}`, { credentials: 'include', cache: 'no-store' });
         const data = await res.json();
 
         if (data.success && data.data) {
           const status = data.data;
           
           if (status.status === 'SETTLED' || status.status === 'COMPLETED') {
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-              pollingIntervalRef.current = null;
-            }
+            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
             setPaymentStatus('success');
-          } else if (status.status === 'FAILED' || status.status === 'DECLINED' || status.status === 'TERMINATED_BY_TIMEOUT') {
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-              pollingIntervalRef.current = null;
-            }
+          } else if (['FAILED', 'DECLINED', 'TERMINATED_BY_TIMEOUT'].includes(status.status)) {
+            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
             setPaymentStatus('error');
             setErrorMessage(status.resultDesc || 'Payment failed. Please try again.');
             setShowRetry(true);
           }
         }
-      } catch (error) {
-        console.error('Status polling error:', error);
+      } catch {
+        // Silent fail — polling continues
       }
     }, POLLING_INTERVAL);
   };
@@ -261,89 +208,34 @@ export default function HostedCheckoutIntegration() {
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/[^0-9.]/g, '');
-    if (value === '' || /^\d*\.?\d*$/.test(value)) {
-      setUserAmount(value);
-    }
+    if (value === '' || /^\d*\.?\d*$/.test(value)) setUserAmount(value);
   };
 
-  // ─── Fetch Credentials from Database ──────────────────────────────
-  const fetchCredentials = async (merchantId: string) => {
-    try {
-      console.log('🔍 Fetching credentials for merchant:', merchantId);
-      
-      const response = await fetch(`/api/auth/credentials?merchantId=${merchantId}`, {
-        credentials: 'include',
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        console.log('✅ Credentials fetched successfully');
-        setApiKey(data.data.apiKey || data.data.api_key || '');
-        setApiSecret(data.data.apiSecret || data.data.api_secret || '');
-        setMerchantId(String(data.data.merchantId || data.data.merchant_id || merchantId));
-        setIsReady(true);
-        setLoading(false);
-        setError(null);
-        return true;
-      } else {
-        console.error('❌ Failed to fetch credentials:', data.error);
-        setError(data.error || 'Credentials not found');
-        setLoading(false);
-        return false;
-      }
-    } catch (error) {
-      console.error('❌ Error fetching credentials:', error);
-      setError('Failed to connect to server');
-      setLoading(false);
-      return false;
-    }
-  };
-
-  // ─── Load Merchant Data ──────────────────────────────────────────
+  // ─── Load Merchant Data Securely ─────────────────────────────────
   useEffect(() => {
-    // ✅ Read merchant data from localStorage
-    let merchant = null;
-    let id = '';
-    
-    try {
-      const stored = localStorage.getItem('merchant');
-      if (stored) {
-        merchant = JSON.parse(stored);
-        id = String(merchant.merchant_id || merchant.merchantId || '');
-      }
-    } catch (e) {
-      console.error('Failed to parse merchant data', e);
+    if (!sessionLoading && user?.merchantId) {
+      setMerchantName(user.businessName || 'Merchant');
+      setIsReady(true);
+      setLoading(false);
+    } else if (!sessionLoading && !user) {
+      // useSession already redirects, but guard against race conditions
+      setError('Authentication required');
+      setLoading(false);
     }
+  }, [sessionLoading, user]);
 
-    // ❌ If no merchant data, redirect to login
-    if (!merchant || !id) {
-      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
-      router.push('/login?session=expired');
-      return;
-    }
-
-    // ✅ Merchant data found
-    console.log('✅ Merchant data loaded:', merchant);
-    setMerchantId(id);
-    setMerchantName(merchant.business_name || merchant.businessName || 'Merchant');
-
-    // ─── Fetch credentials ──────────────────────────────────────
-    fetchCredentials(id);
-
-  }, [router]);
-
-  // ─── Cleanup polling on unmount ─────────────────────────────────
+  // ─── Cleanup polling on unmount ────────────────────────────────
   useEffect(() => {
     return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     };
   }, []);
 
   const handleProceed = async () => {
-    console.log('🔄 Proceed clicked!');
+    if (!user?.merchantId) {
+      setErrorMessage('Authentication required. Please log in again.');
+      return;
+    }
 
     const finalAmount = Number(userAmount) || Number(amount);
     if (finalAmount <= 0) {
@@ -363,30 +255,25 @@ export default function HostedCheckoutIntegration() {
       return;
     }
 
-    if (!apiKey || !apiSecret) {
-      setErrorMessage('API credentials not found. Please contact support.');
-      return;
-    }
-
     setIsProcessing(true);
     setPaymentStatus('processing');
     setErrorMessage('');
     setShowRetry(false);
 
     try {
+      // ✅ Credentials are now handled server-side via HttpOnly cookies
+      // The BFF validates the session and injects the API key/secret
       const body = {
         action: 'charge',
         method: 'mpesa',
         phone: phone,
         amount: finalAmount,
-        shortcode: merchantId,
+        shortcode: user.merchantId,
         idempotencyKey: 'key-' + globalThis.crypto.randomUUID().slice(0, 16),
       };
 
       const sorted: Record<string, any> = {};
-      Object.keys(body).sort().forEach((k) => {
-        sorted[k] = body[k as keyof typeof body];
-      });
+      Object.keys(body).sort().forEach((k) => { sorted[k] = body[k as keyof typeof body]; });
       const bodyString = JSON.stringify(sorted);
 
       const timestamp = Math.floor(Date.now() / 1000);
@@ -402,26 +289,19 @@ export default function HostedCheckoutIntegration() {
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
       });
 
-      console.log('🔑 Request details:');
-      console.log('  API Key:', apiKey);
-      console.log('  Signature:', signature);
-
       const response = await fetch('/api/payments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'x-signature': signature,
           'x-timestamp': String(timestamp),
           'x-nonce': nonce,
+          'x-signature': signature,
         },
         credentials: 'include',
         body: bodyString,
       });
 
       const data = await response.json();
-
-      console.log('📡 Response:', data);
 
       if (response.ok && data.success) {
         const txId = data.data?.transactionId;
@@ -433,25 +313,14 @@ export default function HostedCheckoutIntegration() {
           setPaymentStatus('pending');
           setPaymentResponse(data);
           
-          // ─── 🔥 TRY WEBSOCKET ─────────────────────────────────────
           if (ckId && isWebSocketAvailable) {
-            try {
-              registerForPaymentUpdates(ckId, txId);
-            } catch (wsError) {
-              console.warn('WebSocket registration failed, using polling');
-            }
+            try { registerForPaymentUpdates(ckId, txId); } catch {}
           }
           
-          // ─── START POLLING ────────────────────────────────────────
           pollPaymentStatus(txId);
           
-          console.log(`📡 Payment initiated. WebSocket: ${isSocketConnected ? '✅' : '❌'}, Polling: ✅`);
-          
-          // Auto redirect after 3 seconds if successful
           setTimeout(() => {
-            if (paymentStatus === 'success' && returnUrl) {
-              router.push(returnUrl);
-            }
+            if (paymentStatus === 'success' && returnUrl) router.push(returnUrl);
           }, 3000);
         } else {
           setPaymentStatus('error');
@@ -459,15 +328,13 @@ export default function HostedCheckoutIntegration() {
         }
       } else {
         setPaymentStatus('error');
-        const errorMsg = data.error || data.message || 'Payment failed';
-        setErrorMessage(errorMsg);
+        setErrorMessage(data.error || data.message || 'Payment failed');
         setPaymentResponse(data);
         setShowRetry(true);
       }
-    } catch (error: any) {
-      console.error('❌ Payment error:', error);
+    } catch (err: any) {
       setPaymentStatus('error');
-      setErrorMessage(error.message || 'An error occurred');
+      setErrorMessage(err.message || 'An error occurred');
       setShowRetry(true);
     } finally {
       setIsProcessing(false);
@@ -524,23 +391,15 @@ export default function HostedCheckoutIntegration() {
             )}
           </div>
           <div className="px-5 py-4">
-            <p className="text-sm text-[#5B6B82] mb-3">
-              Check your phone and enter your PIN to authorize the transaction.
-            </p>
+            <p className="text-sm text-[#5B6B82] mb-3">Check your phone and enter your PIN to authorize the transaction.</p>
             <div className="flex justify-between text-xs text-[#5B6B82] tabular-nums mb-1.5">
-              <span>Elapsed</span>
-              <span>{elapsedMin}m {elapsedSec}s</span>
+              <span>Elapsed</span><span>{elapsedMin}m {elapsedSec}s</span>
             </div>
             <div className="w-full h-1 bg-[#EDEAE2]">
-              <div
-                className="h-full bg-[#8A6A2A] transition-all duration-1000"
-                style={{ width: `${progressPct}%` }}
-              />
+              <div className="h-full bg-[#8A6A2A] transition-all duration-1000" style={{ width: `${progressPct}%` }} />
             </div>
             {!isSocketConnected && (
-              <p className="text-xs text-[#8A6A2A] mt-2.5">
-                Live updates unavailable — status is being checked automatically.
-              </p>
+              <p className="text-xs text-[#8A6A2A] mt-2.5">Live updates unavailable — status is being checked automatically.</p>
             )}
           </div>
         </div>
@@ -554,9 +413,7 @@ export default function HostedCheckoutIntegration() {
             <CheckCircle className="w-5 h-5 text-[#1F6F4E] shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-[#123C2D]">Payment instruction confirmed</p>
-              <p className="text-xs text-[#5B6B82] mt-1 tabular-nums">
-                Checkout reference: {paymentResponse?.data?.checkoutRequestId || 'N/A'}
-              </p>
+              <p className="text-xs text-[#5B6B82] mt-1 tabular-nums">Checkout reference: {paymentResponse?.data?.checkoutRequestId || 'N/A'}</p>
             </div>
           </div>
         </div>
@@ -572,12 +429,7 @@ export default function HostedCheckoutIntegration() {
               <p className="text-sm font-medium text-[#6E2323]">Payment not completed</p>
               <p className="text-sm text-[#5B6B82] mt-1">{errorMessage}</p>
               {showRetry && (
-                <button
-                  onClick={retryPayment}
-                  className="mt-3 text-xs font-medium text-[#9B3232] border border-[#9B3232]/40 px-3.5 py-1.5 hover:bg-[#9B3232] hover:text-white transition-colors"
-                >
-                  Try again
-                </button>
+                <button onClick={retryPayment} className="mt-3 text-xs font-medium text-[#9B3232] border border-[#9B3232]/40 px-3.5 py-1.5 hover:bg-[#9B3232] hover:text-white transition-colors">Try again</button>
               )}
             </div>
           </div>
@@ -606,12 +458,7 @@ export default function HostedCheckoutIntegration() {
           <AlertCircle className="w-10 h-10 text-[#9B3232] mx-auto mb-4" />
           <h2 className="text-lg font-serif text-[#0B1526] mb-2">We couldn't load this checkout</h2>
           <p className="text-sm text-[#5B6B82] mb-6">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-[#0B1526] hover:bg-[#16233B] text-white text-sm font-medium px-6 py-2.5 transition-colors"
-          >
-            Try again
-          </button>
+          <button onClick={() => window.location.reload()} className="bg-[#0B1526] hover:bg-[#16233B] text-white text-sm font-medium px-6 py-2.5 transition-colors">Try again</button>
         </div>
       </div>
     );
@@ -645,9 +492,7 @@ export default function HostedCheckoutIntegration() {
               <p className="text-xs uppercase tracking-wide text-[#9AA5B4] mb-1">Transaction record</p>
               <p className="text-xs text-[#5B6B82] mb-6 tabular-nums">Ref. {customerRef || '—'}</p>
 
-              <label htmlFor="checkout-amount" className="block text-xs text-[#5B6B82] mb-1.5">
-                Amount to pay ({currency})
-              </label>
+              <label htmlFor="checkout-amount" className="block text-xs text-[#5B6B82] mb-1.5">Amount to pay ({currency})</label>
               <div className="flex items-baseline border-b border-[#0B1526] pb-2 mb-1">
                 <span className="text-sm text-[#5B6B82] mr-2">{currency}</span>
                 <input
@@ -681,16 +526,8 @@ export default function HostedCheckoutIntegration() {
                       const Icon = m.icon;
                       const selected = method === m.id;
                       return (
-                        <label
-                          key={m.id}
-                          className={`flex items-center gap-3 px-4 py-3 cursor-pointer text-sm ${idx !== 0 ? 'border-t border-[#EDEAE2]' : ''} ${selected ? 'bg-[#F7F6F0]' : 'bg-white'}`}
-                        >
-                          <input
-                            type="radio"
-                            checked={selected}
-                            onChange={() => setMethod(m.id)}
-                            className="accent-[#0B1526]"
-                          />
+                        <label key={m.id} className={`flex items-center gap-3 px-4 py-3 cursor-pointer text-sm ${idx !== 0 ? 'border-t border-[#EDEAE2]' : ''} ${selected ? 'bg-[#F7F6F0]' : 'bg-white'}`}>
+                          <input type="radio" checked={selected} onChange={() => setMethod(m.id)} className="accent-[#0B1526]" />
                           <Icon size={15} className="text-[#5B6B82]" />
                           <span className={selected ? 'text-[#0B1526] font-medium' : 'text-[#0B1526]'}>{m.label}</span>
                         </label>
@@ -746,10 +583,7 @@ export default function HostedCheckoutIntegration() {
               )}
 
               {paymentStatus === 'success' && (
-                <Link
-                  href={returnUrl}
-                  className="inline-flex items-center gap-2 bg-[#1F6F4E] hover:bg-[#185C40] text-white text-sm font-medium px-6 py-2.5 transition-colors"
-                >
+                <Link href={returnUrl} className="inline-flex items-center gap-2 bg-[#1F6F4E] hover:bg-[#185C40] text-white text-sm font-medium px-6 py-2.5 transition-colors">
                   <CheckCircle className="w-4 h-4" /> View transaction
                 </Link>
               )}

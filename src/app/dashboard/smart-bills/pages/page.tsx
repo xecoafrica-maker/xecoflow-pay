@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -22,6 +22,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import CreateBillModal from '../components/CreateBillModal';
+import { useSession } from '@/hooks/useSession';
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface PageItem {
@@ -45,42 +46,15 @@ interface PageItem {
 
 export default function SmartBillPages() {
   const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
+
   const [pages, setPages] = useState<PageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // ─── Auth + Merchant State ─────────────────────────────────────────
-  const [merchantData, setMerchantData] = useState<any>(null);
-  const [authChecked, setAuthChecked] = useState(false);
-
-  // ─── Auth Guard — same pattern as PayBill / transactions page ──────
-  useEffect(() => {
-    let storedMerchant: any = null;
-    let id = '';
-
-    try {
-      const stored = localStorage.getItem('merchant');
-      if (stored) {
-        storedMerchant = JSON.parse(stored);
-        id = String(storedMerchant.merchant_id || storedMerchant.merchantId || '');
-      }
-    } catch (e) {
-      console.error('Failed to parse merchant data', e);
-    }
-
-    if (!storedMerchant || !id) {
-      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
-      router.push('/login?session=expired');
-      return;
-    }
-
-    setMerchantData(storedMerchant);
-    setAuthChecked(true);
-  }, [router]);
-
-  // ─── Fetch Bills & Products ──────────────────────────────────────
-  const fetchPages = async (merchantId: string) => {
+  // ─── Fetch Bills & Products Securely ─────────────────────────────
+  const fetchPages = useCallback(async (merchantId: string) => {
     if (!merchantId) {
       setLoading(false);
       return;
@@ -90,6 +64,7 @@ export default function SmartBillPages() {
       // ─── Fetch Bills ──────────────────────────────────────────────
       const billsRes = await fetch(`/api/bills/merchant?merchantId=${merchantId}`, {
         credentials: 'include',
+        cache: 'no-store',
       });
       const billsData = await billsRes.json();
       const bills = (billsData.data || [])
@@ -101,12 +76,13 @@ export default function SmartBillPages() {
           link_type: b.link_type || 'payment',
         }));
 
-      // ─── Fetch Products ────────────────────────────────────────────
-      const allBillsRes = await fetch(`/api/bills/merchant?merchantId=${merchantId}`, {
+      // ─── Fetch Products ───────────────────────────────────────────
+      const productsRes = await fetch(`/api/bills/merchant?merchantId=${merchantId}`, {
         credentials: 'include',
+        cache: 'no-store',
       });
-      const allBillsData = await allBillsRes.json();
-      const products = (allBillsData.data || [])
+      const productsData = await productsRes.json();
+      const products = (productsData.data || [])
         .filter((b: any) => b.bill_id?.startsWith('PROD-'))
         .map((b: any) => ({
           ...b,
@@ -122,22 +98,18 @@ export default function SmartBillPages() {
 
       setPages(allPages);
     } catch (error) {
-      console.error('Error fetching pages:', error);
+      // Silent fail — UI already shows empty state
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // ─── Trigger fetch once auth is confirmed ──────────────────────────
+  // Load data once session is ready
   useEffect(() => {
-    if (!authChecked || !merchantData) return;
-    const id = String(merchantData.merchant_id || merchantData.merchantId || '');
-    if (id) {
-      fetchPages(id);
-    } else {
-      setLoading(false);
+    if (!sessionLoading && user?.merchantId) {
+      fetchPages(user.merchantId);
     }
-  }, [authChecked, merchantData]);
+  }, [sessionLoading, user?.merchantId, fetchPages]);
 
   const filteredPages = pages.filter(
     (page) =>
@@ -247,13 +219,17 @@ export default function SmartBillPages() {
     return `/pay/${page.description || page.page_id}`;
   };
 
-  // ─── Auth Loading Screen ───────────────────────────────────────────
-  if (!authChecked) {
+  // ─── Loading / Auth states ───────────────────────────────────────
+  if (sessionLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
       </div>
     );
+  }
+
+  if (!user) {
+    return null; // useSession already redirects
   }
 
   if (loading) {
@@ -264,10 +240,10 @@ export default function SmartBillPages() {
     );
   }
 
+  // ─── Render ──────────────────────────────────────────────────────
   return (
-    <div className="max-w-[1400px] mx-auto">
-
-      {/* ─── TOP BAR ────────────────────────────────────────────────── */}
+    <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
+      {/* TOP BAR */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Pages</h1>
@@ -283,7 +259,7 @@ export default function SmartBillPages() {
         </button>
       </div>
 
-      {/* ─── FILTERS & SEARCH ──────────────────────────────────────── */}
+      {/* FILTERS & SEARCH */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 shadow-sm">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex items-center gap-2">
@@ -291,7 +267,7 @@ export default function SmartBillPages() {
             <span className="text-sm font-medium text-gray-600">Filters</span>
           </div>
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
               type="text"
               placeholder="Search pages"
@@ -303,7 +279,7 @@ export default function SmartBillPages() {
         </div>
       </div>
 
-      {/* ─── TABLE ──────────────────────────────────────────────────── */}
+      {/* TABLE */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -334,19 +310,14 @@ export default function SmartBillPages() {
                   const statusInfo = getStatusDisplay(page.status);
                   return (
                     <tr key={page.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors group">
-
                       {/* Status Dot */}
-                      <td className="px-6 py-4">
-                        {getStatusDot(page.status)}
-                      </td>
+                      <td className="px-6 py-4">{getStatusDot(page.status)}</td>
 
                       {/* Name */}
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
                           <span className="font-medium text-gray-900">
-                            {page.page_type === 'product'
-                              ? page.description || page.customer_name
-                              : page.customer_name}
+                            {page.page_type === 'product' ? page.description || page.customer_name : page.customer_name}
                           </span>
                           <span className="text-xs text-gray-400">{page.page_id}</span>
                         </div>
@@ -354,33 +325,21 @@ export default function SmartBillPages() {
 
                       {/* Type */}
                       <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                            page.page_type === 'product'
-                              ? 'border-purple-200 text-purple-700 bg-purple-50'
-                              : 'border-gray-200 text-gray-600 bg-white'
-                          }`}
-                        >
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${page.page_type === 'product' ? 'border-purple-200 text-purple-700 bg-purple-50' : 'border-gray-200 text-gray-600 bg-white'}`}>
                           {getTypeIcon(page.page_type)}
                           {getTypeLabel(page.page_type)}
                         </span>
                       </td>
 
                       {/* Amount */}
-                      <td className="px-6 py-4 text-gray-900">
-                        {formatCurrency(Number(page.amount))}
-                      </td>
+                      <td className="px-6 py-4 text-gray-900">{formatCurrency(Number(page.amount))}</td>
 
                       {/* Created */}
-                      <td className="px-6 py-4 text-gray-500">
-                        {formatDate(page.created_at)}
-                      </td>
+                      <td className="px-6 py-4 text-gray-500">{formatDate(page.created_at)}</td>
 
                       {/* Status */}
                       <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusInfo.color}`}
-                        >
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusInfo.color}`}>
                           {statusInfo.icon}
                           {statusInfo.label}
                         </span>
@@ -388,15 +347,10 @@ export default function SmartBillPages() {
 
                       {/* Link Preview */}
                       <td className="px-6 py-4">
-                        <Link
-                          href={getPreviewUrl(page)}
-                          target="_blank"
-                          className="text-indigo-600 hover:text-indigo-700 hover:underline text-sm font-medium flex items-center gap-1 w-fit"
-                        >
+                        <Link href={getPreviewUrl(page)} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-700 hover:underline text-sm font-medium flex items-center gap-1 w-fit">
                           Preview <ExternalLink className="w-3 h-3" />
                         </Link>
                       </td>
-
                     </tr>
                   );
                 })
@@ -406,11 +360,8 @@ export default function SmartBillPages() {
         </div>
       </div>
 
-      {/* ─── Creation Modal ─────────────────────────────────────────── */}
-      <CreateBillModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
+      {/* Creation Modal */}
+      <CreateBillModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </div>
   );
 }

@@ -1,9 +1,8 @@
-// src/app/(dashboard)/transaction-fee/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Smartphone, Send, Wallet, Info, Loader2, Radio, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { Smartphone, Send, Wallet, Info, Radio, AlertCircle } from 'lucide-react';
+import { useSession } from '@/hooks/useSession';
 
 // ─── Types ──────────────────────────────────────────────────────────
 interface FeeTier {
@@ -46,7 +45,6 @@ const B2C_FEES: FeeTier[] = [
   { range: 'KES 250,000+', fee: '2%' },
 ];
 
-// Bulk airtime — charged per top-up, tiered by volume of the batch.
 const BULK_AIRTIME_FEES: FeeTier[] = [
   { range: 'KES 1 – 99', fee: '2.0%' },
   { range: 'KES 100 – 499', fee: '1.5%' },
@@ -93,7 +91,7 @@ function FeeCard({ schedule }: { schedule: FeeSchedule }) {
       <header className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-900 dark:bg-white/10">
-            <Icon className="h-4 w-4 text-white" strokeWidth={1.75} />
+            <Icon className="h-4 w-4 text-white" strokeWidth={1.75} aria-hidden="true" />
           </span>
           <div>
             <h3 className="text-[15px] font-semibold leading-tight text-slate-900 dark:text-white">
@@ -131,44 +129,25 @@ function FeeCard({ schedule }: { schedule: FeeSchedule }) {
 
 // ─── Main Page ──────────────────────────────────────────────────────
 export default function TransactionFeePage() {
-  const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
   const [activeTab, setActiveTab] = useState<'stk' | 'b2c' | 'airtime'>('b2c');
-  const [authChecked, setAuthChecked] = useState(false);
 
-  // Auth guard — read merchant from localStorage (same pattern as transactions page)
-  useEffect(() => {
-    let storedMerchant: any = null;
-    let id = '';
+  const visibleSchedules = SCHEDULES.filter((s) => s.key === activeTab);
 
-    try {
-      const stored = localStorage.getItem('merchant');
-      if (stored) {
-        storedMerchant = JSON.parse(stored);
-        id = String(storedMerchant.merchant_id || storedMerchant.merchantId || '');
-      }
-    } catch (e) {
-      console.error('Failed to parse merchant data', e);
-    }
-
-    if (!storedMerchant || !id) {
-      console.warn('No merchant found in localStorage, redirecting to login');
-      router.push('/login?session=expired');
-      return;
-    }
-
-    setAuthChecked(true);
-  }, [router]);
-
-  if (!authChecked) {
+  // ─── Loading / Auth states ───────────────────────────────────────
+  if (sessionLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-[#0a1730]">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-teal-600" role="status" aria-label="Loading pricing information" />
       </div>
     );
   }
 
-  const visibleSchedules = SCHEDULES.filter((s) => s.key === activeTab);
+  if (!user) {
+    return null; // useSession already redirects
+  }
 
+  // ─── Render ──────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0a1730]">
       {/* Landscape-oriented shell: wide max-width, content spans in rows rather than a tall stack */}
@@ -186,7 +165,7 @@ export default function TransactionFeePage() {
           </div>
 
           {/* Tabs */}
-          <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-[#0d1b32]">
+          <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-[#0d1b32]" role="tablist" aria-label="Transaction type filter">
             {(
               [
                 { id: 'b2c', label: 'B2C' },
@@ -197,6 +176,9 @@ export default function TransactionFeePage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                aria-controls={`${tab.id}-panel`}
                 className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
                   activeTab === tab.id
                     ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
@@ -210,8 +192,8 @@ export default function TransactionFeePage() {
         </div>
 
         {/* Info banner */}
-        <div className="mb-4 flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-[#0d1b32]">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+        <div className="mb-4 flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-[#0d1b32]" role="note">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
           <p className="text-sm text-slate-600 dark:text-slate-400">
             Fees are deducted from your settlement balance and are inclusive of applicable taxes.
             Bulk airtime is billed per top-up as a percentage of the recharge value. Contact support
@@ -220,15 +202,15 @@ export default function TransactionFeePage() {
         </div>
 
         {/* Independent notice — failed transactions */}
-        <div className="mb-6 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-900/50 dark:bg-emerald-950/30">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <div className="mb-6 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-900/50 dark:bg-emerald-950/30" role="note">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
           <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
             Failed transactions are not charged.
           </p>
         </div>
 
         {/* Fee schedules — single column */}
-        <div className="grid grid-cols-1 gap-5">
+        <div className="grid grid-cols-1 gap-5" id={`${activeTab}-panel`} role="tabpanel" aria-labelledby={`${activeTab}-tab`}>
           {visibleSchedules.map((schedule) => (
             <FeeCard key={schedule.key} schedule={schedule} />
           ))}
@@ -236,7 +218,7 @@ export default function TransactionFeePage() {
 
         {/* Footer note */}
         <div className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-slate-500">
-          <Wallet className="h-3.5 w-3.5" />
+          <Wallet className="h-3.5 w-3.5" aria-hidden="true" />
           <span>All fees are in Kenyan Shillings (KES). Rates subject to change without notice.</span>
         </div>
       </div>

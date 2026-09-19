@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Package,
@@ -23,12 +23,28 @@ import {
   Clock,
   Settings,
 } from 'lucide-react';
+import { useSession } from '@/hooks/useSession';
+
+// ─── Helper Functions ──────────────────────────────────────────────
+function getExpiryDays(selection: string): number {
+  const map: Record<string, number> = {
+    '1 Hour': 1 / 24,
+    '6 Hours': 6 / 24,
+    '24 Hours': 1,
+    '3 Days': 3,
+    '7 Days': 7,
+    '30 Days': 30,
+    'Never': 3650,
+  };
+  return map[selection] || 7;
+}
 
 export default function CreateProductLinkPage() {
   const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // ─── Form State ──────────────────────────────────────────────────────
+  // ─── Form State ──────────────────────────────────────────────────
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [fulfillmentType, setFulfillmentType] = useState<string>('digital');
@@ -36,10 +52,10 @@ export default function CreateProductLinkPage() {
   const [digitalFileName, setDigitalFileName] = useState<string>('');
   const [linkExpiry, setLinkExpiry] = useState('24 Hours');
 
-  // ─── Advanced Options ──────────────────────────────────────────────
+  // ── Advanced Options ────────────────────────────────────────────
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // ─── Generation State ──────────────────────────────────────────────
+  // ─── Generation State ───────────────────────────────────────────
   const [isGenerating, setIsGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
   const [productLink, setProductLink] = useState('');
@@ -47,43 +63,14 @@ export default function CreateProductLinkPage() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ─── Auth + Merchant State ─────────────────────────────────────────
-  const [merchantData, setMerchantData] = useState<any>(null);
-  const [authChecked, setAuthChecked] = useState(false);
-
-  // ─── Auth Guard — same pattern as PayBill / transactions page ──────
+  // ─── Auto-focus on mount ─────────────────────────────────────────
   useEffect(() => {
-    let storedMerchant: any = null;
-    let id = '';
-
-    try {
-      const stored = localStorage.getItem('merchant');
-      if (stored) {
-        storedMerchant = JSON.parse(stored);
-        id = String(storedMerchant.merchant_id || storedMerchant.merchantId || '');
-      }
-    } catch (e) {
-      console.error('Failed to parse merchant data', e);
-    }
-
-    if (!storedMerchant || !id) {
-      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
-      router.push('/login?session=expired');
-      return;
-    }
-
-    setMerchantData(storedMerchant);
-    setAuthChecked(true);
-  }, [router]);
-
-  // ─── Auto-focus on mount ──────────────────────────────────────────
-  useEffect(() => {
-    if (authChecked) {
+    if (!sessionLoading && user) {
       setTimeout(() => nameInputRef.current?.focus(), 200);
     }
-  }, [authChecked]);
+  }, [sessionLoading, user]);
 
-  // ─── Handle Digital File Upload ──────────────────────────────────
+  // ─── Handle Digital File Upload ─────────────────────────────────
   const handleDigitalFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -102,22 +89,10 @@ export default function CreateProductLinkPage() {
     setDigitalFileName('');
   };
 
-  // ─── Get expiry days from selection ──────────────────────────────
-  const getExpiryDays = (selection: string): number => {
-    const map: Record<string, number> = {
-      '1 Hour': 1 / 24,
-      '6 Hours': 6 / 24,
-      '24 Hours': 1,
-      '3 Days': 3,
-      '7 Days': 7,
-      '30 Days': 30,
-      'Never': 3650,
-    };
-    return map[selection] || 7;
-  };
-
-  // ─── Generate Product Link ──────────────────────────────────────────
+  // ─── Generate Product Link ───────────────────────────────────────
   const handleGenerate = async () => {
+    if (!user?.merchantId) return;
+
     if (!name.trim()) {
       setError('Product name is required');
       nameInputRef.current?.focus();
@@ -138,14 +113,12 @@ export default function CreateProductLinkPage() {
     setError(null);
 
     try {
-      const merchantId = merchantData?.merchant_id || merchantData?.merchantId;
-
-      // ─── Upload digital file ──────────────────────────────────────
+      // ─── Upload digital file ─────────────────────────────────────
       let fileUrl = '';
       if (digitalFile) {
         const formData = new FormData();
         formData.append('file', digitalFile);
-        formData.append('merchantId', String(merchantId));
+        formData.append('merchantId', String(user.merchantId));
 
         const uploadRes = await fetch('/api/products/upload', {
           method: 'POST',
@@ -161,19 +134,17 @@ export default function CreateProductLinkPage() {
         }
       }
 
-      // ─── Create Product Link ──────────────────────────────────────
+      // ─── Create Product Link ─────────────────────────────────────
       const createRes = await fetch('/api/product-links', {
         method: 'POST',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          merchantId: merchantId,
+          merchantId: user.merchantId,
           name: name.trim(),
           price: parseFloat(price),
-          fulfillmentType: fulfillmentType,
-          fileUrl: fileUrl,
+          fulfillmentType,
+          fileUrl,
           fileName: digitalFileName,
           expiryDays: getExpiryDays(linkExpiry),
         }),
@@ -193,8 +164,8 @@ export default function CreateProductLinkPage() {
       await navigator.clipboard.writeText(link);
       setCopied(true);
 
-    } catch (error: any) {
-      setError(error.message || 'Failed to create product link');
+    } catch (err: any) {
+      setError(err.message || 'Failed to create product link');
     } finally {
       setIsGenerating(false);
     }
@@ -209,15 +180,15 @@ export default function CreateProductLinkPage() {
   const shareToWhatsApp = () => {
     if (!productLink) return;
     window.open(
-      `https://wa.me/?text=${encodeURIComponent(`🛍️ Check this out!\n${productLink}`)}`,
+      `https://wa.me/?text=${encodeURIComponent(`️ Check this out!\n${productLink}`)}`,
       '_blank'
     );
   };
 
   const isFormValid = name.trim() && price && parseFloat(price) > 0 && digitalFile;
 
-  // ─── Auth Loading Screen ───────────────────────────────────────────
-  if (!authChecked) {
+  // ─── Loading / Auth states ───────────────────────────────────────
+  if (sessionLoading) {
     return (
       <div className="min-h-[400px] flex items-center justify-center">
         <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
@@ -225,108 +196,65 @@ export default function CreateProductLinkPage() {
     );
   }
 
+  if (!user) {
+    return null; // useSession already redirects
+  }
+
+  // ─── Render ──────────────────────────────────────────────────────
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* ─── Page Header ────────────────────────────────────────────── */}
+    <div className="max-w-2xl mx-auto space-y-6 px-4 sm:px-6">
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Create Product Link</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Sell digital files with a single reusable link
-        </p>
+        <p className="text-sm text-gray-500 mt-1">Sell digital files with a single reusable link</p>
       </div>
 
-      {/* ─── Error Message ───────────────────────────────────────────── */}
+      {/* Error Message */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-          <div className="flex-1">
-            <p className="text-sm text-red-700">{error}</p>
-          </div>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex-1"><p className="text-sm text-red-700">{error}</p></div>
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700"><X className="w-4 h-4" /></button>
         </div>
       )}
 
-      {/* ─── Form ────────────────────────────────────────────────────── */}
+      {/* Form */}
       <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-5">
-
-        {/* ─── 1. Product Name ───────────────────────────────────────── */}
+        {/* Product Name */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Product Name <span className="text-red-500">*</span>
-          </label>
-          <input
-            ref={nameInputRef}
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Professional CV Writing"
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-            onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
-          />
+          <label className="block text-sm font-medium text-gray-700 mb-1">Product Name <span className="text-red-500">*</span></label>
+          <input ref={nameInputRef} type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Professional CV Writing" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none" onKeyDown={(e) => e.key === 'Enter' && handleGenerate()} />
         </div>
 
-        {/* ─── 2. Price ───────────────────────────────────────────────── */}
+        {/* Price */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Price (KES) <span className="text-red-500">*</span>
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Price (KES) <span className="text-red-500">*</span></label>
           <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">
-              KES
-            </span>
-            <input
-              type="number"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              placeholder="2,500"
-              className="w-full pl-14 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-              min="1"
-              step="1"
-              onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
-            />
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">KES</span>
+            <input type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="2,500" className="w-full pl-14 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none" min="1" step="1" onKeyDown={(e) => e.key === 'Enter' && handleGenerate()} />
           </div>
         </div>
 
-        {/* ─── 3. Fulfillment Type ───────────────────────────────────── */}
+        {/* Fulfillment Type */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Fulfillment Type
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Fulfillment Type</label>
           <div className="grid grid-cols-1 max-w-[200px]">
-            <button
-              onClick={() => setFulfillmentType('digital')}
-              className={`px-4 py-3 rounded-xl border text-center transition-all ${
-                fulfillmentType === 'digital'
-                  ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500/20'
-                  : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
-              }`}
-            >
+            <button onClick={() => setFulfillmentType('digital')} className={`px-4 py-3 rounded-xl border text-center transition-all ${fulfillmentType === 'digital' ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500/20' : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>
               <div className="text-sm font-medium">📄 Digital File</div>
               <div className="text-[10px] text-gray-400">Instant download</div>
             </button>
           </div>
         </div>
 
-        {/* ─── Digital File Upload ───────────────────────────────────── */}
+        {/* Digital File Upload */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Digital File <span className="text-red-500">*</span>
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Digital File <span className="text-red-500">*</span></label>
           {!digitalFile ? (
             <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-indigo-400 transition-colors cursor-pointer relative">
-              <input
-                type="file"
-                onChange={handleDigitalFileChange}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.txt,.zip"
-              />
+              <input type="file" onChange={handleDigitalFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.txt,.zip" />
               <div className="flex flex-col items-center gap-2 pointer-events-none">
                 <File className="w-10 h-10 text-gray-400" />
                 <p className="text-sm text-gray-600">Upload your digital file</p>
-                <p className="text-xs text-gray-400">
-                  PDF, DOCX, XLSX, Images, ZIP (Max 25MB)
-                </p>
+                <p className="text-xs text-gray-400">PDF, DOCX, XLSX, Images, ZIP (Max 25MB)</p>
               </div>
             </div>
           ) : (
@@ -335,52 +263,25 @@ export default function CreateProductLinkPage() {
                 <FileText className="w-8 h-8 text-indigo-600" />
                 <div>
                   <p className="text-sm font-medium text-gray-800">{digitalFileName}</p>
-                  <p className="text-xs text-gray-500">
-                    {(digitalFile.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
+                  <p className="text-xs text-gray-500">{(digitalFile.size / 1024 / 1024).toFixed(2)} MB</p>
                 </div>
               </div>
-              <button
-                onClick={removeDigitalFile}
-                className="p-2 hover:bg-indigo-100 rounded-lg transition-colors text-gray-500 hover:text-red-500"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <button onClick={removeDigitalFile} className="p-2 hover:bg-indigo-100 rounded-lg transition-colors text-gray-500 hover:text-red-500"><X className="w-4 h-4" /></button>
             </div>
           )}
-          <p className="text-xs text-gray-400 mt-1">
-            Customers will download this file after payment
-          </p>
+          <p className="text-xs text-gray-400 mt-1">Customers will download this file after payment</p>
         </div>
 
-        {/* ─── ⚙️ Advanced Options ───────────────────────────────────── */}
+        {/* Advanced Options */}
         <div>
-          <button
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            <Settings className="w-4 h-4" />
-            Advanced Options
-            {showAdvanced ? (
-              <ChevronUp className="w-4 h-4" />
-            ) : (
-              <ChevronDown className="w-4 h-4" />
-            )}
+          <button onClick={() => setShowAdvanced(!showAdvanced)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+            <Settings className="w-4 h-4" /> Advanced Options {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
-
           {showAdvanced && (
             <div className="mt-3 p-4 bg-gray-50 rounded-xl space-y-4 border border-gray-200">
-              {/* Link Expiry */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-gray-400" />
-                  Link Expiry
-                </label>
-                <select
-                  value={linkExpiry}
-                  onChange={(e) => setLinkExpiry(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-                >
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2"><Clock className="w-4 h-4 text-gray-400" /> Link Expiry</label>
+                <select value={linkExpiry} onChange={(e) => setLinkExpiry(e.target.value)} className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none">
                   <option value="1 Hour">1 Hour</option>
                   <option value="6 Hours">6 Hours</option>
                   <option value="24 Hours">24 Hours</option>
@@ -389,106 +290,39 @@ export default function CreateProductLinkPage() {
                   <option value="30 Days">30 Days</option>
                   <option value="Never">Never</option>
                 </select>
-                <p className="text-[10px] text-gray-400 mt-1">
-                  How long the link will remain active for customers
-                </p>
+                <p className="text-[10px] text-gray-400 mt-1">How long the link will remain active for customers</p>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* ─── Generate Button ─────────────────────────────────────────── */}
-      <button
-        onClick={handleGenerate}
-        disabled={!isFormValid || isGenerating}
-        className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed text-white rounded-xl font-semibold text-base transition-all shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2"
-      >
-        {isGenerating ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Creating...
-          </>
-        ) : (
-          <>
-            <Rocket className="w-5 h-5" />
-            Generate Link & Copy
-          </>
-        )}
+      {/* Generate Button */}
+      <button onClick={handleGenerate} disabled={!isFormValid || isGenerating} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed text-white rounded-xl font-semibold text-base transition-all shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2">
+        {isGenerating ? <><Loader2 className="w-5 h-5 animate-spin" /> Creating...</> : <><Rocket className="w-5 h-5" /> Generate Link & Copy</>}
       </button>
 
-      {/* ─── Success State ───────────────────────────────────────────── */}
+      {/* Success State */}
       {generated && productLink && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-center animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="w-8 h-8 text-emerald-600" />
-          </div>
+          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle className="w-8 h-8 text-emerald-600" /></div>
           <h3 className="text-lg font-bold text-gray-900">🎉 Link Created!</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            Share this link with your customers
-          </p>
-
+          <p className="text-sm text-gray-500 mt-1">Share this link with your customers</p>
           <div className="mt-4 bg-white rounded-xl p-3 flex items-center gap-2 border border-emerald-200">
-            <input
-              type="text"
-              value={productLink}
-              readOnly
-              className="flex-1 bg-transparent text-sm text-gray-700 focus:outline-none"
-            />
-            <button
-              onClick={copyToClipboard}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              {copied ? (
-                <Check className="w-4 h-4 text-emerald-500" />
-              ) : (
-                <Copy className="w-4 h-4 text-gray-500" />
-              )}
-            </button>
+            <input type="text" value={productLink} readOnly className="flex-1 bg-transparent text-sm text-gray-700 focus:outline-none" />
+            <button onClick={copyToClipboard} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">{copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4 text-gray-500" />}</button>
           </div>
-          {copied && (
-            <p className="text-xs text-emerald-600 mt-1">✅ Copied to clipboard!</p>
-          )}
-
+          {copied && <p className="text-xs text-emerald-600 mt-1">✅ Copied to clipboard!</p>}
           <div className="mt-4 flex flex-col sm:flex-row gap-2">
-            <button
-              onClick={shareToWhatsApp}
-              className="flex-1 py-2.5 bg-[#25D366] hover:bg-[#1DA851] text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all"
-            >
-              <Share2 className="w-4 h-4" />
-              Share to WhatsApp
-            </button>
-            <button
-              onClick={() => window.open(productLink, '_blank')}
-              className="flex-1 py-2.5 border border-gray-200 hover:bg-gray-50 rounded-lg text-sm font-medium text-gray-700 flex items-center justify-center gap-2 transition-all"
-            >
-              <Eye className="w-4 h-4" />
-              View Page
-            </button>
-            <button
-              onClick={() => {
-                setGenerated(false);
-                setProductLink('');
-                setName('');
-                setPrice('');
-                setDigitalFile(null);
-                setDigitalFileName('');
-                setCopied(false);
-                setShowAdvanced(false);
-                setTimeout(() => nameInputRef.current?.focus(), 100);
-              }}
-              className="py-2.5 px-4 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              Create Another
-            </button>
+            <button onClick={shareToWhatsApp} className="flex-1 py-2.5 bg-[#25D366] hover:bg-[#1DA851] text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all"><Share2 className="w-4 h-4" /> Share to WhatsApp</button>
+            <button onClick={() => window.open(productLink, '_blank')} className="flex-1 py-2.5 border border-gray-200 hover:bg-gray-50 rounded-lg text-sm font-medium text-gray-700 flex items-center justify-center gap-2 transition-all"><Eye className="w-4 h-4" /> View Page</button>
+            <button onClick={() => { setGenerated(false); setProductLink(''); setName(''); setPrice(''); setDigitalFile(null); setDigitalFileName(''); setCopied(false); setShowAdvanced(false); setTimeout(() => nameInputRef.current?.focus(), 100); }} className="py-2.5 px-4 text-sm text-gray-500 hover:text-gray-700 transition-colors">Create Another</button>
           </div>
         </div>
       )}
 
-      {/* ─── Footer ───────────────────────────────────────────────────── */}
-      <p className="text-xs text-gray-400 text-center">
-        🔒 Secure by XecoFlow · Instant payment via M-PESA
-      </p>
+      {/* Footer */}
+      <p className="text-xs text-gray-400 text-center">🔒 Secure by XecoFlow · Instant payment via M-PESA</p>
     </div>
   );
 }

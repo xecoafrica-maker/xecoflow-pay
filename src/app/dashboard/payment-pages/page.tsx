@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -16,7 +16,7 @@ import {
   Loader2,
   Calendar,
 } from 'lucide-react';
-import { getStoredMerchant, getToken } from '@/lib/auth';
+import { useSession } from '@/hooks/useSession';
 
 interface PaymentPage {
   id: string;
@@ -34,33 +34,42 @@ interface PaymentPage {
 
 export default function PaymentPagesList() {
   const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
+
   const [pages, setPages] = useState<PaymentPage[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const merchantData = getStoredMerchant();
+  // ── Fetch Payment Pages Securely ────────────────────────────────
+  const fetchPages = useCallback(async () => {
+    if (!user?.merchantId) return;
 
-  useEffect(() => {
-    fetchPages();
-  }, []);
-
-  const fetchPages = async () => {
     try {
-      const token = getToken();
       const response = await fetch('/api/payment-pages', {
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
+        cache: 'no-store',
       });
       const data = await response.json();
       if (data.success) {
         setPages(data.data || []);
       }
     } catch (error) {
-      console.error('Error fetching payment pages:', error);
+      // Silent fail — UI already shows empty state
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.merchantId]);
+
+  // Load data once session is ready
+  useEffect(() => {
+    if (!sessionLoading && user?.merchantId) {
+      fetchPages();
+    } else if (!sessionLoading && !user) {
+      // useSession already redirects, but guard against race conditions
+      setLoading(false);
+    }
+  }, [sessionLoading, user?.merchantId, fetchPages]);
 
   const copyToClipboard = async (slug: string) => {
     const link = `${window.location.origin}/pay/${slug}`;
@@ -88,6 +97,19 @@ export default function PaymentPagesList() {
       page.slug.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // ── Loading / Auth states ───────────────────────────────────────
+  if (sessionLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null; // useSession already redirects
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -96,9 +118,10 @@ export default function PaymentPagesList() {
     );
   }
 
+  // ─── Render ──────────────────────────────────────────────────────
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* ─── Header ───────────────────────────────────────────────────── */}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Payment Pages</h1>
@@ -108,30 +131,31 @@ export default function PaymentPagesList() {
           onClick={() => router.push('/dashboard/payment-pages/create')}
           className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-sm shadow-indigo-200"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4" aria-hidden="true" />
           Create Payment Page
         </button>
       </div>
 
-      {/* ─── Search ───────────────────────────────────────────────────── */}
+      {/* Search */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 shadow-sm">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" />
           <input
             type="text"
             placeholder="Search payment pages..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            aria-label="Search payment pages"
             className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
           />
         </div>
       </div>
 
-      {/* ─── Empty State ─────────────────────────────────────────────── */}
+      {/* Empty State */}
       {filteredPages.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-xl p-12 text-center shadow-sm">
           <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Globe className="w-10 h-10 text-gray-300" />
+            <Globe className="w-10 h-10 text-gray-300" aria-hidden="true" />
           </div>
           <h3 className="text-lg font-medium text-gray-900">No payment pages yet</h3>
           <p className="text-sm text-gray-500 mt-1">Create your first payment page to accept payments</p>
@@ -139,35 +163,23 @@ export default function PaymentPagesList() {
             onClick={() => router.push('/dashboard/payment-pages/create')}
             className="mt-4 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-all inline-flex items-center gap-2"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4" aria-hidden="true" />
             Create Payment Page
           </button>
         </div>
       ) : (
-        // ─── Table ─────────────────────────────────────────────────────
+        /* Table */
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50/50">
-                  <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created
-                  </th>
-                  <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Payments
-                  </th>
-                  <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payments</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -176,7 +188,7 @@ export default function PaymentPagesList() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
-                          <CreditCard className="w-4 h-4" />
+                          <CreditCard className="w-4 h-4" aria-hidden="true" />
                         </div>
                         <div>
                           <p className="font-medium text-gray-900">{page.name}</p>
@@ -191,15 +203,11 @@ export default function PaymentPagesList() {
                         <span className="text-gray-500 text-xs bg-gray-100 px-2 py-0.5 rounded-full">Open</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-gray-500 text-sm">
-                      {formatDate(page.createdAt)}
-                    </td>
+                    <td className="px-6 py-4 text-gray-500 text-sm">{formatDate(page.createdAt)}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-900">{page.totalPayments || 0}</span>
-                        <span className="text-xs text-gray-400">
-                          ({formatCurrency(page.totalAmount || 0)})
-                        </span>
+                        <span className="text-xs text-gray-400">({formatCurrency(page.totalAmount || 0)})</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -213,27 +221,31 @@ export default function PaymentPagesList() {
                           onClick={() => copyToClipboard(page.slug)}
                           className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600"
                           title="Copy link"
+                          aria-label={`Copy link for ${page.name}`}
                         >
                           {copiedId === page.slug ? (
-                            <Check className="w-4 h-4 text-emerald-500" />
+                            <Check className="w-4 h-4 text-emerald-500" aria-hidden="true" />
                           ) : (
-                            <Copy className="w-4 h-4" />
+                            <Copy className="w-4 h-4" aria-hidden="true" />
                           )}
                         </button>
                         <Link
                           href={`/pay/${page.slug}`}
                           target="_blank"
+                          rel="noopener noreferrer"
                           className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600"
                           title="View page"
+                          aria-label={`View ${page.name}`}
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-4 h-4" aria-hidden="true" />
                         </Link>
                         <Link
                           href={`/dashboard/payment-pages/${page.id}/edit`}
                           className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600"
                           title="Edit"
+                          aria-label={`Edit ${page.name}`}
                         >
-                          <MoreHorizontal className="w-4 h-4" />
+                          <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
                         </Link>
                       </div>
                     </td>
