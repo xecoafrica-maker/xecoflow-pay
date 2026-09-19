@@ -1,21 +1,3 @@
-// src/app/api/auth/otp-context/route.ts
-//
-// Returns the masked email and expiry timestamp for the in-flight OTP
-// session.
-//
-// Why this exists:
-//   The xeco_otp cookie is HttpOnly — JavaScript cannot read it. So the
-//   verify-otp page cannot know which email the code was sent to, or
-//   when it expires. This BFF route reads the cookie server-side,
-//   forwards it to the auth-engine, and returns only the two display
-//   values the page needs.
-//
-// Contract:
-//   Request:  GET, xeco_otp cookie sent automatically by the browser
-//   Response (200): { maskedEmail: string, expiresAt: number }
-//   Response (401): { success: false, code: 'OTP_NOT_FOUND' }
-//   Response (500): { success: false, code: 'INVALID_REQUEST' }
-
 import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL =
@@ -56,9 +38,6 @@ export async function GET(request: NextRequest) {
 
     clearTimeout(timeoutId);
 
-    // Any 4xx from the auth-engine means the OTP session is not usable.
-    // Collapse to a single 401 for the browser so the page redirects
-    // to /login regardless of the underlying reason.
     if (backendResponse.status >= 400 && backendResponse.status < 500) {
       return NextResponse.json(
         { success: false, code: 'OTP_NOT_FOUND' },
@@ -75,12 +54,11 @@ export async function GET(request: NextRequest) {
 
     const contentType = backendResponse.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      throw new Error(`Expected JSON from backend, got ${contentType}`);
+      throw new Error('Expected JSON from backend');
     }
 
     const raw = await backendResponse.json();
 
-    // Only allow the two fields we expect. Everything else is dropped.
     const maskedEmail =
       typeof raw?.maskedEmail === 'string' ? raw.maskedEmail : null;
     const expiresAt = typeof raw?.expiresAt === 'number' ? raw.expiresAt : null;

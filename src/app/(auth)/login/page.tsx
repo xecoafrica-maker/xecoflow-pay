@@ -17,11 +17,9 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
-// ─── Constants ──────────────────────────────────────────────────────
 const MAX_LOGIN_ATTEMPTS_UX = 5;
 const TOAST_DURATION = 5000;
 
-// ─── Types ──────────────────────────────────────────────────────────
 type ToastType = 'error' | 'warning' | 'info' | 'success';
 
 interface ToastItem {
@@ -31,7 +29,6 @@ interface ToastItem {
   message: string;
 }
 
-// ─── Toast Component ────────────────────────────────────────────────
 function Toast({
   type,
   title,
@@ -45,7 +42,6 @@ function Toast({
 }) {
   const [isExiting, setIsExiting] = useState(false);
 
-  // Replaced incorrect useState with useEffect for proper timer cleanup
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsExiting(true);
@@ -90,7 +86,12 @@ function Toast({
   };
 
   const style = styles[type];
-  const Icon = type === 'success' ? CheckCircle2 : type === 'error' ? AlertTriangle : AlertCircle;
+  const Icon =
+    type === 'success'
+      ? CheckCircle2
+      : type === 'error'
+      ? AlertTriangle
+      : AlertCircle;
 
   return (
     <div
@@ -125,34 +126,32 @@ function Toast({
   );
 }
 
-// ─── Main Component ─────────────────────────────────────────────────
 export default function LoginPage() {
   const router = useRouter();
 
-  // Form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Validation / errors
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [formError, setFormError] = useState('');
 
-  // In-memory UX lockout state. Server enforces actual lockout.
+  // UX-only counter. Server is the source of truth for lockout.
   const [failedAttempts, setFailedAttempts] = useState(0);
 
-  // Toasts
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const toastId = useRef(0);
 
-  // ─── Helpers ──────────────────────────────────────────────────────
-  const showToast = useCallback((type: ToastType, title: string, message: string) => {
-    const id = String(++toastId.current);
-    setToasts((prev) => [...prev, { id, type, title, message }]);
-  }, []);
+  const showToast = useCallback(
+    (type: ToastType, title: string, message: string) => {
+      const id = String(++toastId.current);
+      setToasts((prev) => [...prev, { id, type, title, message }]);
+    },
+    []
+  );
 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -162,13 +161,16 @@ export default function LoginPage() {
     setFailedAttempts((prev) => {
       const newCount = prev + 1;
       if (newCount >= MAX_LOGIN_ATTEMPTS_UX) {
-        showToast('warning', 'Security Delay', 'Multiple failed attempts. A temporary delay is now active.');
+        showToast(
+          'warning',
+          'Security Delay',
+          'Multiple failed attempts. A temporary delay is now active.'
+        );
       }
       return newCount;
     });
   }, [showToast]);
 
-  // ─── Validation ───────────────────────────────────────────────────
   const validateForm = (): boolean => {
     let valid = true;
     setEmailError('');
@@ -183,7 +185,6 @@ export default function LoginPage() {
       valid = false;
     }
 
-    // no password length check. Server is the sole authority on password validity.
     if (!password) {
       setPasswordError('Password is required');
       valid = false;
@@ -192,7 +193,6 @@ export default function LoginPage() {
     return valid;
   };
 
-  // ─── Submit Handler ───────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -212,7 +212,7 @@ export default function LoginPage() {
           password,
           rememberMe,
         }),
-        credentials: 'include', // Ensures HttpOnly cookies are sent/received
+        credentials: 'include',
       });
 
       const contentType = response.headers.get('content-type') || '';
@@ -225,10 +225,12 @@ export default function LoginPage() {
         data = { message: text || 'An error occurred' };
       }
 
-      // ─── Error Handling ──────────────────────────────────────────
       if (response.status === 429 || response.status === 423) {
         const retryAfter = data.retryAfter || 60;
-        setFormError(data.message || `Too many failed attempts. Please wait ${retryAfter} seconds.`);
+        setFormError(
+          data.message ||
+            `Too many failed attempts. Please wait ${retryAfter} seconds.`
+        );
         setLoading(false);
         return;
       }
@@ -241,45 +243,42 @@ export default function LoginPage() {
 
       if (response.status === 401) {
         handleFailedAttempt();
-        // Generic message prevents user enumeration attacks
-        setFormError('Invalid email or password. Please check your credentials.');
+        setFormError(
+          'Invalid email or password. Please check your credentials.'
+        );
         setLoading(false);
         return;
       }
 
       if (response.status >= 500) {
-        setFormError('We are experiencing technical difficulties. Please try again later.');
+        setFormError(
+          'We are experiencing technical difficulties. Please try again later.'
+        );
         setLoading(false);
         return;
       }
 
-      // ─── Success Handling ────────────────────────────────────────
       if (data.success) {
         setFailedAttempts(0);
-        
+
         if (data.requiresOTP) {
-          // Backend has set the short-lived OTP cookie. Redirect to verify.
           router.push('/verify-otp');
         } else {
-          // Replaced setTimeout hack with clean history-replacing navigation.
-          // Guarantees a fresh application state and proper cookie propagation.
           window.location.replace('/dashboard');
         }
         return;
       }
 
-      // Fallback for unexpected 200 OK without success flag
       setFormError('Unexpected response from server. Please try again.');
-    } catch (err) {
-      // no console.error to prevent potential leakage of request details/PII in production.
-      // Auth failures are logged server-side via the BFF proxy.
-      setFormError('Unable to connect to server. Please check your internet connection.');
+    } catch {
+      setFormError(
+        'Unable to connect to server. Please check your internet connection.'
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  // ─── Render ───────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#0a2540] dark:to-[#0f1f3a] flex items-center justify-center p-4 sm:p-6 md:p-8">
       {toasts.map((t) => (
@@ -293,8 +292,6 @@ export default function LoginPage() {
       ))}
 
       <div className="w-full max-w-[1000px] flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
-        
-        {/* ── LEFT PANEL ── */}
         <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex flex-col justify-between relative overflow-hidden min-h-[420px] lg:min-h-[560px]">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
           <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
@@ -319,7 +316,8 @@ export default function LoginPage() {
               </h2>
 
               <p className="text-slate-400 text-sm sm:text-base max-w-[320px] leading-relaxed">
-                Accept M-PESA, Airtel Money, cards and bank transfers — while XecoFlow automatically handles your cashflow and tax filing.
+                Accept M-PESA, Airtel Money, cards and bank transfers — while
+                XecoFlow automatically handles your cashflow and tax filing.
               </p>
             </div>
 
@@ -329,20 +327,21 @@ export default function LoginPage() {
               </span>
 
               <div className="flex flex-wrap gap-2">
-                {['M-PESA', 'Airtel Money', 'Mastercard', 'Banks'].map((channel) => (
-                  <span
-                    key={channel}
-                    className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 transition-colors"
-                  >
-                    {channel}
-                  </span>
-                ))}
+                {['M-PESA', 'Airtel Money', 'Mastercard', 'Banks'].map(
+                  (channel) => (
+                    <span
+                      key={channel}
+                      className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 transition-colors"
+                    >
+                      {channel}
+                    </span>
+                  )
+                )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── RIGHT PANEL ── */}
         <div className="lg:w-1/2 p-6 sm:p-8 md:p-10 lg:p-12 bg-white dark:bg-[#0f1f3a] flex flex-col justify-center">
           <div className="max-w-sm mx-auto w-full">
             <div className="lg:hidden mb-8">
@@ -362,13 +361,19 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Added role="alert" for screen reader accessibility */}
             {formError && (
-              <div role="alert" className="mb-5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3.5 flex items-start gap-2.5">
+              <div
+                role="alert"
+                className="mb-5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3.5 flex items-start gap-2.5"
+              >
                 <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-red-700 dark:text-red-400">Error</p>
-                  <p className="text-sm text-red-600 dark:text-red-300">{formError}</p>
+                  <p className="text-sm font-medium text-red-700 dark:text-red-400">
+                    Error
+                  </p>
+                  <p className="text-sm text-red-600 dark:text-red-300">
+                    {formError}
+                  </p>
                 </div>
               </div>
             )}
@@ -401,7 +406,6 @@ export default function LoginPage() {
                     required
                     disabled={loading}
                     autoComplete="email"
-                    // Removed autoFocus to prevent aggressive keyboard pop-up on mobile
                   />
                 </div>
                 {emailError && (
@@ -445,7 +449,6 @@ export default function LoginPage() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2"
                     disabled={loading}
-                    // Added aria-label for screen reader accessibility
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? (
@@ -484,19 +487,24 @@ export default function LoginPage() {
                 </Link>
               </div>
 
-              {/* role="alert" for screen reader accessibility */}
               {failedAttempts > 0 && failedAttempts < MAX_LOGIN_ATTEMPTS_UX && (
-                <div role="alert" className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg">
+                <div
+                  role="alert"
+                  className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg"
+                >
                   <AlertCircle className="w-4 h-4" />
                   <span>
-                    {MAX_LOGIN_ATTEMPTS_UX - failedAttempts} login attempt{MAX_LOGIN_ATTEMPTS_UX - failedAttempts !== 1 ? 's' : ''} remaining before security delay.
+                    {MAX_LOGIN_ATTEMPTS_UX - failedAttempts} login attempt
+                    {MAX_LOGIN_ATTEMPTS_UX - failedAttempts !== 1
+                      ? 's'
+                      : ''}{' '}
+                    attempts remaining before this account is blocked.
                   </span>
                 </div>
               )}
 
               <button
                 type="submit"
-                // password disable condition to allow form validation to provide explicit error feedback
                 disabled={loading}
                 className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/10 flex items-center justify-center gap-2"
               >
@@ -526,11 +534,17 @@ export default function LoginPage() {
               </p>
               <p className="text-center text-xs text-gray-400 dark:text-gray-500">
                 By signing in, you agree to our{' '}
-                <Link href="/terms" className="text-indigo-500 hover:underline">
+                <Link
+                  href="/terms"
+                  className="text-indigo-500 hover:underline"
+                >
                   Terms of Service
                 </Link>{' '}
                 and{' '}
-                <Link href="/privacy" className="text-indigo-500 hover:underline">
+                <Link
+                  href="/privacy"
+                  className="text-indigo-500 hover:underline"
+                >
                   Privacy Policy
                 </Link>
               </p>
@@ -541,8 +555,12 @@ export default function LoginPage() {
 
       <style jsx>{`
         @keyframes shrink {
-          from { width: 100%; }
-          to { width: 0%; }
+          from {
+            width: 100%;
+          }
+          to {
+            width: 0%;
+          }
         }
         .animate-shrink {
           animation: shrink linear forwards;

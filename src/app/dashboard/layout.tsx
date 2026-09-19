@@ -16,21 +16,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sessionExpiring, setSessionExpiring] = useState(false);
   const [sessionTimeLeft, setSessionTimeLeft] = useState(0);
 
-  // ─── Session check ────────────────────────────────────────────────
-  //
-  // Auth state comes from the xeco_session HttpOnly cookie, which the
-  // browser sends automatically on every request to this origin. The
-  // browser does not need to know the token exists — the server does.
-  //
-  // We check two things:
-  //   1. Is the session valid right now? (one call to /api/auth/session)
-  //   2. If yes, keep polling every 30s to catch expiry.
-  //
-  // We do NOT read localStorage. We do NOT redirect based on client
-  // state. The middleware already guards /dashboard at the edge. If we
-  // get here, the middleware saw a session cookie; if the session is
-  // actually expired, the /api/auth/session check below will catch it
-  // and send the user back to /login.
   useEffect(() => {
     let cancelled = false;
 
@@ -38,6 +23,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       try {
         const response = await fetch('/api/auth/session', {
           credentials: 'include',
+          cache: 'no-store',
         });
 
         if (cancelled) return;
@@ -53,7 +39,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           setSessionExpiring(data.sessionInfo.remaining < 60);
         }
       } catch {
-        // Network error — don't redirect, let the next check try again
+        // Network error — keep the current view, retry on next interval.
       } finally {
         if (!cancelled) setIsLoading(false);
       }

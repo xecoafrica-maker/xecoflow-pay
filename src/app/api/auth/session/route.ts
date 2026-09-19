@@ -1,17 +1,3 @@
-// src/app/api/auth/session/route.ts
-//
-// Returns the current user's public profile, sourced from the
-// xeco_session HttpOnly cookie.
-//
-// The client never sees the raw cookie value. The BFF reads it
-// server-side, forwards it to the auth-engine, and returns only the
-// fields the UI needs to render.
-//
-// Contract:
-//   Request:  GET, xeco_session cookie sent automatically
-//   Response (200): { user: {...}, sessionInfo: { remaining: number } }
-//   Response (401): { success: false, code: 'UNAUTHORIZED' }
-
 import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_URL =
@@ -68,15 +54,16 @@ export async function GET(request: NextRequest) {
 
     const contentType = backendResponse.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      throw new Error(`Expected JSON from backend, got ${contentType}`);
+      throw new Error('Expected JSON from backend');
     }
 
     const raw = await backendResponse.json();
 
-    // The auth-engine's /v1/auth/me returns { success, data, sessionInfo }.
-    // We pass through only the display-safe fields.
     const user = raw?.data;
-    const remaining = raw?.sessionInfo?.remaining ?? 1800;
+    const remaining =
+      typeof raw?.sessionInfo?.remaining === 'number'
+        ? raw.sessionInfo.remaining
+        : 1800;
 
     if (!user) {
       return NextResponse.json(
