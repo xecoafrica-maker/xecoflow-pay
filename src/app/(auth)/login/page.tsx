@@ -280,8 +280,8 @@ export default function LoginPage() {
   };
 
   return (
-    // Outer container: mobile gets a subtle bg-slate-50, desktop (sm:) reverts to original gradient
-    <div className="min-h-screen bg-slate-50 sm:bg-gradient-to-br sm:from-gray-50 sm:to-gray-100 dark:from-[#0a2540] dark:to-[#0f1f3a] flex items-center justify-center p-4 sm:p-6 md:p-8">
+    // Outer container: block on mobile (no centering), flex centering only on desktop (lg:)
+    <div className="min-h-screen bg-slate-50 sm:bg-gradient-to-br sm:from-gray-50 sm:to-gray-100 dark:from-[#0a2540] dark:to-[#0f1f3a] block lg:flex lg:items-center lg:justify-center p-0 sm:p-4 md:p-8">
       {toasts.map((t) => (
         <Toast
           key={t.id}
@@ -292,77 +292,322 @@ export default function LoginPage() {
         />
       ))}
 
-      {/* Card: Softened shadow to match the lighter background */}
-      <div className="w-full max-w-[1000px] flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] overflow-hidden border border-gray-100 dark:border-gray-800">
+      {/* 
+        Card: 
+        - Mobile: Full width, no border, no rounded corners (fits perfectly flush)
+        - Desktop (lg:): Curved edges and border restored exactly as original
+      */}
+      <div className="w-full max-w-[1000px] flex flex-col bg-white dark:bg-[#0f1f3a] shadow-none sm:shadow-[0_10px_40px_rgba(0,0,0,0.08)] border-0 lg:border lg:border-gray-100 dark:lg:border-gray-800 lg:rounded-3xl lg:overflow-hidden">
         
-        {/* Changed to hidden lg:flex to hide on mobile, show on desktop */}
-        <div className="hidden lg:flex lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex-col justify-between relative overflow-hidden min-h-[420px] lg:min-h-[560px]">
+        {/* 
+          MOBILE HEADER ONLY: 
+          Shown on mobile (flex), hidden on desktop (lg:hidden).
+          This gives the flat Equity look on mobile only.
+        */}
+        <div className="lg:hidden bg-[#0a2540] relative overflow-hidden p-8 sm:p-10">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
           <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
           <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
 
-          <div className="relative z-10 flex flex-col h-full justify-between">
-            <div>
-              <Link href="/" className="inline-block">
-                <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-                  Xeco<span className="text-emerald-400">Flow</span>
-                </h1>
-              </Link>
+          <div className="relative z-10 text-left">
+            <Link href="/" className="inline-block mb-4">
+              <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                Xeco<span className="text-emerald-400">Flow</span>
+              </h1>
+            </Link>
+            <h2 className="text-xl sm:text-2xl font-semibold text-white leading-tight tracking-tight">
+              Welcome to XecoFlow payments
+            </h2>
+            <p className="text-emerald-400 text-sm font-medium mt-2 opacity-90">
+              Your payment partner
+            </p>
+          </div>
+        </div>
+
+        {/* DESKTOP LAYOUT: Shown on desktop (lg:flex), hidden on mobile (hidden) */}
+        <div className="hidden lg:flex w-full">
+          {/* Original Dark Blue Left Panel (Desktop Only) */}
+          <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex-col justify-between relative overflow-hidden min-h-[420px] lg:min-h-[560px] flex">
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
+            <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
+            <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
+
+            <div className="relative z-10 flex flex-col h-full justify-between">
+              <div>
+                <Link href="/" className="inline-block">
+                  <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                    Xeco<span className="text-emerald-400">Flow</span>
+                  </h1>
+                </Link>
+              </div>
+
+              <div className="space-y-7 py-6 lg:py-8">
+                <h2 className="text-3xl sm:text-4xl xl:text-[2.75rem] font-bold text-white leading-[1.15] tracking-tight">
+                  Modern payments
+                  <br />
+                  <span className="text-emerald-400">& automated tax</span>
+                  <br />
+                  compliance.
+                </h2>
+
+                <p className="text-slate-400 text-sm sm:text-base max-w-[320px] leading-relaxed">
+                  Accept M-PESA, Airtel Money, cards and bank transfers — while
+                  XecoFlow automatically handles your cashflow and tax filing.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 pt-5 border-t border-white/10">
+                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-widest">
+                  Accepted Channels
+                </span>
+
+                <div className="flex flex-wrap gap-2">
+                  {['M-PESA', 'Airtel Money', 'Mastercard', 'Banks'].map(
+                    (channel) => (
+                      <span
+                        key={channel}
+                        className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 transition-colors"
+                      >
+                        {channel}
+                      </span>
+                    )
+                  )}
+                </div>
+              </div>
             </div>
+          </div>
 
-            <div className="space-y-7 py-6 lg:py-8">
-              <h2 className="text-3xl sm:text-4xl xl:text-[2.75rem] font-bold text-white leading-[1.15] tracking-tight">
-                Modern payments
-                <br />
-                <span className="text-emerald-400">& automated tax</span>
-                <br />
-                compliance.
-              </h2>
+          {/* Original Form Panel (Desktop Only) */}
+          <div className="lg:w-1/2 p-6 sm:p-8 md:p-10 lg:p-12 bg-white dark:bg-[#0f1f3a] flex flex-col justify-center">
+            <div className="max-w-sm mx-auto w-full">
+              <div className="lg:hidden mb-8">
+                <Link href="/" className="inline-block">
+                  <h1 className="text-2xl font-bold text-[#0a2540] dark:text-white tracking-tight">
+                    Xeco<span className="text-emerald-500">Flow</span>
+                  </h1>
+                </Link>
+              </div>
 
-              <p className="text-slate-400 text-sm sm:text-base max-w-[320px] leading-relaxed">
-                Accept M-PESA, Airtel Money, cards and bank transfers — while
-                XecoFlow automatically handles your cashflow and tax filing.
-              </p>
-            </div>
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
+                  Welcome back
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Sign in to your XecoFlow account
+                </p>
+              </div>
 
-            <div className="flex flex-col gap-3 pt-5 border-t border-white/10">
-              <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-widest">
-                Accepted Channels
-              </span>
+              {formError && (
+                <div
+                  role="alert"
+                  className="mb-5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3.5 flex items-start gap-2.5"
+                >
+                  <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-red-700 dark:text-red-400">
+                      Error
+                    </p>
+                    <p className="text-sm text-red-600 dark:text-red-300">
+                      {formError}
+                    </p>
+                  </div>
+                </div>
+              )}
 
-              <div className="flex flex-wrap gap-2">
-                {['M-PESA', 'Airtel Money', 'Mastercard', 'Banks'].map(
-                  (channel) => (
-                    <span
-                      key={channel}
-                      className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10 transition-colors"
-                    >
-                      {channel}
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Email
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                      <Mail
+                        className={`w-4 h-4 ${
+                          emailError ? 'text-red-400' : 'text-gray-400'
+                        }`}
+                      />
+                    </div>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (emailError) setEmailError('');
+                        if (formError) setFormError('');
+                      }}
+                      placeholder="Enter your email address"
+                      className={`w-full pl-11 pr-4 py-3 bg-gray-50 dark:bg-[#1a2a4a] border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all disabled:opacity-50 text-gray-900 dark:text-white ${
+                        emailError
+                          ? 'border-red-300 dark:border-red-700 focus:ring-red-500/20 focus:border-red-500'
+                          : 'border-gray-200 dark:border-gray-700 focus:ring-indigo-500/20 focus:border-indigo-500'
+                      }`}
+                      required
+                      disabled={loading}
+                      autoComplete="email"
+                    />
+                  </div>
+                  {emailError && (
+                    <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      {emailError}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                      <Lock
+                        className={`w-4 h-4 ${
+                          passwordError ? 'text-red-400' : 'text-gray-400'
+                        }`}
+                      />
+                    </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        if (passwordError) setPasswordError('');
+                        if (formError) setFormError('');
+                      }}
+                      placeholder="Enter your password"
+                      className={`w-full pl-11 pr-12 py-3 bg-gray-50 dark:bg-[#1a2a4a] border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all disabled:opacity-50 text-gray-900 dark:text-white ${
+                        passwordError
+                          ? 'border-red-300 dark:border-red-700 focus:ring-red-500/20 focus:border-red-500'
+                          : 'border-gray-200 dark:border-gray-700 focus:ring-indigo-500/20 focus:border-indigo-500'
+                      }`}
+                      required
+                      disabled={loading}
+                      autoComplete="current-password"
+                    />
+                    <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="text-gray-400 hover:text-gray-600 focus:outline-none"
+                        disabled={loading}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  {passwordError && (
+                    <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      {passwordError}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer select-none flex-shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      disabled={loading}
+                    />
+                    <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                      Remember for 30 days
                     </span>
-                  )
+                  </label>
+                  <Link
+                    href="/forgot-password"
+                    className="text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 whitespace-nowrap"
+                  >
+                    Forgot Password
+                  </Link>
+                </div>
+
+                {failedAttempts > 0 && failedAttempts < MAX_LOGIN_ATTEMPTS_UX && (
+                  <div
+                    role="alert"
+                    className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg"
+                  >
+                    <AlertCircle className="w-4 h-4" />
+                    <span>
+                      {MAX_LOGIN_ATTEMPTS_UX - failedAttempts} login attempt
+                      {MAX_LOGIN_ATTEMPTS_UX - failedAttempts !== 1
+                        ? 's'
+                        : ''}{' '}
+                      attempts remaining before this account is blocked.
+                    </span>
+                  </div>
                 )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/10 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      Sign In <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div className="mt-6 space-y-3.5">
+                <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                  New to XecoFlow?{' '}
+                  <Link
+                    href="/signup"
+                    className="font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 inline-flex items-center gap-1"
+                  >
+                    Create account
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </p>
+                <p className="text-center text-xs text-gray-400 dark:text-gray-500">
+                  By signing in, you agree to our{' '}
+                  <Link
+                    href="/terms"
+                    className="text-indigo-500 hover:underline"
+                  >
+                    Terms of Service
+                  </Link>{' '}
+                  and{' '}
+                  <Link
+                    href="/privacy"
+                    className="text-indigo-500 hover:underline"
+                  >
+                    Privacy Policy
+                  </Link>
+                </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Added w-full so it takes up the entire screen on mobile */}
-        <div className="w-full lg:w-1/2 p-6 sm:p-8 md:p-10 lg:p-12 bg-white dark:bg-[#0f1f3a] flex flex-col justify-center">
-          <div className="max-w-sm mx-auto w-full">
-            <div className="lg:hidden mb-8">
-              <Link href="/" className="inline-block">
-                <h1 className="text-2xl font-bold text-[#0a2540] dark:text-white tracking-tight">
-                  Xeco<span className="text-emerald-500">Flow</span>
-                </h1>
-              </Link>
-            </div>
-
+        {/* 
+          MOBILE FORM ONLY: 
+          Shown on mobile (flex), hidden on desktop (lg:hidden).
+          This sits below the mobile header.
+        */}
+        <div className="lg:hidden p-6 sm:p-8 bg-white dark:bg-[#0f1f3a] flex flex-col justify-center">
+          <div className="max-w-md mx-auto w-full">
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
-                Welcome back
+                Sign in
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Sign in to your XecoFlow account
+                Sign in to continue. Remember, your password is yours, do not share it with anyone.
               </p>
             </div>
 
@@ -389,7 +634,6 @@ export default function LoginPage() {
                   Email
                 </label>
                 <div className="relative">
-                  {/* Icon wrapper now uses flex to perfectly center */}
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                     <Mail
                       className={`w-4 h-4 ${
@@ -429,7 +673,6 @@ export default function LoginPage() {
                   Password
                 </label>
                 <div className="relative">
-                  {/* Icon wrapper now uses flex to perfectly center */}
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                     <Lock
                       className={`w-4 h-4 ${
@@ -455,7 +698,6 @@ export default function LoginPage() {
                     disabled={loading}
                     autoComplete="current-password"
                   />
-                  {/* Eye icon wrapper now uses flex to perfectly center */}
                   <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
                     <button
                       type="button"
@@ -480,7 +722,6 @@ export default function LoginPage() {
                 )}
               </div>
 
-              {/* Fixed layout for Remember me and Forgot Password */}
               <div className="flex items-center justify-between gap-3">
                 <label className="flex items-center gap-2 cursor-pointer select-none flex-shrink-0">
                   <input
