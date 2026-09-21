@@ -1,4 +1,3 @@
-// src/app/dashboard/utilities/airtime/bulk/page.tsx
 'use client';
 
 import { useState, useRef } from 'react';
@@ -8,7 +7,6 @@ import {
   Upload,
   Plus,
   Trash2,
-  Save,
   FileText,
   Download,
   X,
@@ -16,7 +14,9 @@ import {
   AlertCircle,
   Send,
   Printer,
+  Loader2,
 } from 'lucide-react';
+import { useSession } from '@/hooks/useSession';
 
 interface BulkItem {
   id: string;
@@ -28,6 +28,8 @@ interface BulkItem {
 
 export default function BulkAirtimePage() {
   const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
+
   const [items, setItems] = useState<BulkItem[]>([]);
   const [phone, setPhone] = useState('');
   const [amount, setAmount] = useState('');
@@ -59,27 +61,31 @@ export default function BulkAirtimePage() {
 
   // Remove item
   const handleRemoveItem = (id: string) => {
-    setItems(items.filter(item => item.id !== id));
+    setItems(items.filter((item) => item.id !== id));
   };
 
   // Process item (mark as processing)
   const handleProcessItem = (id: string) => {
-    setItems(items.map(item => 
-      item.id === id 
-        ? { ...item, status: 'processing' as const, updatedAt: new Date().toLocaleString() }
-        : item
-    ));
+    setItems(
+      items.map((item) =>
+        item.id === id
+          ? { ...item, status: 'processing' as const, updatedAt: new Date().toLocaleString() }
+          : item
+      )
+    );
   };
 
   // Process all items
   const handleProcessAll = () => {
     if (items.length === 0) return;
     if (window.confirm(`Are you sure you want to process all ${items.length} items?`)) {
-      setItems(items.map(item => 
-        item.status === 'draft'
-          ? { ...item, status: 'processing' as const, updatedAt: new Date().toLocaleString() }
-          : item
-      ));
+      setItems(
+        items.map((item) =>
+          item.status === 'draft'
+            ? { ...item, status: 'processing' as const, updatedAt: new Date().toLocaleString() }
+            : item
+        )
+      );
     }
   };
 
@@ -102,14 +108,14 @@ export default function BulkAirtimePage() {
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
-        const rows = text.split('\n').filter(row => row.trim());
-        
+        const rows = text.split('\n').filter((row) => row.trim());
+
         // Skip header row if exists
         const startIndex = rows[0].toLowerCase().includes('phone') ? 1 : 0;
-        
+
         const newItems: BulkItem[] = [];
         for (let i = startIndex; i < rows.length; i++) {
-          const cols = rows[i].split(',').map(col => col.trim());
+          const cols = rows[i].split(',').map((col) => col.trim());
           if (cols.length >= 2) {
             const phoneNum = cols[0].replace(/[^0-9]/g, '');
             const amountNum = parseFloat(cols[1]);
@@ -143,11 +149,11 @@ export default function BulkAirtimePage() {
   const handlePasteSubmit = () => {
     if (!pasteData.trim()) return;
 
-    const rows = pasteData.split('\n').filter(row => row.trim());
+    const rows = pasteData.split('\n').filter((row) => row.trim());
     const newItems: BulkItem[] = [];
 
     rows.forEach((row, index) => {
-      const cols = row.split(',').map(col => col.trim());
+      const cols = row.split(',').map((col) => col.trim());
       if (cols.length >= 2) {
         const phoneNum = cols[0].replace(/[^0-9]/g, '');
         const amountNum = parseFloat(cols[1]);
@@ -175,7 +181,7 @@ export default function BulkAirtimePage() {
     const headers = 'Phone,Amount\n';
     const sample = '0712345678,100\n0723456789,200';
     const csv = headers + sample;
-    
+
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -188,13 +194,13 @@ export default function BulkAirtimePage() {
   // Export list
   const handleExportList = () => {
     if (items.length === 0) return;
-    
+
     const headers = 'Phone,Amount,Status,Updated\n';
-    const rows = items.map(item => 
-      `${item.phone},${item.amount.toFixed(2)},${item.status},${item.updatedAt}`
-    ).join('\n');
+    const rows = items
+      .map((item) => `${item.phone},${item.amount.toFixed(2)},${item.status},${item.updatedAt}`)
+      .join('\n');
     const csv = headers + rows;
-    
+
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -224,17 +230,30 @@ export default function BulkAirtimePage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'draft':
-        return <FileText size={14} />;
+        return <FileText size={14} aria-hidden="true" />;
       case 'processing':
-        return <AlertCircle size={14} />;
+        return <AlertCircle size={14} aria-hidden="true" />;
       case 'completed':
-        return <Check size={14} />;
+        return <Check size={14} aria-hidden="true" />;
       case 'failed':
-        return <X size={14} />;
+        return <X size={14} aria-hidden="true" />;
       default:
         return null;
     }
   };
+
+  // ─── Auth Loading Screen ───────────────────────────────────────────
+  if (sessionLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" aria-label="Loading session" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null; // useSession already redirects
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -243,8 +262,9 @@ export default function BulkAirtimePage() {
         <button
           onClick={() => router.back()}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-4"
+          aria-label="Go back to previous page"
         >
-          <ArrowLeft size={20} />
+          <ArrowLeft size={20} aria-hidden="true" />
           <span>Back to lists</span>
         </button>
 
@@ -254,15 +274,18 @@ export default function BulkAirtimePage() {
             <h1 className="text-2xl font-bold text-gray-900">Bulk Items</h1>
             <p className="text-gray-500 text-sm">
               {selectedFile ? `Loaded CSV file: ${selectedFile}` : 'No file loaded'}
-              <span className="ml-3 font-semibold text-emerald-600">Total: KES {totalAmount.toFixed(2)}</span>
+              <span className="ml-3 font-semibold text-emerald-600">
+                Total: KES {totalAmount.toFixed(2)}
+              </span>
             </p>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={downloadTemplate}
               className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+              aria-label="Download CSV template"
             >
-              <Download size={16} />
+              <Download size={16} aria-hidden="true" />
               Download Template
             </button>
           </div>
@@ -271,18 +294,25 @@ export default function BulkAirtimePage() {
         {/* Add Section */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6 shadow-sm">
           <h2 className="text-sm font-semibold text-gray-700 mb-4">Add numbers to this list</h2>
-          <p className="text-xs text-gray-500 mb-4">Manual entry first, or paste / upload CSV. You can switch anytime.</p>
+          <p className="text-xs text-gray-500 mb-4">
+            Manual entry first, or paste / upload CSV. You can switch anytime.
+          </p>
 
           <div className="grid md:grid-cols-2 gap-4">
             {/* Manual Entry */}
             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Manual entry</h3>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                Manual entry
+              </h3>
               <p className="text-xs text-gray-500 mb-3">Type phone and amount, then tap Add</p>
-              
+
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs text-gray-600 block mb-1">Phone (07...)</label>
+                  <label htmlFor="manual-phone" className="text-xs text-gray-600 block mb-1">
+                    Phone (07...)
+                  </label>
                   <input
+                    id="manual-phone"
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
@@ -291,8 +321,11 @@ export default function BulkAirtimePage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-600 block mb-1">Amount (KES)</label>
+                  <label htmlFor="manual-amount" className="text-xs text-gray-600 block mb-1">
+                    Amount (KES)
+                  </label>
                   <input
+                    id="manual-amount"
                     type="number"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
@@ -305,7 +338,7 @@ export default function BulkAirtimePage() {
                   disabled={!phone || !amount}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                 >
-                  <Plus size={16} />
+                  <Plus size={16} aria-hidden="true" />
                   Add
                 </button>
               </div>
@@ -313,15 +346,18 @@ export default function BulkAirtimePage() {
 
             {/* CSV Upload */}
             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Paste or upload CSV</h3>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                Paste or upload CSV
+              </h3>
               <p className="text-xs text-gray-500 mb-3">Upload a file or paste rows below</p>
-              
+
               <div className="space-y-3">
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-white text-gray-700 rounded-lg hover:bg-gray-100 transition-colors border-2 border-dashed border-gray-300 hover:border-emerald-400 text-sm font-medium"
+                  aria-label="Upload CSV file"
                 >
-                  <Upload size={18} />
+                  <Upload size={18} aria-hidden="true" />
                   Upload CSV File
                 </button>
                 <input
@@ -330,13 +366,15 @@ export default function BulkAirtimePage() {
                   accept=".csv"
                   onChange={handleFileUpload}
                   className="hidden"
+                  aria-label="CSV file input"
                 />
 
                 <button
                   onClick={() => setShowPasteModal(true)}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium border border-gray-300"
+                  aria-label="Paste CSV data from clipboard"
                 >
-                  <FileText size={16} />
+                  <FileText size={16} aria-hidden="true" />
                   Paste CSV Data
                 </button>
               </div>
@@ -349,29 +387,33 @@ export default function BulkAirtimePage() {
           <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3 mb-4 shadow-sm">
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600">
-                {items.length} item{items.length > 1 ? 's' : ''} • Total: <span className="font-semibold text-emerald-600">KES {totalAmount.toFixed(2)}</span>
+                {items.length} item{items.length > 1 ? 's' : ''} • Total:{' '}
+                <span className="font-semibold text-emerald-600">KES {totalAmount.toFixed(2)}</span>
               </span>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleProcessAll}
                 className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm font-medium"
+                aria-label="Process all items in the list"
               >
-                <Send size={16} />
+                <Send size={16} aria-hidden="true" />
                 Process List
               </button>
               <button
                 onClick={handleExportList}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+                aria-label="Export list to CSV"
               >
-                <Download size={16} />
+                <Download size={16} aria-hidden="true" />
                 Export
               </button>
               <button
                 onClick={() => window.print()}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+                aria-label="Print list"
               >
-                <Printer size={16} />
+                <Printer size={16} aria-hidden="true" />
                 Print
               </button>
             </div>
@@ -381,14 +423,24 @@ export default function BulkAirtimePage() {
         {/* Items Table */}
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full" role="table" aria-label="Bulk airtime items">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Updated</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Phone
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Updated
+                  </th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -404,7 +456,11 @@ export default function BulkAirtimePage() {
                       <td className="px-4 py-3 text-sm text-gray-900 font-mono">{item.phone}</td>
                       <td className="px-4 py-3 text-sm text-gray-900">KES {item.amount.toFixed(2)}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${getStatusBadge(item.status)}`}>
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${getStatusBadge(
+                            item.status
+                          )}`}
+                        >
                           {getStatusIcon(item.status)}
                           {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
                         </span>
@@ -417,16 +473,18 @@ export default function BulkAirtimePage() {
                               onClick={() => handleProcessItem(item.id)}
                               className="text-emerald-500 hover:text-emerald-600 transition-colors"
                               title="Process"
+                              aria-label={`Process item for phone ${item.phone}`}
                             >
-                              <Check size={16} />
+                              <Check size={16} aria-hidden="true" />
                             </button>
                           )}
                           <button
                             onClick={() => handleRemoveItem(item.id)}
                             className="text-red-400 hover:text-red-600 transition-colors"
                             title="Delete"
+                            aria-label={`Delete item for phone ${item.phone}`}
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={16} aria-hidden="true" />
                           </button>
                         </div>
                       </td>
@@ -441,8 +499,9 @@ export default function BulkAirtimePage() {
                       <button
                         onClick={handleDeleteAll}
                         className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+                        aria-label="Delete all items in the list"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={16} aria-hidden="true" />
                         Delete list
                       </button>
                     </td>
@@ -456,33 +515,40 @@ export default function BulkAirtimePage() {
 
       {/* Paste Modal */}
       {showPasteModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="paste-modal-title"
+        >
           <div className="bg-white border border-gray-200 rounded-xl max-w-lg w-full p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Paste CSV Data</h3>
+              <h3 id="paste-modal-title" className="text-lg font-semibold text-gray-900">
+                Paste CSV Data
+              </h3>
               <button
                 onClick={() => setShowPasteModal(false)}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Close paste modal"
               >
-                <X size={20} />
+                <X size={20} aria-hidden="true" />
               </button>
             </div>
-            
+
             <p className="text-xs text-gray-500 mb-3">
               Paste rows with phone and amount separated by comma. One per line.
             </p>
-            <p className="text-xs text-gray-400 mb-3 font-mono">
-              Example: 0712345678,100
-            </p>
-            
+            <p className="text-xs text-gray-400 mb-3 font-mono">Example: 0712345678,100</p>
+
             <textarea
               value={pasteData}
               onChange={(e) => setPasteData(e.target.value)}
               placeholder="0712345678,100&#10;0723456789,200&#10;0734567890,150"
               rows={6}
               className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-sm font-mono"
+              aria-label="CSV data to paste"
             />
-            
+
             <div className="flex items-center gap-3 mt-4">
               <button
                 onClick={handlePasteSubmit}

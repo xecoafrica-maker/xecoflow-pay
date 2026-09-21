@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Link2,
@@ -11,38 +11,11 @@ import {
   ChevronUp,
   ArrowLeft,
 } from 'lucide-react';
+import { useSession } from '@/hooks/useSession';
 
 export default function CreatePaymentLinkPage() {
   const router = useRouter();
-
-  // ─── Auth + Merchant State ─────────────────────────────────────────
-  const [merchant, setMerchant] = useState<any>(null);
-  const [authChecked, setAuthChecked] = useState(false);
-
-  // ─── Auth Guard — same pattern as PayBill / transactions page ──────
-  useEffect(() => {
-    let storedMerchant: any = null;
-    let id = '';
-
-    try {
-      const stored = localStorage.getItem('merchant');
-      if (stored) {
-        storedMerchant = JSON.parse(stored);
-        id = String(storedMerchant.merchant_id || storedMerchant.merchantId || '');
-      }
-    } catch (e) {
-      console.error('Failed to parse merchant data', e);
-    }
-
-    if (!storedMerchant || !id) {
-      console.warn('⚠️ No merchant found in localStorage, redirecting to login');
-      router.push('/login?session=expired');
-      return;
-    }
-
-    setMerchant(storedMerchant);
-    setAuthChecked(true);
-  }, [router]);
+  const { user, loading: sessionLoading } = useSession();
 
   // Basic Information
   const [title, setTitle] = useState('');
@@ -78,13 +51,15 @@ export default function CreatePaymentLinkPage() {
       setError('Enter a valid fixed amount');
       return;
     }
+    if (!user?.merchantId) {
+      setError('Authentication required. Please log in again.');
+      return;
+    }
 
     setLoading(true);
     setError(null);
 
     try {
-      const merchantId = merchant?.merchant_id || merchant?.merchantId;
-
       const res = await fetch('/v1/product-links', {
         method: 'POST',
         credentials: 'include',
@@ -92,9 +67,8 @@ export default function CreatePaymentLinkPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          merchantId: merchantId,
-          businessName:
-            merchant?.business_name || merchant?.businessName || 'XecoFlow Store',
+          merchantId: user.merchantId,
+          businessName: user.businessName || 'XecoFlow Store',
           name: title.trim(),
           price: amountType === 'fixed' ? Number(amount) : 0,
           currency: 'KES',
@@ -144,23 +118,28 @@ export default function CreatePaymentLinkPage() {
   };
 
   // ─── Auth Loading Screen ───────────────────────────────────────────
-  if (!authChecked) {
+  if (sessionLoading) {
     return (
       <div className="max-w-3xl mx-auto flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-10 h-10 animate-spin text-[#0a2540]" />
+        <Loader2 className="w-10 h-10 animate-spin text-[#0a2540]" aria-label="Loading authentication" />
       </div>
     );
   }
 
+  if (!user) {
+    return null; // useSession already redirects
+  }
+
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6">
       {/* Header */}
       <div className="mb-8">
         <button
-          onClick={() => router.push('/dashboard/smart-bills/pages')}
+          onClick={() => router.push('/dashboard/payment-pages')}
           className="text-[13px] text-gray-500 hover:text-gray-800 flex items-center gap-1.5 mb-2 transition-colors"
+          aria-label="Go back to payment links"
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
+          <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
           Payment links
         </button>
         <h1 className="text-2xl font-semibold text-[#0a2540] tracking-tight">
@@ -172,7 +151,7 @@ export default function CreatePaymentLinkPage() {
       </div>
 
       {error && (
-        <div className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
           {error}
         </div>
       )}
@@ -185,15 +164,17 @@ export default function CreatePaymentLinkPage() {
               readOnly
               value={link}
               className="flex-1 min-w-0 bg-transparent text-[13px] text-gray-700 outline-none"
+              aria-label="Generated payment link"
             />
             <button
               onClick={copyLink}
-              className="shrink-0 p-2 rounded-lg hover:bg-white border border-transparent hover:border-gray-200"
+              className="shrink-0 p-2 rounded-lg hover:bg-white border border-transparent hover:border-gray-200 transition-colors"
+              aria-label={copied ? 'Link copied' : 'Copy link to clipboard'}
             >
               {copied ? (
-                <Check className="w-4 h-4 text-emerald-500" />
+                <Check className="w-4 h-4 text-emerald-500" aria-hidden="true" />
               ) : (
-                <Copy className="w-4 h-4 text-gray-500" />
+                <Copy className="w-4 h-4 text-gray-500" aria-hidden="true" />
               )}
             </button>
           </div>
@@ -202,14 +183,14 @@ export default function CreatePaymentLinkPage() {
           )}
           <div className="mt-5 flex flex-wrap gap-3">
             <button
-              onClick={() => window.open(link, '_blank')}
-              className="px-4 py-2.5 bg-[#0a2540] hover:bg-[#152a45] text-white rounded-xl text-sm font-medium"
+              onClick={() => window.open(link, '_blank', 'noopener,noreferrer')}
+              className="px-4 py-2.5 bg-[#0a2540] hover:bg-[#152a45] text-white rounded-xl text-sm font-medium transition-colors"
             >
               Open link
             </button>
             <button
               onClick={reset}
-              className="px-4 py-2.5 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-medium text-gray-700"
+              className="px-4 py-2.5 border border-gray-200 hover:bg-gray-50 rounded-xl text-sm font-medium text-gray-700 transition-colors"
             >
               Create another
             </button>
@@ -231,10 +212,11 @@ export default function CreatePaymentLinkPage() {
             <div className="p-5 sm:p-6 space-y-5">
               {/* Page title */}
               <div>
-                <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                <label htmlFor="link-title" className="block text-[13px] font-medium text-gray-700 mb-1.5">
                   Link name <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="link-title"
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -248,13 +230,14 @@ export default function CreatePaymentLinkPage() {
 
               {/* Amount type */}
               <div>
-                <label className="block text-[13px] font-medium text-gray-700 mb-2">
+                <span className="block text-[13px] font-medium text-gray-700 mb-2">
                   Amount type
-                </label>
+                </span>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setAmountType('fixed')}
+                    aria-pressed={amountType === 'fixed'}
                     className={`text-left px-4 py-3.5 rounded-xl border-2 transition-all ${
                       amountType === 'fixed'
                         ? 'border-[#635bff] bg-[#635bff]/5'
@@ -269,6 +252,7 @@ export default function CreatePaymentLinkPage() {
                   <button
                     type="button"
                     onClick={() => setAmountType('custom')}
+                    aria-pressed={amountType === 'custom'}
                     className={`text-left px-4 py-3.5 rounded-xl border-2 transition-all ${
                       amountType === 'custom'
                         ? 'border-[#635bff] bg-[#635bff]/5'
@@ -286,7 +270,7 @@ export default function CreatePaymentLinkPage() {
               {/* Fixed amount value */}
               {amountType === 'fixed' && (
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                  <label htmlFor="link-amount" className="block text-[13px] font-medium text-gray-700 mb-1.5">
                     Amount (KES) <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
@@ -294,6 +278,7 @@ export default function CreatePaymentLinkPage() {
                       KES
                     </span>
                     <input
+                      id="link-amount"
                       type="number"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
@@ -322,10 +307,11 @@ export default function CreatePaymentLinkPage() {
             <div className="p-5 sm:p-6 space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                  <label htmlFor="customer-name" className="block text-[13px] font-medium text-gray-700 mb-1.5">
                     Name <span className="text-gray-400 font-normal">(optional)</span>
                   </label>
                   <input
+                    id="customer-name"
                     type="text"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
@@ -334,10 +320,11 @@ export default function CreatePaymentLinkPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                  <label htmlFor="customer-email" className="block text-[13px] font-medium text-gray-700 mb-1.5">
                     Email <span className="text-gray-400 font-normal">(optional)</span>
                   </label>
                   <input
+                    id="customer-email"
                     type="email"
                     value={customerEmail}
                     onChange={(e) => setCustomerEmail(e.target.value)}
@@ -347,10 +334,11 @@ export default function CreatePaymentLinkPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                <label htmlFor="customer-phone" className="block text-[13px] font-medium text-gray-700 mb-1.5">
                   Phone <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
                 <input
+                  id="customer-phone"
                   type="tel"
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
@@ -366,6 +354,7 @@ export default function CreatePaymentLinkPage() {
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
+              aria-expanded={showAdvanced}
               className="w-full px-5 sm:px-6 py-4 flex items-center justify-between text-left"
             >
               <div>
@@ -375,19 +364,20 @@ export default function CreatePaymentLinkPage() {
                 </p>
               </div>
               {showAdvanced ? (
-                <ChevronUp className="w-4 h-4 text-gray-400" />
+                <ChevronUp className="w-4 h-4 text-gray-400" aria-hidden="true" />
               ) : (
-                <ChevronDown className="w-4 h-4 text-gray-400" />
+                <ChevronDown className="w-4 h-4 text-gray-400" aria-hidden="true" />
               )}
             </button>
 
             {showAdvanced && (
               <div className="px-5 sm:px-6 pb-6 space-y-4 border-t border-gray-100 pt-4">
                 <div>
-                  <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                  <label htmlFor="link-reference" className="block text-[13px] font-medium text-gray-700 mb-1.5">
                     Reference <span className="text-gray-400 font-normal">(optional)</span>
                   </label>
                   <input
+                    id="link-reference"
                     type="text"
                     value={reference}
                     onChange={(e) => setReference(e.target.value)}
@@ -398,11 +388,12 @@ export default function CreatePaymentLinkPage() {
 
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                    <label htmlFor="payment-channel" className="block text-[13px] font-medium text-gray-700 mb-1.5">
                       Payment channel{' '}
                       <span className="text-gray-400 font-normal">(optional)</span>
                     </label>
                     <select
+                      id="payment-channel"
                       value={channel}
                       onChange={(e) => setChannel(e.target.value)}
                       className="w-full h-11 px-3 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff]"
@@ -414,10 +405,11 @@ export default function CreatePaymentLinkPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                    <label htmlFor="link-expiry" className="block text-[13px] font-medium text-gray-700 mb-1.5">
                       Link expiry
                     </label>
                     <select
+                      id="link-expiry"
                       value={expiry}
                       onChange={(e) => setExpiry(e.target.value)}
                       className="w-full h-11 px-3 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#635bff]/25 focus:border-[#635bff]"
@@ -441,12 +433,12 @@ export default function CreatePaymentLinkPage() {
           >
             {loading ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                 Generating…
               </>
             ) : (
               <>
-                <Link2 className="w-4 h-4" />
+                <Link2 className="w-4 h-4" aria-hidden="true" />
                 Generate Payment Link
               </>
             )}
