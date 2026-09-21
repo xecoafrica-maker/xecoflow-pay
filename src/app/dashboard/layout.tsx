@@ -1,10 +1,12 @@
 // src/app/dashboard/layout.tsx
 'use client';
 
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/dashboard/Sidebar';
 import SecurityBanner from '@/components/dashboard/SecurityBanner';
+import SessionWarningModal from '@/components/SessionWarningModal';
+import { useInactivityTimeout } from '@/hooks/useInactivityTimeout';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -16,6 +18,43 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sessionExpiring, setSessionExpiring] = useState(false);
   const [sessionTimeLeft, setSessionTimeLeft] = useState(0);
 
+  // ─── Handles the automatic logout after idle timeout ──────────────
+  const handleIdleTimeout = useCallback(async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // Ignore — we're logging out anyway.
+    }
+
+    // Best-effort: clear any client-side state
+    try {
+      localStorage.removeItem('xecoflow_token');
+      localStorage.removeItem('merchant');
+      sessionStorage.clear();
+    } catch {
+      // Storage may be unavailable in some contexts; ignore.
+    }
+
+    router.replace('/login?session=idle');
+  }, [router]);
+
+  // ─── Idle timeout hook (15 min idle, 60 s warning) ────────────────
+  const {
+    showWarning: showIdleWarning,
+    secondsRemaining: idleSecondsRemaining,
+    extendSession,
+    logoutNow,
+  } = useInactivityTimeout({
+    idleMs: 15 * 60 * 1000, // 15 minutes
+    warningMs: 60 * 1000, // 60 seconds
+    onTimeout: handleIdleTimeout,
+    enableWarning: true,
+  });
+
+  // ─── Existing: session validity check every 30 s ──────────────────
   useEffect(() => {
     let cancelled = false;
 
@@ -96,6 +135,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {children}
         </div>
       </main>
+
+      {/* ─── Idle timeout warning modal ──────────────────────────── */}
+      <SessionWarningModal
+        open={showIdleWarning}
+        secondsRemaining={idleSecondsRemaining}
+        onStayLoggedIn={extendSession}
+        onLogout={logoutNow}
+      />
     </div>
   );
 }

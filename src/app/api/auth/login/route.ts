@@ -3,9 +3,9 @@ import { z } from 'zod';
 
 const BACKEND_URL =
   process.env.AUTH_ENGINE_URL || 'https://xecoflow-2gen.onrender.com';
-const REQUEST_TIMEOUT_MS = 30000;
+const REQUEST_TIMEOUT_MS = 15000;
 
-const AUTH_COOKIE_NAMES = new Set(['xeco_session', 'xeco_otp']);
+const AUTH_COOKIE_NAMES = new Set(['xeco_session', 'xeco_otp', 'xeco_refresh']);
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -16,6 +16,9 @@ const COOKIE_FLAGS: Record<string, string> = {
   xeco_otp: `HttpOnly${
     IS_PRODUCTION ? '; Secure' : ''
   }; SameSite=Lax; Path=/`,
+  xeco_refresh: `HttpOnly${
+    IS_PRODUCTION ? '; Secure' : ''
+  }; SameSite=Strict; Path=/`,
 };
 
 const loginRequestSchema = z.object({

@@ -5,11 +5,12 @@ const BACKEND_URL =
   process.env.AUTH_ENGINE_URL || 'https://xecoflow-2gen.onrender.com';
 const REQUEST_TIMEOUT_MS = 8000;
 
-const AUTH_COOKIE_NAMES = new Set(['xeco_session', 'xeco_otp']);
+const AUTH_COOKIE_NAMES = new Set(['xeco_session', 'xeco_otp', 'xeco_refresh']);
 
 const COOKIE_FLAGS: Record<string, string> = {
   xeco_session: 'HttpOnly; Secure; SameSite=Strict; Path=/',
   xeco_otp: 'HttpOnly; Secure; SameSite=Lax; Path=/',
+  xeco_refresh: 'HttpOnly; Secure; SameSite=Strict; Path=/',
 };
 
 const AUTH_ERROR_CODES = new Set([

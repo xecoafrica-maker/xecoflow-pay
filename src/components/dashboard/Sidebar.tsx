@@ -235,7 +235,6 @@ const sidebarSections: SidebarSection[] = [
           { icon: Shield, label: 'Security & Access', href: '/dashboard/settings/security' },
           { icon: FileText, label: 'Compliance & KYC', href: '/dashboard/settings/compliance' },
           { icon: FileText, label: 'Activity Logs', href: '/dashboard/activity-logs' },
-
         ],
       },
     ],
@@ -482,8 +481,24 @@ export default function Sidebar() {
     }
   }, [pathname]);
 
-  // ─── ✅ FIXED: Handle Sign Out ──────────────────────────────────────
-  const handleSignOut = () => {
+  // ─── Handle Sign Out ──────────────────────────────────────────────
+  const handleSignOut = async () => {
+    try {
+      // Ask the backend to revoke the session:
+      //  - blacklists the session token in Redis
+      //  - marks the refresh_tokens DB row revoked
+      //  - clears HttpOnly cookies (xeco_session, xeco_refresh, xeco_otp)
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (err) {
+      console.error('Logout API call failed:', err);
+      // Even if the backend call fails, still clear local state and
+      // redirect — the user's intent is to log out.
+    }
+
+    // Clear local client-side state
     localStorage.removeItem('auth_token');
     localStorage.removeItem('token');
     localStorage.removeItem('accessToken');
@@ -499,12 +514,6 @@ export default function Sidebar() {
     sessionStorage.removeItem('merchant');
     sessionStorage.removeItem('authToken');
     sessionStorage.removeItem('user');
-
-    document.cookie.split(';').forEach(cookie => {
-      const [name] = cookie.split('=');
-      document.cookie = `${name.trim()}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-      document.cookie = `${name.trim()}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
-    });
 
     router.push(`/login?t=${Date.now()}`);
   };
@@ -818,6 +827,7 @@ export default function Sidebar() {
                               </Link>
                             ) : (
                               <button
+                                type="button"
                                 onClick={() => toggleExpand(item.label)}
                                 className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${
                                   childActive || showExpanded
@@ -895,6 +905,7 @@ export default function Sidebar() {
         <div ref={menuRef} className="border-t border-slate-700/50 p-4 mt-auto flex-shrink-0 relative">
           {/* User Profile Button - Stays at bottom */}
           <button
+            type="button"
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-slate-800/50 transition-all relative z-10"
           >
@@ -915,7 +926,9 @@ export default function Sidebar() {
           {/* Dropdown Menu - Opens UPWARD from the button */}
           <div
             className={`absolute bottom-full left-0 right-0 mb-2 overflow-hidden transition-all duration-300 ease-in-out ${
-              showUserMenu ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'
+              showUserMenu
+                ? 'max-h-80 opacity-100 pointer-events-auto'
+                : 'max-h-0 opacity-0 pointer-events-none'
             }`}
           >
             <div className="mx-2 rounded-xl bg-slate-800/95 border border-slate-700/50 overflow-hidden shadow-xl shadow-black/30 backdrop-blur-sm">
@@ -943,6 +956,7 @@ export default function Sidebar() {
               <div className="border-t border-slate-700/50"></div>
 
               <button
+                type="button"
                 onClick={handleSignOut}
                 className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-500/10 transition-colors text-sm text-red-400 hover:text-red-300"
               >
