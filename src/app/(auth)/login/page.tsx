@@ -139,7 +139,6 @@ export default function LoginPage() {
   const [passwordError, setPasswordError] = useState('');
   const [formError, setFormError] = useState('');
 
-  // UX-only counter. Server is the source of truth for lockout.
   const [failedAttempts, setFailedAttempts] = useState(0);
 
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -280,7 +279,6 @@ export default function LoginPage() {
   };
 
   return (
-    // Outer container: block on mobile (no centering), flex centering only on desktop (lg:)
     <div className="min-h-screen bg-slate-50 sm:bg-gradient-to-br sm:from-gray-50 sm:to-gray-100 dark:from-[#0a2540] dark:to-[#0f1f3a] block lg:flex lg:items-center lg:justify-center p-0 sm:p-4 md:p-8">
       {toasts.map((t) => (
         <Toast
@@ -292,17 +290,12 @@ export default function LoginPage() {
         />
       ))}
 
-      {/* 
-        Card: 
-        - Mobile: Full width, no border, no rounded corners (fits perfectly flush)
-        - Desktop (lg:): Curved edges and border restored exactly as original
-      */}
       <div className="w-full max-w-[1000px] flex flex-col bg-white dark:bg-[#0f1f3a] shadow-none sm:shadow-[0_10px_40px_rgba(0,0,0,0.08)] border-0 lg:border lg:border-gray-100 dark:lg:border-gray-800 lg:rounded-3xl lg:overflow-hidden">
         
         {/* 
           MOBILE HEADER ONLY: 
           Shown on mobile (flex), hidden on desktop (lg:hidden).
-          This gives the flat Equity look on mobile only.
+          Increased logo and heading sizes for better mobile impact.
         */}
         <div className="lg:hidden bg-[#0a2540] relative overflow-hidden p-8 sm:p-10">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
@@ -311,14 +304,17 @@ export default function LoginPage() {
 
           <div className="relative z-10 text-left">
             <Link href="/" className="inline-block mb-4">
-              <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+              {/* Increased from text-xl to text-3xl */}
+              <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
                 Xeco<span className="text-emerald-400">Flow</span>
               </h1>
             </Link>
-            <h2 className="text-xl sm:text-2xl font-semibold text-white leading-tight tracking-tight">
+            {/* Increased from text-xl to text-2xl, font-bold */}
+            <h2 className="text-2xl sm:text-3xl font-bold text-white leading-tight tracking-tight">
               Welcome to XecoFlow payments
             </h2>
-            <p className="text-emerald-400 text-sm font-medium mt-2 opacity-90">
+            {/* Increased from text-sm to text-base */}
+            <p className="text-emerald-400 text-base font-medium mt-3 opacity-90">
               Your payment partner
             </p>
           </div>
@@ -326,7 +322,6 @@ export default function LoginPage() {
 
         {/* DESKTOP LAYOUT: Shown on desktop (lg:flex), hidden on mobile (hidden) */}
         <div className="hidden lg:flex w-full">
-          {/* Original Dark Blue Left Panel (Desktop Only) */}
           <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex-col justify-between relative overflow-hidden min-h-[420px] lg:min-h-[560px] flex">
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
             <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
@@ -377,7 +372,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Original Form Panel (Desktop Only) */}
           <div className="lg:w-1/2 p-6 sm:p-8 md:p-10 lg:p-12 bg-white dark:bg-[#0f1f3a] flex flex-col justify-center">
             <div className="max-w-sm mx-auto w-full">
               <div className="lg:hidden mb-8">
@@ -595,11 +589,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* 
-          MOBILE FORM ONLY: 
-          Shown on mobile (flex), hidden on desktop (lg:hidden).
-          This sits below the mobile header.
-        */}
+        {/* MOBILE FORM */}
         <div className="lg:hidden p-6 sm:p-8 bg-white dark:bg-[#0f1f3a] flex flex-col justify-center">
           <div className="max-w-md mx-auto w-full">
             <div className="mb-8">
