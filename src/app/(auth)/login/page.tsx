@@ -280,7 +280,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#0a2540] dark:to-[#0f1f3a] flex items-center justify-center p-4 sm:p-6 md:p-8">
+    // Changed p-4 to p-0 sm:p-4 so the card can be full-width on very small screens if desired
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#0a2540] dark:to-[#0f1f3a] flex items-center justify-center p-0 sm:p-4 md:p-8">
       {toasts.map((t) => (
         <Toast
           key={t.id}
@@ -291,8 +292,10 @@ export default function LoginPage() {
         />
       ))}
 
-      <div className="w-full max-w-[1000px] flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
-        <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex flex-col justify-between relative overflow-hidden min-h-[420px] lg:min-h-[560px]">
+      <div className="w-full max-w-[1000px] flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-none sm:rounded-3xl shadow-2xl overflow-hidden border-0 sm:border border-gray-100 dark:border-gray-800">
+        
+        {/* Changed to hidden lg:flex to hide on mobile, show on desktop */}
+        <div className="hidden lg:flex lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex-col justify-between relative overflow-hidden min-h-[420px] lg:min-h-[560px]">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
           <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
           <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
@@ -342,7 +345,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="lg:w-1/2 p-6 sm:p-8 md:p-10 lg:p-12 bg-white dark:bg-[#0f1f3a] flex flex-col justify-center">
+        {/* Added w-full so it takes up the entire screen on mobile */}
+        <div className="w-full lg:w-1/2 p-6 sm:p-8 md:p-10 lg:p-12 bg-white dark:bg-[#0f1f3a] flex flex-col justify-center">
           <div className="max-w-sm mx-auto w-full">
             <div className="lg:hidden mb-8">
               <Link href="/" className="inline-block">
