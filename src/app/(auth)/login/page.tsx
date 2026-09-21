@@ -389,11 +389,14 @@ export default function LoginPage() {
                   Email
                 </label>
                 <div className="relative">
-                  <Mail
-                    className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 ${
-                      emailError ? 'text-red-400' : 'text-gray-400'
-                    }`}
-                  />
+                  {/* Icon wrapper now uses flex to perfectly center */}
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Mail
+                      className={`w-4 h-4 ${
+                        emailError ? 'text-red-400' : 'text-gray-400'
+                      }`}
+                    />
+                  </div>
                   <input
                     type="email"
                     value={email}
@@ -403,7 +406,7 @@ export default function LoginPage() {
                       if (formError) setFormError('');
                     }}
                     placeholder="Enter your email address"
-                    className={`w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-[#1a2a4a] border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all disabled:opacity-50 text-gray-900 dark:text-white ${
+                    className={`w-full pl-11 pr-4 py-3 bg-gray-50 dark:bg-[#1a2a4a] border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all disabled:opacity-50 text-gray-900 dark:text-white ${
                       emailError
                         ? 'border-red-300 dark:border-red-700 focus:ring-red-500/20 focus:border-red-500'
                         : 'border-gray-200 dark:border-gray-700 focus:ring-indigo-500/20 focus:border-indigo-500'
@@ -426,11 +429,14 @@ export default function LoginPage() {
                   Password
                 </label>
                 <div className="relative">
-                  <Lock
-                    className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 ${
-                      passwordError ? 'text-red-400' : 'text-gray-400'
-                    }`}
-                  />
+                  {/* Icon wrapper now uses flex to perfectly center */}
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Lock
+                      className={`w-4 h-4 ${
+                        passwordError ? 'text-red-400' : 'text-gray-400'
+                      }`}
+                    />
+                  </div>
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
@@ -440,7 +446,7 @@ export default function LoginPage() {
                       if (formError) setFormError('');
                     }}
                     placeholder="Enter your password"
-                    className={`w-full pl-10 pr-11 py-3 bg-gray-50 dark:bg-[#1a2a4a] border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all disabled:opacity-50 text-gray-900 dark:text-white ${
+                    className={`w-full pl-11 pr-12 py-3 bg-gray-50 dark:bg-[#1a2a4a] border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all disabled:opacity-50 text-gray-900 dark:text-white ${
                       passwordError
                         ? 'border-red-300 dark:border-red-700 focus:ring-red-500/20 focus:border-red-500'
                         : 'border-gray-200 dark:border-gray-700 focus:ring-indigo-500/20 focus:border-indigo-500'
@@ -449,19 +455,22 @@ export default function LoginPage() {
                     disabled={loading}
                     autoComplete="current-password"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2"
-                    disabled={loading}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-                    ) : (
-                      <Eye className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-                    )}
-                  </button>
+                  {/* Eye icon wrapper now uses flex to perfectly center */}
+                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-gray-400 hover:text-gray-600 focus:outline-none"
+                      disabled={loading}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
                 {passwordError && (
                   <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
@@ -471,8 +480,9 @@ export default function LoginPage() {
                 )}
               </div>
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
+              {/* Fixed layout for Remember me and Forgot Password */}
+              <div className="flex items-center justify-between gap-3">
+                <label className="flex items-center gap-2 cursor-pointer select-none flex-shrink-0">
                   <input
                     type="checkbox"
                     checked={rememberMe}
@@ -480,15 +490,15 @@ export default function LoginPage() {
                     className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                     disabled={loading}
                   />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    Remember for 30 days
+                  <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                    Remember me
                   </span>
                 </label>
                 <Link
                   href="/forgot-password"
-                  className="text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+                  className="text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 whitespace-nowrap"
                 >
-                  Forgot Password
+                  Forgot Password?
                 </Link>
               </div>
 
