@@ -280,8 +280,8 @@ export default function LoginPage() {
   };
 
   return (
-    // Changed p-4 to p-0 sm:p-4 so the card can be full-width on very small screens if desired
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#0a2540] dark:to-[#0f1f3a] flex items-center justify-center p-0 sm:p-4 md:p-8">
+    // Outer container: mobile gets a subtle bg-slate-50, desktop (sm:) reverts to original gradient
+    <div className="min-h-screen bg-slate-50 sm:bg-gradient-to-br sm:from-gray-50 sm:to-gray-100 dark:from-[#0a2540] dark:to-[#0f1f3a] flex items-center justify-center p-4 sm:p-6 md:p-8">
       {toasts.map((t) => (
         <Toast
           key={t.id}
@@ -292,7 +292,8 @@ export default function LoginPage() {
         />
       ))}
 
-      <div className="w-full max-w-[1000px] flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-none sm:rounded-3xl shadow-2xl overflow-hidden border-0 sm:border border-gray-100 dark:border-gray-800">
+      {/* Card: Softened shadow to match the lighter background */}
+      <div className="w-full max-w-[1000px] flex flex-col lg:flex-row bg-white dark:bg-[#0f1f3a] rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] overflow-hidden border border-gray-100 dark:border-gray-800">
         
         {/* Changed to hidden lg:flex to hide on mobile, show on desktop */}
         <div className="hidden lg:flex lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex-col justify-between relative overflow-hidden min-h-[420px] lg:min-h-[560px]">
