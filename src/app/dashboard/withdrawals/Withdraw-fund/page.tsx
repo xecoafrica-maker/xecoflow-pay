@@ -6,30 +6,97 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   Wallet,
-  CreditCard,
   Smartphone,
   Landmark,
   CheckCircle,
-  Clock,
   XCircle,
   AlertCircle,
   Send,
-  RefreshCw,
   Shield,
   Check,
   Loader2,
   Mail,
+  X,
+  ChevronLeft,
+  Briefcase,
+  Store,
+  Users,
+  RefreshCw,
+  Info,
 } from 'lucide-react';
 import { useSession } from '@/hooks/useSession';
 
-// ─── Helper Functions ──────────────────────────────────────────────
-function maskAccountNumber(account: string) {
-  if (!account || account.length <= 6) return account;
-  const start = account.slice(0, 4);
-  const end = account.slice(-3);
-  return `${start}xxxxx${end}`;
+// ─── Channel definition ─────────────────────────────────────────────
+type ChannelStatus = 'live' | 'soon';
+
+interface WithdrawChannel {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  status: ChannelStatus;
 }
 
+const CHANNELS: WithdrawChannel[] = [
+  {
+    id: 'mpesa',
+    name: 'M-PESA',
+    description: 'Instant transfer',
+    icon: Smartphone,
+    status: 'live',
+  },
+  {
+    id: 'airtel',
+    name: 'Airtel Money',
+    description: 'Coming soon',
+    icon: Smartphone,
+    status: 'soon',
+  },
+  {
+    id: 'tkash',
+    name: 'T-Kash',
+    description: 'Coming soon',
+    icon: Smartphone,
+    status: 'soon',
+  },
+  {
+    id: 'bank',
+    name: 'Bank Transfer',
+    description: 'Coming soon',
+    icon: Landmark,
+    status: 'soon',
+  },
+  {
+    id: 'paybill',
+    name: 'Paybill',
+    description: 'Coming soon',
+    icon: Briefcase,
+    status: 'soon',
+  },
+  {
+    id: 'till',
+    name: 'Till (Buy Goods)',
+    description: 'Coming soon',
+    icon: Store,
+    status: 'soon',
+  },
+  {
+    id: 'internal',
+    name: 'XecoFlow Account',
+    description: 'Coming soon',
+    icon: RefreshCw,
+    status: 'soon',
+  },
+  {
+    id: 'pochi',
+    name: 'Pochi la Biashara',
+    description: 'Coming soon',
+    icon: Wallet,
+    status: 'soon',
+  },
+];
+
+// ─── Helpers ────────────────────────────────────────────────────────
 function normalizeKenyanPhone(phone: string): string {
   const cleaned = phone.replace(/\D/g, '');
   if (cleaned.startsWith('0') && cleaned.length === 10) return `254${cleaned.slice(1)}`;
@@ -38,48 +105,60 @@ function normalizeKenyanPhone(phone: string): string {
   throw new Error('Invalid Kenyan phone number');
 }
 
-// ─── Colors & Icons ──────────────────────────────────────────────────
-const METHOD_ICONS = {
-  'M-PESA': Smartphone,
-  'Bank Transfer': Landmark,
-  'Airtel Money': Smartphone,
-  'Credit Card': CreditCard,
-};
+function formatKes(value: number): string {
+  return value.toLocaleString('en-KE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
 
+// ─── Modal step type ────────────────────────────────────────────────
+type ModalStep = 'details' | 'code' | 'success';
+
+interface TransactionDetails {
+  amount: number;
+  phoneNumber: string;
+  reference: string;
+}
+
+// ─── Main component ─────────────────────────────────────────────────
 export default function WithdrawFundPage() {
   const router = useRouter();
   const { user, loading: sessionLoading } = useSession();
 
-  // ─── State ───────────────────────────────────────────────────────
+  // ─── Page state ───────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'withdraw' | 'deposit'>('withdraw');
-  const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [withdrawPhone, setWithdrawPhone] = useState('');
   const [depositAmount, setDepositAmount] = useState('');
 
-  // Real Data State
   const [loading, setLoading] = useState(true);
-  const [settlementData, setSettlementData] = useState<any>(null);
   const [availableBalance, setAvailableBalance] = useState(0);
 
-  // UI State
-  const [withdrawTo, setWithdrawTo] = useState<'mobile' | 'bank'>('mobile');
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [transactionDetails, setTransactionDetails] = useState<any>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState('');
+  // ─── Modal state ──────────────────────────────────────────────────
+  const [openChannel, setOpenChannel] = useState<WithdrawChannel | null>(null);
+  const [modalStep, setModalStep] = useState<ModalStep>('details');
 
-  // Authorization Flow State
-  const [showCodeModal, setShowCodeModal] = useState(false);
+  // Step 1: details
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawPhone, setWithdrawPhone] = useState('');
+  const [detailsError, setDetailsError] = useState('');
+  const [isSendingCode, setIsSendingCode] = useState(false);
+
+  // Step 2: code
   const [requestId, setRequestId] = useState('');
   const [authorizationCode, setAuthorizationCode] = useState('');
   const [maskedEmail, setMaskedEmail] = useState('');
   const [codeError, setCodeError] = useState('');
   const [codeAttemptsRemaining, setCodeAttemptsRemaining] = useState<number | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
 
-  // ─── Fetch Profile & Balance Securely ────────────────────────────
+  // Step 3: success
+  const [transactionDetails, setTransactionDetails] = useState<TransactionDetails | null>(null);
+
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // ─── Fetch balance + settlement details ───────────────────────────
   const fetchData = useCallback(async () => {
     if (!user?.merchantId) return;
 
@@ -88,70 +167,116 @@ export default function WithdrawFundPage() {
       const accountNumber = `1-1001-${paddedId}`;
 
       const [identityRes, balanceRes] = await Promise.all([
-        fetch('/api/business-account/identity', { credentials: 'include', cache: 'no-store' }),
-        fetch(`/api/ledger/accounts/${accountNumber}/balance`, { credentials: 'include', cache: 'no-store' })
+        fetch('/api/business-account/identity', {
+          credentials: 'include',
+          cache: 'no-store',
+        }),
+        fetch(`/api/ledger/accounts/${accountNumber}/balance`, {
+          credentials: 'include',
+          cache: 'no-store',
+        }),
       ]);
 
       if (identityRes.ok) {
         const identityData = await identityRes.json();
-        if (identityData) {
-          setSettlementData({
-            settlement_method: identityData.settlement_method || 'mpesa',
-            settlement_phone: identityData.settlement_phone || '',
-            bank_name: identityData.bank_name || '',
-            bank_account_number: identityData.bank_account_number || '',
-            bank_account_holder: identityData.bank_account_holder || '',
-          });
-          if (identityData.settlement_phone) {
-            setWithdrawPhone(identityData.settlement_phone);
-          }
+        if (identityData?.settlement_phone) {
+          setWithdrawPhone(identityData.settlement_phone);
         }
       }
 
       if (balanceRes.ok) {
         const balanceData = await balanceRes.json();
         if (balanceData.success) {
-          setAvailableBalance(balanceData.balance);
+          setAvailableBalance(Number(balanceData.balance) || 0);
         }
       }
-    } catch (err) {
-      // Silent fail — UI already shows empty state or defaults
+    } catch {
+      // Silent fail — the modal will show current defaults
     } finally {
       setLoading(false);
     }
   }, [user?.merchantId]);
 
-  // Load data once session is ready
   useEffect(() => {
     if (!sessionLoading && user?.merchantId) {
       fetchData();
     }
   }, [sessionLoading, user?.merchantId, fetchData]);
 
-  // ─── Resend countdown timer ───────────────────────────────────────
+  // ─── Resend countdown ─────────────────────────────────────────────
   useEffect(() => {
     if (resendCountdown <= 0) return;
-    const timer = setTimeout(() => setResendCountdown(c => c - 1), 1000);
+    const timer = setTimeout(() => setResendCountdown((c) => c - 1), 1000);
     return () => clearTimeout(timer);
   }, [resendCountdown]);
 
-  // ─── Handlers ─────────────────────────────────────────────────────
-  const handleWithdraw = async () => {
+  // ─── Esc closes the modal ─────────────────────────────────────────
+  useEffect(() => {
+    if (!openChannel) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isSendingCode && !isVerifying && !isResending) {
+        closeModal();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openChannel, isSendingCode, isVerifying, isResending]);
+
+  // ─── Modal controls ───────────────────────────────────────────────
+  const openModal = (channel: WithdrawChannel) => {
+    if (channel.status !== 'live') return;
+    setOpenChannel(channel);
+    setModalStep('details');
+    resetModalState();
+  };
+
+  const resetModalState = () => {
+    setWithdrawAmount('');
+    setDetailsError('');
+    setAuthorizationCode('');
+    setCodeError('');
+    setCodeAttemptsRemaining(null);
+    setRequestId('');
+    setMaskedEmail('');
+    setResendCountdown(0);
+    setTransactionDetails(null);
+  };
+
+  const closeModal = () => {
+    if (isSendingCode || isVerifying || isResending) return;
+    setOpenChannel(null);
+    setModalStep('details');
+    resetModalState();
+  };
+
+  const backToDetails = () => {
+    setModalStep('details');
+    setAuthorizationCode('');
+    setCodeError('');
+    setCodeAttemptsRemaining(null);
+  };
+
+  // ─── Step 1: submit details ───────────────────────────────────────
+  const submitDetails = async () => {
+    if (!openChannel) return;
+
     const amount = parseFloat(withdrawAmount);
     if (!amount || amount <= 0) {
-      setError('Please enter a valid amount');
+      setDetailsError('Please enter a valid amount');
       return;
     }
     if (amount > availableBalance) {
-      setError(`Insufficient balance. Available: KES ${availableBalance.toLocaleString()}`);
+      setDetailsError(`Insufficient balance. Available: KES ${formatKes(availableBalance)}`);
       return;
     }
     if (!withdrawPhone || withdrawPhone.length < 10) {
-      setError('Please enter a valid phone number');
+      setDetailsError('Please enter a valid phone number');
       return;
     }
 
-    setError('');
+    setDetailsError('');
     setIsSendingCode(true);
 
     try {
@@ -161,7 +286,11 @@ export default function WithdrawFundPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, phoneNumber: normalizedPhone, withdrawTo }),
+        body: JSON.stringify({
+          amount,
+          phoneNumber: normalizedPhone,
+          withdrawTo: 'mobile',
+        }),
       });
 
       const data = await res.json();
@@ -170,32 +299,22 @@ export default function WithdrawFundPage() {
         throw new Error(data.message || data.error || 'Failed to send authorization code');
       }
 
-      setTransactionDetails({
-        type: 'Withdrawal',
-        method: withdrawTo === 'mobile' ? 'M-PESA' : 'Bank Transfer',
-        amount,
-        recipient: `M-PESA - ${normalizedPhone}`,
-        reference: `WD-${Date.now().toString().slice(-6)}`,
-        withdrawTo,
-        phoneNumber: normalizedPhone,
-      });
-
       setRequestId(data.data.requestId);
-      setMaskedEmail(data.data.maskedEmail);
+      setMaskedEmail(data.data.maskedEmail || '');
       setAuthorizationCode('');
       setCodeError('');
       setCodeAttemptsRemaining(null);
       setResendCountdown(30);
-      setShowCodeModal(true);
-
-    } catch (err: any) {
-      setError(err.message || 'Failed to send authorization code');
+      setModalStep('code');
+    } catch (err) {
+      setDetailsError(err instanceof Error ? err.message : 'Failed to send code');
     } finally {
       setIsSendingCode(false);
     }
   };
 
-  const verifyCodeAndWithdraw = async () => {
+  // ─── Step 2: verify code ──────────────────────────────────────────
+  const submitCode = async () => {
     if (!authorizationCode || authorizationCode.length !== 6) {
       setCodeError('Please enter the 6-digit code');
       return;
@@ -227,29 +346,29 @@ export default function WithdrawFundPage() {
         return;
       }
 
-      // Audit logging for withdrawals must happen server-side when the 
-      // actual withdrawal endpoint is hit, not here.
+      const amount = parseFloat(withdrawAmount);
+      const normalizedPhone = normalizeKenyanPhone(withdrawPhone);
 
-      setShowCodeModal(false);
-      setShowSuccessModal(true);
-      setWithdrawAmount('');
-      setWithdrawPhone('');
-      setRequestId('');
-      setAuthorizationCode('');
-      setMaskedEmail('');
-      setAvailableBalance(prev => prev - transactionDetails.amount);
+      setTransactionDetails({
+        amount,
+        phoneNumber: normalizedPhone,
+        reference: `WD-${Date.now().toString().slice(-6)}`,
+      });
 
-    } catch (err: any) {
-      setCodeError(err.message || 'Failed to verify code');
+      setAvailableBalance((prev) => Math.max(0, prev - amount));
+      setModalStep('success');
+    } catch (err) {
+      setCodeError(err instanceof Error ? err.message : 'Failed to verify code');
     } finally {
       setIsVerifying(false);
     }
   };
 
+  // ─── Step 2: resend code ──────────────────────────────────────────
   const resendCode = async () => {
-    if (resendCountdown > 0) return;
+    if (resendCountdown > 0 || isResending) return;
 
-    setIsSendingCode(true);
+    setIsResending(true);
     setCodeError('');
 
     try {
@@ -270,35 +389,15 @@ export default function WithdrawFundPage() {
       setCodeAttemptsRemaining(null);
       setAuthorizationCode('');
       setCodeError('');
-
-    } catch (err: any) {
-      setCodeError(err.message || 'Failed to resend code');
+    } catch (err) {
+      setCodeError(err instanceof Error ? err.message : 'Failed to resend code');
     } finally {
-      setIsSendingCode(false);
+      setIsResending(false);
     }
   };
 
-  const cancelCodeModal = () => {
-    setShowCodeModal(false);
-    setRequestId('');
-    setAuthorizationCode('');
-    setCodeError('');
-    setMaskedEmail('');
-    setCodeAttemptsRemaining(null);
-    setResendCountdown(0);
-  };
-
-  const handleDeposit = () => {
-    const amount = parseFloat(depositAmount);
-    if (!amount || amount <= 0) {
-      alert('Please enter a valid amount');
-      return;
-    }
-    alert('Deposit functionality coming soon!');
-  };
-
-  // ─── Loading / Auth states ────────────────────────────────────────
-  if (sessionLoading) {
+  // ─── Loading states ───────────────────────────────────────────────
+  if (sessionLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-rose-500" />
@@ -306,48 +405,7 @@ export default function WithdrawFundPage() {
     );
   }
 
-  if (!user) {
-    return null; // useSession already redirects
-  }
-
-  if (loading) {
-    return (
-      <div className="max-w-[1400px] mx-auto space-y-5 px-4 sm:px-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl shadow-sm bg-gradient-to-br from-rose-500 to-rose-600 shadow-rose-200`}>
-              <ArrowUpRight className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <div className="h-6 w-56 bg-gray-200 rounded animate-pulse mb-2" />
-              <div className="h-4 w-72 bg-gray-200 rounded animate-pulse" />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <div className="h-10 w-24 bg-gray-200 rounded-xl animate-pulse" />
-            <div className="h-10 w-28 bg-gray-200 rounded-xl animate-pulse" />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
-            <div className="h-6 w-40 bg-gray-200 rounded animate-pulse" />
-            <div className="h-10 w-full bg-gray-200 rounded-xl animate-pulse" />
-            <div className="h-10 w-full bg-gray-200 rounded-xl animate-pulse" />
-            <div className="h-12 w-full bg-gray-200 rounded-xl animate-pulse" />
-          </div>
-          <div className="space-y-5">
-            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-3">
-              <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
-              <div className="grid grid-cols-2 gap-2">
-                <div className="h-20 bg-gray-200 rounded-xl animate-pulse" />
-                <div className="h-20 bg-gray-200 rounded-xl animate-pulse" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (!user) return null;
 
   // ─── Render ───────────────────────────────────────────────────────
   return (
@@ -355,254 +413,430 @@ export default function WithdrawFundPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className={`p-2.5 rounded-xl shadow-sm ${activeTab === 'withdraw' ? 'bg-gradient-to-br from-rose-500 to-rose-600 shadow-rose-200' : 'bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-emerald-200'}`}>
-            {activeTab === 'withdraw' ? <ArrowUpRight className="w-5 h-5 text-white" /> : <ArrowDownLeft className="w-5 h-5 text-white" />}
+          <div className="p-2.5 rounded-xl shadow-sm bg-gradient-to-br from-rose-500 to-rose-600 shadow-rose-200">
+            <ArrowUpRight className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{activeTab === 'withdraw' ? 'Withdraw Funds' : 'Fund Wallet'}</h1>
-            <p className="text-sm text-gray-500">{activeTab === 'withdraw' ? 'Transfer funds from your wallet to any M-PESA number' : 'Add funds to your wallet via various payment methods'}</p>
+            <h1 className="text-2xl font-bold text-gray-900">Withdraw Funds</h1>
+            <p className="text-sm text-gray-500">
+              Send money from your XecoFlow wallet to any destination
+            </p>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => setActiveTab('withdraw')} className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'withdraw' ? 'bg-rose-500 text-white shadow-sm shadow-rose-200' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-            <ArrowUpRight className="w-4 h-4" /> Withdraw
-          </button>
-          <button onClick={() => setActiveTab('deposit')} className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'deposit' ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-200' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-            <ArrowDownLeft className="w-4 h-4" /> Deposit
-          </button>
         </div>
       </div>
 
-      {/* Error Display */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-xl flex items-center gap-2">
-          <AlertCircle className="w-4 h-4" /> {error}
+      {/* Balance card */}
+      <div className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Available Balance
+            </p>
+            <p className="text-3xl font-bold text-gray-900 mt-1">
+              KES {formatKes(availableBalance)}
+            </p>
+          </div>
+          <div className="p-3 rounded-xl bg-emerald-50">
+            <Wallet className="w-6 h-6 text-emerald-600" />
+          </div>
         </div>
-      )}
+      </div>
 
-      {/* Main Action Card */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Withdraw Form */}
-        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">{activeTab === 'withdraw' ? 'Withdraw Funds' : 'Deposit Funds'}</h2>
-            {activeTab === 'withdraw' && (
-              <div className="text-right">
-                <p className="text-xs text-gray-400">Available Balance</p>
-                <p className="text-lg font-bold text-emerald-600">KES {availableBalance.toLocaleString()}</p>
+      {/* Channel selector */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+        <h2 className="text-base font-semibold text-gray-900 mb-1">
+          Where would you like to send?
+        </h2>
+        <p className="text-sm text-gray-500 mb-5">
+          Choose a destination. Live channels are available now; more coming soon.
+        </p>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {CHANNELS.map((channel) => {
+            const Icon = channel.icon;
+            const isLive = channel.status === 'live';
+            return (
+              <button
+                key={channel.id}
+                type="button"
+                onClick={() => openModal(channel)}
+                disabled={!isLive}
+                className={`relative flex flex-col items-start gap-2 p-4 rounded-xl border text-left transition-all ${
+                  isLive
+                    ? 'border-gray-200 bg-white hover:border-rose-400 hover:shadow-md cursor-pointer'
+                    : 'border-gray-100 bg-gray-50 cursor-not-allowed opacity-70'
+                }`}
+              >
+                <div
+                  className={`p-2 rounded-lg ${
+                    isLive ? 'bg-rose-50' : 'bg-gray-100'
+                  }`}
+                >
+                  <Icon
+                    className={`w-5 h-5 ${
+                      isLive ? 'text-rose-600' : 'text-gray-400'
+                    }`}
+                  />
+                </div>
+                <div className="w-full">
+                  <p
+                    className={`text-sm font-semibold ${
+                      isLive ? 'text-gray-900' : 'text-gray-500'
+                    }`}
+                  >
+                    {channel.name}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {channel.description}
+                  </p>
+                </div>
+                {!isLive && (
+                  <span className="absolute top-2 right-2 text-[10px] font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                    Soon
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Info panel */}
+      <div className="bg-gradient-to-br from-amber-50 to-amber-100/30 border border-amber-200 rounded-2xl p-5">
+        <div className="flex items-start gap-3">
+          <Info className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-sm font-semibold text-amber-900">
+              Important Information
+            </h4>
+            <ul className="text-xs text-amber-800 mt-2 space-y-1">
+              <li>• M-PESA withdrawals are processed in 5–30 seconds.</li>
+              <li>• Minimum withdrawal: KES 10. Maximum: KES 250,000.</li>
+              <li>• An authorization code will be sent to your email.</li>
+              <li>• Verify the phone number before confirming.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══════════════ Withdrawal Modal (Option C) ═══════════════ */}
+      {openChannel && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeModal();
+          }}
+        >
+          <div
+            ref={modalRef}
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200"
+          >
+            {/* ─── Modal header ──────────────────────────────── */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                {modalStep === 'code' && (
+                  <button
+                    type="button"
+                    onClick={backToDetails}
+                    disabled={isVerifying || isResending}
+                    className="p-1.5 -ml-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-40 transition-colors"
+                    aria-label="Back"
+                  >
+                    <ChevronLeft className="w-4 h-4 text-gray-600" />
+                  </button>
+                )}
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-rose-50">
+                    <openChannel.icon className="w-4 h-4 text-rose-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {modalStep === 'details' && `${openChannel.name} Withdrawal`}
+                      {modalStep === 'code' && 'Verify Withdrawal'}
+                      {modalStep === 'success' && 'Withdrawal Initiated'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {modalStep === 'details' && 'Enter destination and amount'}
+                      {modalStep === 'code' && 'Enter the code from your email'}
+                      {modalStep === 'success' && 'Confirmation sent to your email'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeModal}
+                disabled={isSendingCode || isVerifying || isResending}
+                className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-40 transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+
+            {/* ─── Step 1: Details ───────────────────────────── */}
+            {modalStep === 'details' && (
+              <div className="p-5 space-y-5">
+                {/* Destination section */}
+                <div>
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                    Destination
+                  </p>
+
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Phone Number <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Smartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <input
+                      type="tel"
+                      value={withdrawPhone}
+                      onChange={(e) => {
+                        setWithdrawPhone(e.target.value);
+                        if (detailsError) setDetailsError('');
+                      }}
+                      placeholder="0712071385"
+                      disabled={isSendingCode}
+                      className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all outline-none disabled:opacity-60"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    The M-PESA number to receive the funds.
+                  </p>
+                </div>
+
+                {/* Amount section */}
+                <div>
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                    Amount
+                  </p>
+
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Amount (KES) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 font-semibold text-sm">
+                      KES
+                    </span>
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      value={withdrawAmount}
+                      onChange={(e) => {
+                        setWithdrawAmount(e.target.value);
+                        if (detailsError) setDetailsError('');
+                      }}
+                      disabled={isSendingCode}
+                      className="w-full pl-14 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-base font-semibold focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all outline-none disabled:opacity-60"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Min: KES 10 · Max: KES 250,000
+                  </p>
+                </div>
+
+                {/* Fee preview */}
+                <div className="bg-gray-50 rounded-xl p-3.5 space-y-1.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Fee</span>
+                    <span className="text-gray-700 font-medium">KES 0.00</span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-200 pt-1.5">
+                    <span className="text-gray-500">Total</span>
+                    <span className="text-gray-900 font-bold">
+                      KES{' '}
+                      {formatKes(
+                        parseFloat(withdrawAmount || '0') || 0
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {detailsError && (
+                  <div className="flex items-start gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl p-3">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>{detailsError}</span>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={submitDetails}
+                  disabled={isSendingCode}
+                  className="w-full py-3 bg-gradient-to-r from-rose-500 to-rose-600 hover:shadow-lg hover:shadow-rose-200 text-white rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {isSendingCode ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Sending code…
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Withdraw Funds
+                    </>
+                  )}
+                </button>
               </div>
             )}
-          </div>
 
-          {activeTab === 'withdraw' && (
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1.5">Withdraw To</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => setWithdrawTo('mobile')} className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-sm font-medium transition-all ${withdrawTo === 'mobile' ? 'border-rose-500 bg-rose-50 text-rose-700 ring-2 ring-rose-500/20' : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>
-                    <Smartphone className="w-4 h-4" />
-                    <div className="text-left"><div className="font-medium">M-PESA</div><div className="text-xs text-gray-400">Enter number below</div></div>
-                  </button>
-                  <button onClick={() => setWithdrawTo('bank')} className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border text-sm font-medium transition-all ${withdrawTo === 'bank' ? 'border-rose-500 bg-rose-50 text-rose-700 ring-2 ring-rose-500/20' : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'}`}>
-                    <Landmark className="w-4 h-4" />
-                    <div className="text-left"><div className="font-medium">Bank Transfer</div><div className="text-xs text-gray-400">(Coming Soon)</div></div>
-                  </button>
+            {/* ─── Step 2: Code ──────────────────────────────── */}
+            {modalStep === 'code' && (
+              <div className="p-5 space-y-5">
+                <div className="flex items-center justify-center">
+                  <div className="w-14 h-14 rounded-full bg-rose-50 flex items-center justify-center">
+                    <Shield className="w-6 h-6 text-rose-500" />
+                  </div>
                 </div>
-              </div>
 
-              {withdrawTo === 'mobile' && (
+                {maskedEmail && (
+                  <div className="flex items-center justify-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg py-2 px-3">
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>
+                      Code sent to <strong className="text-gray-700">{maskedEmail}</strong>
+                    </span>
+                  </div>
+                )}
+
+                {/* Transaction summary */}
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Amount</span>
+                    <span className="text-lg font-bold text-rose-600">
+                      KES {formatKes(parseFloat(withdrawAmount) || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">To</span>
+                    <span className="font-medium text-gray-900">
+                      {withdrawPhone}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Code input */}
                 <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1.5">Phone Number <span className="text-red-500">*</span></label>
-                  <div className="relative">
-                    <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <input type="tel" value={withdrawPhone} onChange={(e) => setWithdrawPhone(e.target.value)} placeholder="0712071385" className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all outline-none" />
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1">Enter the M-PESA number you want to withdraw to (e.g. 0712xxxxxx)</p>
-                </div>
-              )}
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1.5">Amount (KES)</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">KES</span>
-                  <input type="number" placeholder="Enter amount" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} className="w-full pl-14 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-base font-semibold focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all outline-none" />
-                </div>
-                <p className="text-xs text-gray-400 mt-1">Min: KES 10 | Max: KES 250,000</p>
-              </div>
-
-              <button onClick={handleWithdraw} disabled={isSendingCode} className="w-full py-3 bg-gradient-to-r from-rose-500 to-rose-600 hover:shadow-lg hover:shadow-rose-200 text-white rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-60">
-                {isSendingCode ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending code...</> : <><Send className="w-4 h-4" /> Withdraw Funds</>}
-              </button>
-            </div>
-          )}
-
-          {activeTab === 'deposit' && (
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1.5">Amount (KES)</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">KES</span>
-                  <input type="number" placeholder="Enter amount" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className="w-full pl-14 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-base font-semibold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none" />
-                </div>
-              </div>
-              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                <div className="flex items-start gap-3">
-                  <Landmark className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-blue-800">Deposit via Bank Transfer</p>
-                    <p className="text-xs text-blue-700 mt-1">Transfer to the account below and the funds will be credited automatically:</p>
-                    <div className="mt-2 space-y-1 text-sm text-blue-700">
-                      <p><span className="font-medium">Bank:</span> KCB Bank Kenya</p>
-                      <p><span className="font-medium">Account:</span> 1234567890</p>
-                      <p><span className="font-medium">Name:</span> XecoFlow Limited</p>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
+                    Authorization Code
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={authorizationCode}
+                    onChange={(e) => {
+                      setAuthorizationCode(e.target.value.replace(/\D/g, ''));
+                      if (codeError) setCodeError('');
+                    }}
+                    placeholder="000000"
+                    autoFocus
+                    disabled={isVerifying}
+                    className="w-full text-center text-3xl font-mono tracking-[0.5em] py-3 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all disabled:opacity-60"
+                  />
+                  {codeError && (
+                    <div className="mt-2 flex items-center justify-center gap-2 text-sm text-red-600">
+                      <XCircle className="w-4 h-4" />
+                      <span>{codeError}</span>
                     </div>
-                  </div>
+                  )}
+                  {codeAttemptsRemaining !== null && codeAttemptsRemaining > 0 && (
+                    <p className="mt-1 text-xs text-amber-600 text-center">
+                      {codeAttemptsRemaining} attempt
+                      {codeAttemptsRemaining !== 1 ? 's' : ''} remaining
+                    </p>
+                  )}
                 </div>
-              </div>
-              <button onClick={handleDeposit} className="w-full py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:shadow-lg hover:shadow-emerald-200 text-white rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2">
-                <Send className="w-4 h-4" /> I've Made the Transfer
-              </button>
-            </div>
-          )}
-        </div>
 
-        {/* Quick Actions & Info */}
-        <div className="space-y-5">
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick Actions</h3>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => { setActiveTab('withdraw'); setWithdrawTo('mobile'); }} className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-green-50 to-green-100/50 rounded-xl border border-green-200 hover:shadow-md transition-all">
-                <ArrowUpRight className="w-6 h-6 text-green-600" />
-                <span className="text-sm font-medium text-gray-700">Withdraw to Mobile</span>
-                <span className="text-xs text-gray-400">Enter number below</span>
-              </button>
-              <button onClick={() => setActiveTab('deposit')} className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl border border-emerald-200 hover:shadow-md transition-all">
-                <ArrowDownLeft className="w-6 h-6 text-emerald-600" />
-                <span className="text-sm font-medium text-gray-700">Deposit from Bank</span>
-                <span className="text-xs text-gray-400">Bank Transfer</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-amber-50 to-amber-100/30 border border-amber-200 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="text-sm font-semibold text-amber-800">Important Information</h4>
-                <ul className="text-xs text-amber-700 mt-1 space-y-1">
-                  <li>• Withdrawals to M-PESA are processed within 5-30 seconds.</li>
-                  <li>• You must have sufficient balance in your utility account.</li>
-                  <li>• Minimum withdrawal is KES 10. Maximum is KES 250,000.</li>
-                  <li>• Ensure the phone number is correct before sending.</li>
-                  <li>• An authorization code will be sent to your email.</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Code Authorization Modal */}
-      {showCodeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-6">
-              <div className="flex items-center justify-center mb-4">
-                <div className="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center">
-                  <Shield className="w-8 h-8 text-rose-500" />
-                </div>
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 text-center">Verify Withdrawal</h3>
-              <p className="text-sm text-gray-500 text-center mt-1">Enter the 6-digit authorization code</p>
-
-              {maskedEmail && (
-                <div className="mt-3 flex items-center justify-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg py-2 px-3">
-                  <Mail className="w-3.5 h-3.5" />
-                  <span>Code sent to <strong className="text-gray-700">{maskedEmail}</strong></span>
-                </div>
-              )}
-
-              <div className="mt-6 space-y-3 bg-gray-50 rounded-xl p-4 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Amount</span>
-                  <span className="text-lg font-bold text-rose-600">KES {transactionDetails?.amount?.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">To</span>
-                  <span className="font-medium text-gray-900">{transactionDetails?.phoneNumber}</span>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2 text-center">Authorization Code</label>
-                <input
-                  type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} value={authorizationCode}
-                  onChange={(e) => { setAuthorizationCode(e.target.value.replace(/\D/g, '')); if (codeError) setCodeError(''); }}
-                  placeholder="000000" autoFocus disabled={isVerifying}
-                  className="w-full text-center text-3xl font-mono tracking-[0.5em] py-3 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all disabled:opacity-60"
-                />
-                {codeError && (
-                  <div className="mt-2 flex items-center justify-center gap-2 text-sm text-red-600">
-                    <XCircle className="w-4 h-4" /><span>{codeError}</span>
-                  </div>
-                )}
-                {codeAttemptsRemaining !== null && codeAttemptsRemaining > 0 && (
-                  <p className="mt-1 text-xs text-amber-600 text-center">{codeAttemptsRemaining} attempt{codeAttemptsRemaining !== 1 ? 's' : ''} remaining</p>
-                )}
-              </div>
-
-              <div className="mt-6 flex flex-col gap-2">
-                <button onClick={verifyCodeAndWithdraw} disabled={isVerifying || authorizationCode.length !== 6} className="w-full px-4 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                  {isVerifying ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying...</> : <><Check className="w-4 h-4" /> Verify & Withdraw</>}
-                </button>
-                <div className="flex gap-2">
-                  <button onClick={resendCode} disabled={resendCountdown > 0 || isSendingCode} className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                    {isSendingCode ? 'Sending...' : resendCountdown > 0 ? `Resend in ${resendCountdown}s` : 'Resend code'}
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={submitCode}
+                    disabled={isVerifying || authorizationCode.length !== 6}
+                    className="w-full py-3 bg-gradient-to-r from-rose-500 to-rose-600 hover:shadow-lg hover:shadow-rose-200 text-white rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isVerifying ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Verifying…
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Verify & Withdraw
+                      </>
+                    )}
                   </button>
-                  <button onClick={cancelCodeModal} disabled={isVerifying} className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50">Cancel</button>
+                  <button
+                    type="button"
+                    onClick={resendCode}
+                    disabled={resendCountdown > 0 || isResending}
+                    className="w-full py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isResending
+                      ? 'Sending…'
+                      : resendCountdown > 0
+                      ? `Resend code in ${resendCountdown}s`
+                      : 'Resend code'}
+                  </button>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+            )}
 
-      {/* Success Modal */}
-      {showSuccessModal && transactionDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-6 text-center">
-              <div className="flex items-center justify-center mb-4">
-                <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center">
-                  <CheckCircle className="w-8 h-8 text-emerald-500" />
+            {/* ─── Step 3: Success ───────────────────────────── */}
+            {modalStep === 'success' && transactionDetails && (
+              <div className="p-6 text-center">
+                <div className="flex items-center justify-center mb-4">
+                  <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center">
+                    <CheckCircle className="w-8 h-8 text-emerald-500" />
+                  </div>
                 </div>
+                <h3 className="text-xl font-bold text-gray-900">
+                  Withdrawal Initiated
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  A confirmation has been sent to your email.
+                </p>
+
+                <div className="mt-5 bg-gray-50 rounded-xl p-4 text-left space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-500">Amount</span>
+                    <span className="text-lg font-bold text-emerald-600">
+                      KES {formatKes(transactionDetails.amount)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-500">To</span>
+                    <span className="text-sm font-medium text-gray-900">
+                      {transactionDetails.phoneNumber}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-500">Reference</span>
+                    <span className="text-sm font-mono text-gray-600">
+                      {transactionDetails.reference}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-500">Date</span>
+                    <span className="text-sm text-gray-600">
+                      {new Date().toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeModal();
+                    router.push('/dashboard');
+                  }}
+                  className="w-full mt-5 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-semibold transition-all"
+                >
+                  Back to Dashboard
+                </button>
               </div>
-              <h3 className="text-xl font-bold text-gray-900">Withdrawal Initiated!</h3>
-              <p className="text-sm text-gray-500 mt-1">A confirmation email has been sent.</p>
-
-              <div className="mt-6 bg-gray-50 rounded-xl p-4 text-left space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Amount</span>
-                  <span className="text-xl font-bold text-emerald-600">KES {transactionDetails.amount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">To</span>
-                  <span className="text-sm font-medium text-gray-900">{transactionDetails.phoneNumber}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Reference</span>
-                  <span className="text-sm font-mono text-gray-600">{transactionDetails.reference}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-500">Date</span>
-                  <span className="text-sm text-gray-600">{new Date().toLocaleString()}</span>
-                </div>
-              </div>
-
-              <button onClick={() => { setShowSuccessModal(false); router.push('/dashboard'); }} className="w-full mt-6 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-all">
-                Go to Dashboard
-              </button>
-            </div>
+            )}
           </div>
         </div>
       )}
