@@ -7,73 +7,42 @@ import { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard,
   CreditCard,
-  ShoppingCart,
   Link2,
-  Terminal,
   Settings,
   LogOut,
-  PanelLeftClose,
-  PanelLeftOpen,
-  ChevronDown,
   ChevronRight,
   PlusCircle,
   ArrowUpRight,
   ArrowDownRight,
-  BarChart3,
   Send,
-  Key,
   Building,
-  Briefcase,
   Shield,
   X,
   Clock,
   History,
   Wallet,
-  User,
-  Activity,
-  Lock,
-  Mail,
   Users,
-  Globe,
-  Bell,
   Smartphone,
   Zap,
   FileText,
   Download,
-  TrendingUp,
-  Repeat,
-  Box,
-  BriefcaseBusiness,
   Coins,
   Handshake,
-  AppWindow,
-  Grid3x3,
-  Webhook,
-  Landmark,
-  PiggyBank,
   Pin,
   MonitorSmartphone,
-  HelpCircle,
-  BookOpen,
   Code,
-  Brackets,
   Phone,
   Building2,
   Package,
-  Store,
-  Receipt,
+  Store as StoreIcon,
   Layers,
   ChevronUp,
   UserCircle,
-  Store as StoreIcon,
-  Blocks,
-  Sparkles,
   Eye,
   EyeOff,
   CheckCircle,
-  Scale,
-  Percent,
   BadgeDollarSign,
+  Box,
 } from 'lucide-react';
 import { getStoredMerchant } from '../../lib/auth';
 
@@ -91,9 +60,9 @@ interface SidebarSection {
   items: SidebarItem[];
 }
 
-// ─── Pinned Apps Mapping ──────────────────────────────────────────
+// ─── Pinned apps ────────────────────────────────────────────────────
 const APP_ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
-  'pamojafund': Handshake,
+  pamojafund: Handshake,
   'airtime-retail': Smartphone,
   'airtime-bulk': Box,
   'kplc-token': Zap,
@@ -101,11 +70,11 @@ const APP_ICON_MAP: Record<string, React.ComponentType<{ size?: number; classNam
   'pos-terminal': MonitorSmartphone,
   'kra-automation': FileText,
   'chama-link': Users,
-  'marketplace': StoreIcon,
+  marketplace: StoreIcon,
 };
 
 const APP_LABEL_MAP: Record<string, string> = {
-  'pamojafund': 'PamojaFund',
+  pamojafund: 'PamojaFund',
   'airtime-retail': 'Retail Quick Top-Up',
   'airtime-bulk': 'Bulk Airtime',
   'kplc-token': 'Buy KPLC Token',
@@ -113,11 +82,11 @@ const APP_LABEL_MAP: Record<string, string> = {
   'pos-terminal': 'POS / Counter Pay',
   'kra-automation': 'KRA Automation',
   'chama-link': 'Chama Link',
-  'marketplace': 'Apps Marketplace',
+  marketplace: 'Apps Marketplace',
 };
 
 const APP_HREF_MAP: Record<string, string> = {
-  'pamojafund': '/dashboard/pamojafund',
+  pamojafund: '/dashboard/pamojafund',
   'airtime-retail': '/dashboard/utilities/airtime/retail',
   'airtime-bulk': '/dashboard/utilities/airtime/bulk',
   'kplc-token': '/dashboard/utilities/kplc',
@@ -125,18 +94,16 @@ const APP_HREF_MAP: Record<string, string> = {
   'pos-terminal': '/dashboard/pos',
   'kra-automation': '/dashboard/ecosystem/kra-automation',
   'chama-link': '/dashboard/ecosystem/chama-link',
-  'marketplace': '/dashboard/ecosystem/marketplace',
+  marketplace: '/dashboard/ecosystem/marketplace',
 };
 
 const PINNED_APPS_KEY = 'xecoflow_pinned_apps';
 
-// ─── Configuration ──────────────────────────────────────────────────
-const sidebarSections: SidebarSection[] = [
+// ─── Navigation config ──────────────────────────────────────────────
+const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     title: '',
-    items: [
-      { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-    ],
+    items: [{ icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' }],
   },
   {
     title: 'PAYMENTS',
@@ -165,53 +132,23 @@ const sidebarSections: SidebarSection[] = [
   {
     title: 'SERVICES',
     items: [
-      {
-        icon: Send,
-        label: 'Send STK Push',
-        href: '/dashboard/hosted-checkout/integration',
-      },
+      { icon: Send, label: 'Send STK Push', href: '/dashboard/hosted-checkout/integration' },
       {
         icon: Link2,
         label: 'Payment Links',
         children: [
-          {
-            icon: Package,
-            label: 'Create Product Link',
-            href: '/dashboard/smart-bills/create-product',
-          },
-          {
-            icon: CreditCard,
-            label: 'Create Payment Page',
-            href: '/dashboard/payment-pages/create',
-          },
-          {
-            icon: Layers,
-            label: 'All Payment Links',
-            href: '/dashboard/smart-bills/pages',
-          },
+          { icon: Package, label: 'Create Product Link', href: '/dashboard/smart-bills/create-product' },
+          { icon: CreditCard, label: 'Create Payment Page', href: '/dashboard/payment-pages/create' },
+          { icon: Layers, label: 'All Payment Links', href: '/dashboard/smart-bills/pages' },
         ],
       },
-      {
-        icon: Building2,
-        label: 'Get Automated PayBill',
-        href: '/dashboard/paybill/automated',
-      },
-      {
-        icon: BadgeDollarSign,
-        label: 'Service Charges',
-        href: '/dashboard/rates/transaction-fees',
-      }
+      { icon: Building2, label: 'Get Automated PayBill', href: '/dashboard/paybill/automated' },
+      { icon: BadgeDollarSign, label: 'Service Charges', href: '/dashboard/rates/transaction-fees' },
     ],
   },
   {
     title: 'DISBURSEMENT',
-    items: [
-      {
-        icon: Phone,
-        label: 'Bulk Airtime',
-        href: '/dashboard/utilities/airtime/bulk',
-      },
-    ],
+    items: [{ icon: Phone, label: 'Bulk Airtime', href: '/dashboard/utilities/airtime/bulk' }],
   },
   {
     title: 'ECOSYSTEM',
@@ -241,13 +178,7 @@ const sidebarSections: SidebarSection[] = [
   },
   {
     title: 'DEVELOPER HUB',
-    items: [
-      {
-        icon: Code,
-        label: 'API Keys & Webhooks',
-        href: '/dashboard/account/api-keys',
-      },
-    ],
+    items: [{ icon: Code, label: 'API Keys & Webhooks', href: '/dashboard/account/api-keys' }],
   },
 ];
 
@@ -255,6 +186,7 @@ const sidebarSections: SidebarSection[] = [
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+
   const [merchantName, setMerchantName] = useState('Merchant');
   const [merchantEmail, setMerchantEmail] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -264,7 +196,7 @@ export default function Sidebar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // ─── Password Modal State ─────────────────────────────────────────
+  // Password verification modal
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -273,165 +205,114 @@ export default function Sidebar() {
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [verificationSuccess, setVerificationSuccess] = useState(false);
 
-  // Check if we're on ecosystem page (full page apps)
   const isFullPageApp = pathname?.startsWith('/dashboard/ecosystem') || false;
 
-  // ─── Close menu when clicking outside ──────────────────────────────
+  // Close user menu on outside click.
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ─── Load pinned apps from localStorage ──────────────────────────
+  // Load pinned apps.
   useEffect(() => {
-    const saved = localStorage.getItem(PINNED_APPS_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setPinnedApps(parsed);
-      } catch (e) {
-        console.error('Error loading pinned apps:', e);
-      }
+    try {
+      const saved = localStorage.getItem(PINNED_APPS_KEY);
+      if (saved) setPinnedApps(JSON.parse(saved));
+    } catch {
+      // Corrupt JSON — ignore.
     }
   }, []);
 
-  // ─── Build dynamic pinned app items ──────────────────────────────
-  const getPinnedItems = (): SidebarItem[] => {
-    return pinnedApps.map(appId => ({
+  // Load merchant display name from cached profile.
+  useEffect(() => {
+    const stored = getStoredMerchant();
+    if (stored?.businessName) setMerchantName(stored.businessName);
+    else if (stored?.business_name) setMerchantName(stored.business_name);
+    if (stored?.email) setMerchantEmail(stored.email);
+  }, []);
+
+  const getPinnedItems = (): SidebarItem[] =>
+    pinnedApps.map((appId) => ({
       icon: APP_ICON_MAP[appId] || Pin,
       label: APP_LABEL_MAP[appId] || appId,
       href: APP_HREF_MAP[appId] || '#',
     }));
-  };
 
-  // ─── Get sections with dynamic pinned apps ──────────────────────
   const getSections = (): SidebarSection[] => {
     const pinnedItems = getPinnedItems();
-
     if (pinnedItems.length > 0) {
-      return sidebarSections.map(section => {
-        if (section.title === 'MY APPS & SHORTCUTS') {
-          return {
-            ...section,
-            items: pinnedItems,
-          };
-        }
-        return section;
-      });
+      return SIDEBAR_SECTIONS.map((section) =>
+        section.title === 'MY APPS & SHORTCUTS'
+          ? { ...section, items: pinnedItems }
+          : section
+      );
     }
-
-    return sidebarSections.filter(section => section.title !== 'MY APPS & SHORTCUTS');
+    return SIDEBAR_SECTIONS.filter((section) => section.title !== 'MY APPS & SHORTCUTS');
   };
 
-  // Load merchant data from stored profile
-  useEffect(() => {
-    const stored = getStoredMerchant();
-    if (stored?.businessName) {
-      setMerchantName(stored.businessName);
-    } else if (stored?.business_name) {
-      setMerchantName(stored.business_name);
-    }
-    if (stored?.email) {
-      setMerchantEmail(stored.email);
-    }
-  }, []);
-
-  // Initialize expanded state based on current path
+  // Auto-expand the section containing the active route.
   useEffect(() => {
     if (isManualToggle.current) {
       isManualToggle.current = false;
       return;
     }
-
     const newExpanded: Record<string, boolean> = {};
-    const sections = getSections();
-    sections.forEach((section) => {
+    getSections().forEach((section) => {
       section.items.forEach((item) => {
-        if (item.children) {
-          const isActive = item.children.some((child) => pathname === child.href);
-          if (isActive) {
-            newExpanded[item.label] = true;
-          }
+        if (item.children?.some((child) => pathname === child.href)) {
+          newExpanded[item.label] = true;
         }
       });
     });
     setExpanded(newExpanded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, pinnedApps]);
 
-  // ─── Auto-collapse other sections ────────────────────────────────
   const toggleExpand = (label: string) => {
     isManualToggle.current = true;
-    const newExpanded: Record<string, boolean> = {};
     if (expanded[label]) {
       setExpanded({});
       return;
     }
-    newExpanded[label] = true;
-    setExpanded(newExpanded);
+    setExpanded({ [label]: true });
   };
 
-  const hasExpanded = Object.values(expanded).some(value => value === true);
-  const hasHref = (item: SidebarItem) => {
-    return item.href !== undefined && item.href !== '';
-  };
+  const hasExpanded = Object.values(expanded).some((v) => v === true);
+  const hasHref = (item: SidebarItem) => Boolean(item.href);
 
-  // ─── Password Verification ──────────────────────────────────────────
-  const verifyPassword = async (enteredPassword: string) => {
+  // Verify the merchant's password before entering Apps Marketplace.
+  const verifyPassword = async (enteredPassword: string): Promise<boolean> => {
     try {
-      const token =
-        localStorage.getItem('auth_token') ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken') ||
-        localStorage.getItem('xecoflow_token') ||
-        sessionStorage.getItem('auth_token') ||
-        sessionStorage.getItem('token');
-
-      console.log('🔍 [verifyPassword] Token found:', token ? '✅ Yes' : '❌ No');
-
-      if (!token) {
-        setPasswordError('Please login again');
-        return false;
-      }
-
       const storedMerchant = getStoredMerchant();
       const merchantId = storedMerchant?.merchantId || storedMerchant?.merchant_id || '';
 
       const response = await fetch('/api/auth/verify-password', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'X-Merchant-ID': merchantId,
+          'X-Merchant-ID': String(merchantId),
         },
         body: JSON.stringify({ password: enteredPassword }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
-      console.log('🔍 [verifyPassword] Response:', data);
+      if (response.ok && data.success) return true;
 
-      if (response.ok && data.success) {
-        return true;
-      } else {
-        setPasswordError(data.message || 'Incorrect password. Please try again.');
-        return false;
-      }
-    } catch (error) {
-      console.error('Password verification error:', error);
+      setPasswordError(data.message || 'Incorrect password. Please try again.');
+      return false;
+    } catch {
       setPasswordError('Network error. Please try again.');
       return false;
     }
   };
 
-  // ─── Handle Apps Marketplace Click ────────────────────────────────
   const handleMarketplaceClick = (href: string) => {
     setPendingHref(href);
     setPassword('');
@@ -440,10 +321,8 @@ export default function Sidebar() {
     setShowPasswordModal(true);
   };
 
-  // ─── Handle Password Submit ──────────────────────────────────────
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!password) {
       setPasswordError('Please enter your password');
       return;
@@ -451,7 +330,6 @@ export default function Sidebar() {
 
     setIsVerifying(true);
     setPasswordError('');
-
     const isValid = await verifyPassword(password);
     setIsVerifying(false);
 
@@ -466,72 +344,51 @@ export default function Sidebar() {
     }
   };
 
-  // ─── Special handler for full page apps (Ecosystem) ──────────────
   const handleFullPageApp = (href: string) => {
     setShowLoading(true);
-    setTimeout(() => {
-      router.push(href);
-    }, 800);
+    setTimeout(() => router.push(href), 800);
   };
 
-  // Hide loading immediately when we're on the full page
+  // Hide the loading overlay once the ecosystem page mounts.
   useEffect(() => {
-    if (pathname?.startsWith('/dashboard/ecosystem')) {
-      setShowLoading(false);
-    }
+    if (pathname?.startsWith('/dashboard/ecosystem')) setShowLoading(false);
   }, [pathname]);
 
-  // ─── Handle Sign Out ──────────────────────────────────────────────
   const handleSignOut = async () => {
     try {
-      // Ask the backend to revoke the session:
-      //  - blacklists the session token in Redis
-      //  - marks the refresh_tokens DB row revoked
-      //  - clears HttpOnly cookies (xeco_session, xeco_refresh, xeco_otp)
       await fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
       });
-    } catch (err) {
-      console.error('Logout API call failed:', err);
-      // Even if the backend call fails, still clear local state and
-      // redirect — the user's intent is to log out.
+    } catch {
+      // Ignore — the user is being logged out regardless.
     }
 
-    // Clear local client-side state
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('token');
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('xecoflow_token');
-    localStorage.removeItem('xecoflow_merchant');
-    localStorage.removeItem('merchant');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('user');
+    // Clear cached profile data (auth cookies are cleared by the server).
+    try {
+      localStorage.removeItem('merchant');
+      localStorage.removeItem('merchant_id');
+      localStorage.removeItem('businessName');
+      localStorage.removeItem('email');
+      localStorage.removeItem('user');
+      localStorage.removeItem('merchantData');
+    } catch {
+      // Storage may be unavailable.
+    }
 
-    sessionStorage.removeItem('auth_token');
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('merchant');
-    sessionStorage.removeItem('authToken');
-    sessionStorage.removeItem('user');
-
-    router.push(`/login?t=${Date.now()}`);
+    router.replace('/login');
   };
 
-  // Don't render sidebar on full page apps (ecosystem)
-  if (isFullPageApp) {
-    return null;
-  }
+  if (isFullPageApp) return null;
 
   const sections = getSections();
 
   return (
     <>
-      {/* ─── Password Verification Modal ────────────────────────── */}
+      {/* Password verification modal */}
       {showPasswordModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-in zoom-in duration-200">
-            {/* Modal Header */}
             <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-emerald-100/50">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-emerald-500 rounded-xl shadow-lg shadow-emerald-500/20">
@@ -539,14 +396,14 @@ export default function Sidebar() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-gray-900">Verify Your Identity</h3>
-                  <p className="text-sm text-gray-500">Enter your password to continue to Apps Marketplace</p>
+                  <p className="text-sm text-gray-500">
+                    Enter your password to continue to Apps Marketplace
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6">
-              {/* Merchant Info */}
               <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-emerald-500/20">
@@ -564,7 +421,6 @@ export default function Sidebar() {
 
               <form onSubmit={handlePasswordSubmit}>
                 <div className="space-y-4">
-                  {/* Password Input */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
                       Account Password
@@ -588,6 +444,7 @@ export default function Sidebar() {
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -600,15 +457,13 @@ export default function Sidebar() {
                     )}
                   </div>
 
-                  {/* Success Message */}
                   {verificationSuccess && (
                     <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-sm text-emerald-700">
                       <CheckCircle className="w-4 h-4 text-emerald-500" />
-                      Password verified! Redirecting...
+                      Password verified! Redirecting…
                     </div>
                   )}
 
-                  {/* Actions */}
                   <div className="flex gap-3 pt-2">
                     <button
                       type="button"
@@ -631,7 +486,7 @@ export default function Sidebar() {
                       {isVerifying ? (
                         <>
                           <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          Verifying...
+                          Verifying…
                         </>
                       ) : (
                         <>
@@ -652,20 +507,17 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* ─── Loading Overlay ────────────────────────────────────── */}
+      {/* Full-page app loading overlay */}
       {showLoading && (
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/95 backdrop-blur-sm transition-all duration-500">
           <div className="text-center">
             <div className="flex items-center justify-center gap-3 mb-6">
               <span className="text-3xl font-bold text-emerald-600">XecoFlow</span>
             </div>
-
             <h2 className="text-3xl font-semibold text-gray-800 mb-3">
               Loading Application
             </h2>
-
             <p className="text-gray-500 mb-8">Please wait while we prepare your workspace</p>
-
             <div className="flex items-center justify-center gap-3">
               <div className="w-4 h-4 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
               <div className="w-4 h-4 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
@@ -673,16 +525,12 @@ export default function Sidebar() {
               <div className="w-4 h-4 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.6s' }} />
               <div className="w-4 h-4 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0.8s' }} />
             </div>
-
-            <p className="text-sm text-gray-400 mt-6">Loading...</p>
+            <p className="text-sm text-gray-400 mt-6">Loading…</p>
           </div>
         </div>
       )}
 
-      <aside
-        className={`h-screen sticky top-0 flex flex-col bg-[#071526] border-r border-[#11243d] transition-all duration-300 ease-in-out w-72`}
-      >
-        {/* ─── Header ────────────────────────────────────────────────── */}
+      <aside className="h-screen sticky top-0 flex flex-col bg-[#071526] border-r border-[#11243d] transition-all duration-300 ease-in-out w-72">
         <div className="flex items-center justify-between p-5 border-b-2 border-[#1a2a4a] shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
           <Link href="/dashboard" className="flex flex-col">
             <div className="flex items-center gap-3">
@@ -697,11 +545,8 @@ export default function Sidebar() {
 
         <div className="h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
 
-        {/* ─── Navigation ───────────────────────────────────────────── */}
         <nav
-          className={`flex-1 px-3 py-4 overflow-y-auto ${
-            hasExpanded ? '' : 'overflow-hidden'
-          }`}
+          className={`flex-1 px-3 py-4 overflow-y-auto ${hasExpanded ? '' : 'overflow-hidden'}`}
           style={{ scrollbarWidth: 'thin', scrollbarColor: '#1a2a4a transparent' }}
         >
           {sections.map((section) => {
@@ -732,11 +577,15 @@ export default function Sidebar() {
                     const showExpanded = expanded[item.label] || false;
                     const isParentWithHref = !isLeaf && hasHref(item);
 
-                    // ─── Apps Marketplace (with password verification) ──
-                    if (item.label === 'Apps Marketplace' && item.href === '/dashboard/ecosystem/marketplace') {
+                    // Apps Marketplace — requires password verification.
+                    if (
+                      item.label === 'Apps Marketplace' &&
+                      item.href === '/dashboard/ecosystem/marketplace'
+                    ) {
                       return (
                         <button
                           key={item.label}
+                          type="button"
                           onClick={() => handleMarketplaceClick(item.href!)}
                           className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${
                             isActive
@@ -819,9 +668,11 @@ export default function Sidebar() {
                                     {item.badge}
                                   </span>
                                 )}
-                                <span className={`text-slate-500 transition-transform duration-200 ${
-                                  showExpanded ? 'rotate-90' : ''
-                                }`}>
+                                <span
+                                  className={`text-slate-500 transition-transform duration-200 ${
+                                    showExpanded ? 'rotate-90' : ''
+                                  }`}
+                                >
                                   <ChevronRight size={16} />
                                 </span>
                               </Link>
@@ -851,9 +702,11 @@ export default function Sidebar() {
                                     {item.badge}
                                   </span>
                                 )}
-                                <span className={`text-slate-500 transition-transform duration-200 ${
-                                  showExpanded ? 'rotate-90' : ''
-                                }`}>
+                                <span
+                                  className={`text-slate-500 transition-transform duration-200 ${
+                                    showExpanded ? 'rotate-90' : ''
+                                  }`}
+                                >
                                   <ChevronRight size={16} />
                                 </span>
                               </button>
@@ -862,13 +715,13 @@ export default function Sidebar() {
                             {showExpanded && (
                               <div className="ml-6 mt-0.5 space-y-0.5 border-l border-slate-600/60 pl-2">
                                 {item.children!.map((child) => {
-                                  const childActive = pathname === child.href;
+                                  const childIsActive = pathname === child.href;
                                   return (
                                     <Link
                                       key={child.label}
                                       href={child.href!}
                                       className={`flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${
-                                        childActive
+                                        childIsActive
                                           ? 'bg-emerald-500/10 text-emerald-300'
                                           : 'text-white hover:bg-slate-800/50 hover:text-white'
                                       }`}
@@ -877,12 +730,12 @@ export default function Sidebar() {
                                         <child.icon
                                           size={16}
                                           className={`flex-shrink-0 ${
-                                            childActive ? 'text-emerald-400' : 'text-slate-500'
+                                            childIsActive ? 'text-emerald-400' : 'text-slate-500'
                                           }`}
                                         />
                                       )}
                                       <span className="truncate text-[13px]">{child.label}</span>
-                                      {childActive && (
+                                      {childIsActive && (
                                         <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400" />
                                       )}
                                     </Link>
@@ -901,9 +754,8 @@ export default function Sidebar() {
           })}
         </nav>
 
-        {/* ─── Footer ────────────────────────────────────────────────── */}
+        {/* Footer */}
         <div ref={menuRef} className="border-t border-slate-700/50 p-4 mt-auto flex-shrink-0 relative">
-          {/* User Profile Button - Stays at bottom */}
           <button
             type="button"
             onClick={() => setShowUserMenu(!showUserMenu)}
@@ -923,7 +775,6 @@ export default function Sidebar() {
             />
           </button>
 
-          {/* Dropdown Menu - Opens UPWARD from the button */}
           <div
             className={`absolute bottom-full left-0 right-0 mb-2 overflow-hidden transition-all duration-300 ease-in-out ${
               showUserMenu
@@ -932,12 +783,12 @@ export default function Sidebar() {
             }`}
           >
             <div className="mx-2 rounded-xl bg-slate-800/95 border border-slate-700/50 overflow-hidden shadow-xl shadow-black/30 backdrop-blur-sm">
-              {/* Account Header */}
               <div className="px-4 py-3 border-b border-slate-700/50">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Account</p>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Account
+                </p>
               </div>
 
-              {/* Menu Items */}
               <Link
                 href="/dashboard/settings/business"
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-700/50 transition-colors text-sm text-slate-300 hover:text-white"

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { AUTH_CONFIG } from '@/config/auth';
 
 // ─── Types ──────────────────────────────────────────────────────────
 export interface SessionUser {
@@ -17,7 +18,10 @@ export interface SessionUser {
 }
 
 export interface SessionInfo {
-  remaining: number; // seconds left in the session
+  /** Seconds until the access token expires. */
+  remaining: number;
+  /** Unix ms when the session absolutely ends, if known. */
+  absoluteExpiresAt: number | null;
 }
 
 interface UseSessionReturn {
@@ -30,12 +34,11 @@ interface UseSessionReturn {
 
 // ─── Hook ───────────────────────────────────────────────────────────
 /**
- * Secure session hook for dashboard pages.
+ * Fetches the current user from GET /api/auth/session and exposes
+ * session metadata to the calling component. Relies entirely on the
+ * HttpOnly xeco_session cookie — no client-side token storage.
  *
- * - Fetches the current user from GET /api/auth/session
- * - Relies entirely on the HttpOnly cookie (xeco_session)
- * - Never touches localStorage or client-side tokens
- * - Redirects to /login on 401
+ * Redirects to /login on 401.
  */
 export function useSession(): UseSessionReturn {
   const router = useRouter();
@@ -58,12 +61,11 @@ export function useSession(): UseSessionReturn {
 
       const res = await fetch('/api/auth/session', {
         method: 'GET',
-        credentials: 'include', // critical: sends the HttpOnly cookie
+        credentials: 'include',
         cache: 'no-store',
       });
 
       if (res.status === 401) {
-        // Session is missing or expired
         setUser(null);
         setSessionInfo(null);
 
@@ -92,14 +94,22 @@ export function useSession(): UseSessionReturn {
           role: data.user.role,
           emailVerified: data.user.emailVerified,
         });
+
         setSessionInfo({
-          remaining: data.sessionInfo?.remaining ?? 1800,
+          remaining:
+            typeof data.sessionInfo?.remaining === 'number'
+              ? data.sessionInfo.remaining
+              : AUTH_CONFIG.SESSION_DURATION_SECONDS,
+          absoluteExpiresAt:
+            typeof data.sessionInfo?.absoluteExpiresAt === 'number'
+              ? data.sessionInfo.absoluteExpiresAt
+              : null,
         });
       } else {
         setUser(null);
         setSessionInfo(null);
       }
-    } catch (err) {
+    } catch {
       setError('Unable to load session. Please try again.');
       setUser(null);
       setSessionInfo(null);
@@ -109,7 +119,6 @@ export function useSession(): UseSessionReturn {
     }
   }, [router]);
 
-  // Load session on mount
   useEffect(() => {
     fetchSession();
   }, [fetchSession]);

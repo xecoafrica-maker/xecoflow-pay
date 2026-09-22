@@ -16,9 +16,9 @@ import {
   ChevronRight,
   CheckCircle2,
 } from 'lucide-react';
+import { AUTH_CONFIG, type AuthResponse } from '@/config/auth';
 
-const MAX_LOGIN_ATTEMPTS_UX = 5;
-const TOAST_DURATION = 5000;
+const { MAX_LOGIN_ATTEMPTS_UX, TOAST_DURATION_MS: TOAST_DURATION } = AUTH_CONFIG;
 
 type ToastType = 'error' | 'warning' | 'info' | 'success';
 
@@ -112,6 +112,7 @@ function Toast({
           <p className={`text-sm ${style.message}`}>{message}</p>
         </div>
         <button
+          type="button"
           onClick={() => {
             setIsExiting(true);
             setTimeout(onClose, 300);
@@ -144,6 +145,30 @@ export default function LoginPage() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const toastId = useRef(0);
 
+  // Redirect already-authenticated visitors away from the login page.
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkSession = async () => {
+      try {
+        const response = await fetch('/api/auth/session', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (!cancelled && response.ok) {
+          router.replace('/dashboard');
+        }
+      } catch {
+        // Silently ignore — the login form will still work.
+      }
+    };
+
+    checkSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
   const showToast = useCallback(
     (type: ToastType, title: string, message: string) => {
       const id = String(++toastId.current);
@@ -162,8 +187,8 @@ export default function LoginPage() {
       if (newCount >= MAX_LOGIN_ATTEMPTS_UX) {
         showToast(
           'warning',
-          'Security Delay',
-          'Multiple failed attempts. A temporary delay is now active.'
+          'Security delay active',
+          'Multiple failed attempts detected. Further attempts are temporarily delayed.'
         );
       }
       return newCount;
@@ -215,7 +240,7 @@ export default function LoginPage() {
       });
 
       const contentType = response.headers.get('content-type') || '';
-      let data: any = {};
+      let data: AuthResponse = {};
 
       if (contentType.includes('application/json')) {
         data = await response.json();
@@ -230,22 +255,17 @@ export default function LoginPage() {
           data.message ||
             `Too many failed attempts. Please wait ${retryAfter} seconds.`
         );
-        setLoading(false);
         return;
       }
 
       if (response.status === 400) {
         setFormError(data.message || 'Please enter both email and password.');
-        setLoading(false);
         return;
       }
 
       if (response.status === 401) {
         handleFailedAttempt();
-        setFormError(
-          'Invalid email or password. Please check your credentials.'
-        );
-        setLoading(false);
+        setFormError('Invalid email or password. Please check your credentials.');
         return;
       }
 
@@ -253,7 +273,6 @@ export default function LoginPage() {
         setFormError(
           'We are experiencing technical difficulties. Please try again later.'
         );
-        setLoading(false);
         return;
       }
 
@@ -263,7 +282,7 @@ export default function LoginPage() {
         if (data.requiresOTP) {
           router.push('/verify-otp');
         } else {
-          window.location.replace('/dashboard');
+          router.push('/dashboard');
         }
         return;
       }
@@ -291,12 +310,7 @@ export default function LoginPage() {
       ))}
 
       <div className="w-full max-w-[1000px] flex flex-col bg-white dark:bg-[#0f1f3a] shadow-none sm:shadow-[0_10px_40px_rgba(0,0,0,0.08)] border-0 lg:border lg:border-gray-100 dark:lg:border-gray-800 lg:rounded-3xl lg:overflow-hidden">
-        
-        {/* 
-          MOBILE HEADER ONLY: 
-          Shown on mobile (flex), hidden on desktop (lg:hidden).
-          Increased logo and heading sizes for better mobile impact.
-        */}
+        {/* Mobile header */}
         <div className="lg:hidden bg-[#0a2540] relative overflow-hidden p-8 sm:p-10">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
           <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
@@ -304,23 +318,20 @@ export default function LoginPage() {
 
           <div className="relative z-10 text-left">
             <Link href="/" className="inline-block mb-4">
-              {/* Increased from text-xl to text-3xl */}
               <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
                 Xeco<span className="text-emerald-400">Flow</span>
               </h1>
             </Link>
-            {/* Increased from text-xl to text-2xl, font-bold */}
             <h2 className="text-2xl sm:text-3xl font-bold text-white leading-tight tracking-tight">
               Welcome to XecoFlow payments
             </h2>
-            {/* Increased from text-sm to text-base */}
             <p className="text-emerald-400 text-base font-medium mt-3 opacity-90">
               Your payment partner
             </p>
           </div>
         </div>
 
-        {/* DESKTOP LAYOUT: Shown on desktop (lg:flex), hidden on mobile (hidden) */}
+        {/* Desktop layout */}
         <div className="hidden lg:flex w-full">
           <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex-col justify-between relative overflow-hidden min-h-[420px] lg:min-h-[560px] flex">
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
@@ -374,14 +385,6 @@ export default function LoginPage() {
 
           <div className="lg:w-1/2 p-6 sm:p-8 md:p-10 lg:p-12 bg-white dark:bg-[#0f1f3a] flex flex-col justify-center">
             <div className="max-w-sm mx-auto w-full">
-              <div className="lg:hidden mb-8">
-                <Link href="/" className="inline-block">
-                  <h1 className="text-2xl font-bold text-[#0a2540] dark:text-white tracking-tight">
-                    Xeco<span className="text-emerald-500">Flow</span>
-                  </h1>
-                </Link>
-              </div>
-
               <div className="mb-8">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
                   Welcome back
@@ -512,7 +515,7 @@ export default function LoginPage() {
                       disabled={loading}
                     />
                     <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                      Remember for 30 days
+                      Remember this device
                     </span>
                   </label>
                   <Link
@@ -534,7 +537,7 @@ export default function LoginPage() {
                       {MAX_LOGIN_ATTEMPTS_UX - failedAttempts !== 1
                         ? 's'
                         : ''}{' '}
-                      attempts remaining before this account is blocked.
+                      remaining. Your account may be locked after repeated failures.
                     </span>
                   </div>
                 )}
@@ -570,17 +573,11 @@ export default function LoginPage() {
                 </p>
                 <p className="text-center text-xs text-gray-400 dark:text-gray-500">
                   By signing in, you agree to our{' '}
-                  <Link
-                    href="/terms"
-                    className="text-indigo-500 hover:underline"
-                  >
+                  <Link href="/terms" className="text-indigo-500 hover:underline">
                     Terms of Service
                   </Link>{' '}
                   and{' '}
-                  <Link
-                    href="/privacy"
-                    className="text-indigo-500 hover:underline"
-                  >
+                  <Link href="/privacy" className="text-indigo-500 hover:underline">
                     Privacy Policy
                   </Link>
                 </p>
@@ -589,7 +586,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* MOBILE FORM */}
+        {/* Mobile form */}
         <div className="lg:hidden p-6 sm:p-8 bg-white dark:bg-[#0f1f3a] flex flex-col justify-center">
           <div className="max-w-md mx-auto w-full">
             <div className="mb-8">
@@ -597,7 +594,7 @@ export default function LoginPage() {
                 Sign in
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Sign in to continue. Remember, your password is yours, do not share it with anyone.
+                Sign in to continue to your dashboard.
               </p>
             </div>
 
@@ -722,7 +719,7 @@ export default function LoginPage() {
                     disabled={loading}
                   />
                   <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                    Remember me
+                    Remember this device
                   </span>
                 </label>
                 <Link
@@ -741,10 +738,8 @@ export default function LoginPage() {
                   <AlertCircle className="w-4 h-4" />
                   <span>
                     {MAX_LOGIN_ATTEMPTS_UX - failedAttempts} login attempt
-                    {MAX_LOGIN_ATTEMPTS_UX - failedAttempts !== 1
-                      ? 's'
-                      : ''}{' '}
-                    attempts remaining before this account is blocked.
+                    {MAX_LOGIN_ATTEMPTS_UX - failedAttempts !== 1 ? 's' : ''}{' '}
+                    remaining. Your account may be locked after repeated failures.
                   </span>
                 </div>
               )}
@@ -780,17 +775,11 @@ export default function LoginPage() {
               </p>
               <p className="text-center text-xs text-gray-400 dark:text-gray-500">
                 By signing in, you agree to our{' '}
-                <Link
-                  href="/terms"
-                  className="text-indigo-500 hover:underline"
-                >
+                <Link href="/terms" className="text-indigo-500 hover:underline">
                   Terms of Service
                 </Link>{' '}
                 and{' '}
-                <Link
-                  href="/privacy"
-                  className="text-indigo-500 hover:underline"
-                >
+                <Link href="/privacy" className="text-indigo-500 hover:underline">
                   Privacy Policy
                 </Link>
               </p>

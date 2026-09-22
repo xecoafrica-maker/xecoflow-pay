@@ -1,38 +1,47 @@
-﻿// src/app/(auth)/verify-otp/page.tsx
-
-'use client';
+﻿'use client';
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Loader2, ShieldCheck, Clock, AlertCircle } from 'lucide-react';
+import { Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
+import { AUTH_CONFIG, type OtpContext } from '@/config/auth';
 
-const OTP_LENGTH = 6;
-const DEFAULT_EXPIRY_SECONDS = 300;
-const RESEND_COOLDOWN_SECONDS = 30;
-const MAX_RESENDS_PER_SESSION = 5;
-const SUCCESS_REDIRECT_DELAY_MS = 200;
+const {
+  OTP_LENGTH,
+  OTP_DEFAULT_EXPIRY_SECONDS: DEFAULT_EXPIRY_SECONDS,
+  OTP_MAX_RESENDS_PER_SESSION: MAX_RESENDS_PER_SESSION,
+} = AUTH_CONFIG;
 
-interface OtpContext {
-  maskedEmail: string;
-  expiresAt: number;
-}
+const VERIFY_ERROR_MESSAGES: Record<string, string> = {
+  INVALID_OTP: 'That code is incorrect. Please try again.',
+  OTP_EXPIRED:
+    'This code has expired. Please request a new one to continue.',
+  OTP_ATTEMPTS_EXCEEDED: 'Too many incorrect attempts. Request a new code.',
+  OTP_NOT_FOUND: 'Verification session not found. Please log in again.',
+  RATE_LIMITED: 'Too many requests. Please wait a moment.',
+};
+
+const RESEND_ERROR_MESSAGES: Record<string, string> = {
+  RATE_LIMITED: 'Please wait before requesting another code.',
+  OTP_NOT_FOUND: 'Session expired. Please log in again.',
+};
 
 function VerifyOtpContent() {
   const router = useRouter();
 
   const [context, setContext] = useState<OtpContext | null>(null);
+  const [contextLoading, setContextLoading] = useState(true);
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState('');
   const [expiresAt, setExpiresAt] = useState<number>(0);
-  const [secondsLeft, setSecondsLeft] = useState(DEFAULT_EXPIRY_SECONDS);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const [resendCount, setResendCount] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState<number>(DEFAULT_EXPIRY_SECONDS);
+  const [resendCount, setResendCount] = useState<number>(0);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const submittingRef = useRef(false);
+  const resendingRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +77,8 @@ function VerifyOtpContent() {
           setError('Unable to start verification. Please log in again.');
           setTimeout(() => router.replace('/login'), 1500);
         }
+      } finally {
+        if (!cancelled) setContextLoading(false);
       }
     }
 
@@ -77,8 +88,8 @@ function VerifyOtpContent() {
     };
   }, [router]);
 
-  // Countdown — derived from `expiresAt`, not decremented by hand.
-  // This avoids stacking intervals when the deadline changes on resend.
+  // Countdown derived from `expiresAt` so the interval never stacks when
+  // the deadline is updated by a resend.
   useEffect(() => {
     if (!expiresAt) return;
 
@@ -96,16 +107,19 @@ function VerifyOtpContent() {
   }, [expiresAt]);
 
   useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const timer = setInterval(() => {
-      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [resendCooldown]);
+    inputRefs.current[0]?.focus();
+  }, []);
 
-  useEffect(() => {
-    if (context) inputRefs.current[0]?.focus();
-  }, [context]);
+  const formatTime = (total: number) => {
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const isExpired = expiresAt > 0 && secondsLeft <= 0;
+  const isComplete = digits.every((d) => d !== '');
+  const canResend =
+    !resending && isExpired && resendCount < MAX_RESENDS_PER_SESSION;
 
   const submitOtp = useCallback(
     async (codeOverride?: string) => {
@@ -128,31 +142,15 @@ function VerifyOtpContent() {
         const data = await res.json().catch(() => ({}));
 
         if (res.ok && data.success) {
-          setTimeout(() => {
-            window.location.replace('/dashboard');
-          }, SUCCESS_REDIRECT_DELAY_MS);
+          router.replace('/dashboard');
           return;
         }
 
         const errorCode = data.code as string | undefined;
-        const messages: Record<string, string> = {
-          INVALID_OTP: 'That code is incorrect. Please try again.',
-          OTP_EXPIRED: 'Your code has expired. Request a new one.',
-          OTP_ATTEMPTS_EXCEEDED:
-            'Too many incorrect attempts. Request a new code.',
-          OTP_NOT_FOUND: 'Verification session not found. Please log in again.',
-          RATE_LIMITED: 'Too many requests. Please wait a moment.',
-        };
         setError(
-          messages[errorCode ?? ''] ?? 'Verification failed. Please try again.'
+          VERIFY_ERROR_MESSAGES[errorCode ?? ''] ??
+            'Verification failed. Please try again.'
         );
-
-        if (
-          errorCode === 'OTP_EXPIRED' ||
-          errorCode === 'OTP_ATTEMPTS_EXCEEDED'
-        ) {
-          setResendCooldown(0);
-        }
 
         setDigits(Array(OTP_LENGTH).fill(''));
         inputRefs.current[0]?.focus();
@@ -164,7 +162,7 @@ function VerifyOtpContent() {
         setLoading(false);
       }
     },
-    [digits, loading]
+    [digits, loading, router]
   );
 
   const handleDigitChange = useCallback(
@@ -221,9 +219,11 @@ function VerifyOtpContent() {
   );
 
   const handleResend = useCallback(async () => {
-    if (resending || resendCooldown > 0) return;
+    if (resendingRef.current) return;
+    if (!isExpired) return;
     if (resendCount >= MAX_RESENDS_PER_SESSION) return;
 
+    resendingRef.current = true;
     setResending(true);
     setError('');
 
@@ -254,49 +254,21 @@ function VerifyOtpContent() {
           setSecondsLeft(DEFAULT_EXPIRY_SECONDS);
         }
 
-        setResendCooldown(RESEND_COOLDOWN_SECONDS);
         setResendCount((c) => c + 1);
       } else {
         const errorCode = data.code as string | undefined;
-        const messages: Record<string, string> = {
-          RATE_LIMITED: 'Please wait before requesting another code.',
-          OTP_NOT_FOUND: 'Session expired. Please log in again.',
-        };
         setError(
-          messages[errorCode ?? ''] ??
+          RESEND_ERROR_MESSAGES[errorCode ?? ''] ??
             'Unable to resend the code. Please try again.'
         );
       }
     } catch {
       setError('Network error. Please check your connection and try again.');
     } finally {
+      resendingRef.current = false;
       setResending(false);
     }
-  }, [resending, resendCooldown, resendCount]);
-
-  const formatTime = (total: number) => {
-    const m = Math.floor(total / 60);
-    const s = total % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-
-  const isExpired = secondsLeft <= 0;
-  const isComplete = digits.every((d) => d !== '');
-  const canResend =
-    !resending &&
-    resendCooldown === 0 &&
-    resendCount < MAX_RESENDS_PER_SESSION;
-
-  if (!context) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mx-auto" />
-          <p className="mt-4 text-sm text-gray-500">Preparing verification…</p>
-        </div>
-      </div>
-    );
-  }
+  }, [isExpired, resendCount]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -314,9 +286,18 @@ function VerifyOtpContent() {
             </h1>
             <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto leading-relaxed">
               We sent a {OTP_LENGTH}-digit code to{' '}
-              <span className="font-medium text-gray-700">
-                {context.maskedEmail}
-              </span>
+              {context ? (
+                <span className="font-medium text-gray-700">
+                  {context.maskedEmail}
+                </span>
+              ) : contextLoading ? (
+                <span className="inline-flex items-center gap-1 text-gray-400">
+                  <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+                  <span className="sr-only">Loading</span>
+                </span>
+              ) : (
+                <span className="font-medium text-gray-700">your email</span>
+              )}
               . Enter it below.
             </p>
           </div>
@@ -339,7 +320,7 @@ function VerifyOtpContent() {
               e.preventDefault();
               void submitOtp();
             }}
-            className="space-y-5"
+            className="space-y-6"
           >
             <div
               className="flex justify-center gap-2"
@@ -365,7 +346,7 @@ function VerifyOtpContent() {
                     value={digit}
                     onChange={(e) => handleDigitChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
-                    disabled={loading || isExpired}
+                    disabled={loading}
                     aria-label={`Digit ${index + 1} of ${OTP_LENGTH}`}
                     className={`w-full h-full text-center text-2xl font-bold
                       rounded-xl border-2 transition-all
@@ -385,41 +366,23 @@ function VerifyOtpContent() {
                       }`}
                   />
                   {digit && (
-                    <span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 flex items-center justify-center"
-                    >
-                      <span className="w-3 h-3 rounded-full bg-indigo-600" />
-                    </span>
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                      >
+                        <span className="w-3 h-3 rounded-full bg-indigo-600" />
+                      </span>
+                      <span className="sr-only">Digit entered: {digit}</span>
+                    </>
                   )}
                 </div>
               ))}
             </div>
 
-            <div className="flex items-center justify-center gap-1.5 text-xs text-gray-500">
-              <Clock className="w-3.5 h-3.5" aria-hidden="true" />
-              {isExpired ? (
-                <span className="text-red-600 font-medium">
-                  Code expired. Request a new one below.
-                </span>
-              ) : (
-                <>
-                  <span>Code expires in</span>
-                  <span
-                    className={`font-semibold ${
-                      secondsLeft < 60 ? 'text-red-500' : 'text-gray-700'
-                    }`}
-                    aria-live="polite"
-                  >
-                    {formatTime(secondsLeft)}
-                  </span>
-                </>
-              )}
-            </div>
-
             <button
               type="submit"
-              disabled={loading || isExpired || !isComplete}
+              disabled={loading || !isComplete}
               className="w-full py-3.5 rounded-full bg-indigo-600 hover:bg-indigo-700
                 text-white font-semibold text-sm transition-all
                 shadow-lg shadow-indigo-600/20
@@ -442,30 +405,36 @@ function VerifyOtpContent() {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-500">
-              Didn&apos;t receive the code?{' '}
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={!canResend}
-                className="font-semibold text-indigo-600 hover:text-indigo-700
-                  disabled:text-gray-300 disabled:cursor-not-allowed transition-colors"
-              >
-                {resending
-                  ? 'Sending…'
-                  : resendCooldown > 0
-                  ? `Resend in ${resendCooldown}s`
-                  : resendCount >= MAX_RESENDS_PER_SESSION
-                  ? 'Resend limit reached'
-                  : 'Resend code'}
-              </button>
+            <p className="text-sm text-gray-500 min-h-[20px]">
+              {resendCount >= MAX_RESENDS_PER_SESSION ? (
+                'For your security, please log in again to request a new code.'
+              ) : resending ? (
+                <>Didn&apos;t receive the code? Sending a new code…</>
+              ) : isExpired ? (
+                <>
+                  Didn&apos;t receive the code?{' '}
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={!canResend}
+                    className="font-semibold text-indigo-600 hover:text-indigo-700
+                      disabled:text-gray-400 disabled:cursor-not-allowed
+                      disabled:hover:text-gray-400 transition-colors"
+                  >
+                    Resend code
+                  </button>
+                </>
+              ) : expiresAt ? (
+                <>
+                  Didn&apos;t receive the code? Resend in{' '}
+                  <span className="font-semibold tabular-nums text-gray-700">
+                    {formatTime(secondsLeft)}
+                  </span>
+                </>
+              ) : (
+                <span className="text-gray-400">&nbsp;</span>
+              )}
             </p>
-
-            {resendCount >= MAX_RESENDS_PER_SESSION && (
-              <p className="text-xs text-gray-400 mt-2">
-                For your security, please log in again to request a new code.
-              </p>
-            )}
 
             <Link
               href="/login"

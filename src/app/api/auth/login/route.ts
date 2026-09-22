@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-const BACKEND_URL =
-  process.env.AUTH_ENGINE_URL || 'https://xecoflow-2gen.onrender.com';
+const BACKEND_URL = process.env.AUTH_ENGINE_URL;
+
+if (!BACKEND_URL) {
+  throw new Error('AUTH_ENGINE_URL environment variable is not set');
+}
+
 const REQUEST_TIMEOUT_MS = 15000;
 
 const AUTH_COOKIE_NAMES = new Set(['xeco_session', 'xeco_otp', 'xeco_refresh']);
@@ -10,23 +14,19 @@ const AUTH_COOKIE_NAMES = new Set(['xeco_session', 'xeco_otp', 'xeco_refresh']);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 const COOKIE_FLAGS: Record<string, string> = {
-  xeco_session: `HttpOnly${
-    IS_PRODUCTION ? '; Secure' : ''
-  }; SameSite=Strict; Path=/`,
-  xeco_otp: `HttpOnly${
-    IS_PRODUCTION ? '; Secure' : ''
-  }; SameSite=Lax; Path=/`,
-  xeco_refresh: `HttpOnly${
-    IS_PRODUCTION ? '; Secure' : ''
-  }; SameSite=Strict; Path=/`,
+  xeco_session: `HttpOnly${IS_PRODUCTION ? '; Secure' : ''}; SameSite=Strict; Path=/`,
+  xeco_otp: `HttpOnly${IS_PRODUCTION ? '; Secure' : ''}; SameSite=Lax; Path=/`,
+  xeco_refresh: `HttpOnly${IS_PRODUCTION ? '; Secure' : ''}; SameSite=Strict; Path=/`,
 };
 
 const loginRequestSchema = z.object({
-  email: z.string().email('Invalid email format'),
+  email: z.string().trim().email('Invalid email format'),
   password: z.string().min(1, 'Password is required'),
   rememberMe: z.boolean().optional().default(false),
 });
 
+// Error codes are kept in sync with the auth engine's /login endpoint.
+// parse will fail and the proxy will return 500 to the client.
 const safeLoginResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
@@ -37,8 +37,6 @@ const safeLoginResponseSchema = z.discriminatedUnion('success', [
     code: z.enum([
       'INVALID_CREDENTIALS',
       'ACCOUNT_LOCKED',
-      'MFA_REQUIRED',
-      'SESSION_REVOKED',
       'RATE_LIMITED',
       'INVALID_REQUEST',
     ]),
@@ -52,7 +50,7 @@ function normalizeStatus(backendStatus: number): number {
 }
 
 function normalizeAuthCookie(cookie: string, name: string): string {
-  // Split on the first '=' only — JWT values contain '=' as base64 padding.
+  // Split on first '=' — JWT values contain '=' as base64 padding.
   const separatorIndex = cookie.indexOf('=');
   if (separatorIndex === -1) {
     throw new Error('Malformed Set-Cookie header');
@@ -60,9 +58,7 @@ function normalizeAuthCookie(cookie: string, name: string): string {
   const rawName = cookie.slice(0, separatorIndex).trim();
   const value = cookie.slice(separatorIndex + 1).split(';')[0].trim();
 
-  // Preserve only Max-Age. Expires is dropped because its locale-sensitive
-  // format is easy to corrupt, and browsers use Max-Age when both are
-  // present anyway.
+  // Keep only Max-Age; Expires is locale-sensitive and redundant.
   const rawAttributes = cookie
     .split(';')
     .slice(1)
@@ -77,11 +73,11 @@ function normalizeAuthCookie(cookie: string, name: string): string {
 
   const flags = COOKIE_FLAGS[name] || COOKIE_FLAGS.xeco_session;
 
-  return [`${rawName}=${value}`, flags, maxAge]
-    .filter(Boolean)
-    .join('; ');
+  return [`${rawName}=${value}`, flags, maxAge].filter(Boolean).join('; ');
 }
 
+// Reads the client IP from X-Forwarded-For. The trusted value is the
+// LAST entry — that's the IP recorded by the nearest upstream proxy
 function getClientIp(request: NextRequest): string {
   const xff = request.headers.get('x-forwarded-for');
   if (!xff) return 'unknown';
@@ -91,18 +87,6 @@ function getClientIp(request: NextRequest): string {
 
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID();
-  const ip = getClientIp(request);
-  const userAgent = request.headers.get('user-agent') || 'unknown';
-
-  console.log(
-    JSON.stringify({
-      event: 'auth.login.attempt',
-      requestId,
-      ts: new Date().toISOString(),
-      ip,
-      userAgent,
-    })
-  );
 
   const secureHeaders = {
     'Cache-Control': 'no-store, no-cache, must-revalidate, private',
@@ -117,8 +101,7 @@ export async function POST(request: NextRequest) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-    const idempotencyKey =
-      request.headers.get('idempotency-key') || requestId;
+    const idempotencyKey = request.headers.get('idempotency-key') || requestId;
 
     const backendResponse = await fetch(`${BACKEND_URL}/v1/auth/login`, {
       method: 'POST',
@@ -126,6 +109,7 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
         'X-Request-ID': requestId,
         'Idempotency-Key': idempotencyKey,
+        'X-Forwarded-For': getClientIp(request),
       },
       body: JSON.stringify(validatedRequest),
       signal: controller.signal,
@@ -154,18 +138,13 @@ export async function POST(request: NextRequest) {
       if (eqIndex === -1) continue;
       const name = cookie.slice(0, eqIndex).trim();
       if (!name || !AUTH_COOKIE_NAMES.has(name)) continue;
-      nextResponse.headers.append(
-        'Set-Cookie',
-        normalizeAuthCookie(cookie, name)
-      );
+      nextResponse.headers.append('Set-Cookie', normalizeAuthCookie(cookie, name));
     }
 
     return nextResponse;
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';
-    const isTimeout =
-      errorMessage.includes('AbortError') || errorMessage.includes('timeout');
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -173,6 +152,10 @@ export async function POST(request: NextRequest) {
         { status: 400, headers: secureHeaders }
       );
     }
+
+    const isTimeout =
+      error instanceof Error &&
+      (error.name === 'AbortError' || error.name === 'TimeoutError');
 
     if (isTimeout) {
       return NextResponse.json(
@@ -185,6 +168,14 @@ export async function POST(request: NextRequest) {
         { status: 504, headers: secureHeaders }
       );
     }
+
+    console.error(
+      JSON.stringify({
+        event: 'auth.login.proxy_error',
+        requestId,
+        error: errorMessage,
+      })
+    );
 
     return NextResponse.json(
       {

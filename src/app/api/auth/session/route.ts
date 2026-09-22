@@ -1,26 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  getBackendUrl,
+  getClientIp,
+  secureHeaders,
+} from '@/lib/auth-cookies';
+import { AUTH_CONFIG } from '@/config/auth';
 
-const BACKEND_URL =
-  process.env.AUTH_ENGINE_URL || 'https://xecoflow-2gen.onrender.com';
+const BACKEND_URL = getBackendUrl();
 const REQUEST_TIMEOUT_MS = 5000;
 
 const COOKIE_SESSION = 'xeco_session';
 
+const DEFAULT_REMAINING_SECONDS = AUTH_CONFIG.SESSION_DURATION_SECONDS;
+
 export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID();
-
-  const secureHeaders = {
-    'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-    Pragma: 'no-cache',
-    'X-Request-ID': requestId,
-  };
+  const headers = secureHeaders(requestId);
 
   try {
     const sessionCookie = request.cookies.get(COOKIE_SESSION);
     if (!sessionCookie?.value) {
       return NextResponse.json(
         { success: false, code: 'UNAUTHORIZED' },
-        { status: 401, headers: secureHeaders }
+        { status: 401, headers }
       );
     }
 
@@ -31,6 +33,7 @@ export async function GET(request: NextRequest) {
       method: 'GET',
       headers: {
         'X-Request-ID': requestId,
+        'X-Forwarded-For': getClientIp(request),
         Cookie: `${COOKIE_SESSION}=${sessionCookie.value}`,
       },
       signal: controller.signal,
@@ -38,17 +41,19 @@ export async function GET(request: NextRequest) {
 
     clearTimeout(timeoutId);
 
+    // 401 and 403 are equivalent from the client's perspective:
+    // the session is not usable. Normalize both to 401 UNAUTHORIZED.
     if (backendResponse.status === 401 || backendResponse.status === 403) {
       return NextResponse.json(
         { success: false, code: 'UNAUTHORIZED' },
-        { status: 401, headers: secureHeaders }
+        { status: 401, headers }
       );
     }
 
     if (!backendResponse.ok) {
       return NextResponse.json(
         { success: false, code: 'INVALID_REQUEST' },
-        { status: 500, headers: secureHeaders }
+        { status: 500, headers }
       );
     }
 
@@ -63,12 +68,12 @@ export async function GET(request: NextRequest) {
     const remaining =
       typeof raw?.sessionInfo?.remaining === 'number'
         ? raw.sessionInfo.remaining
-        : 1800;
+        : DEFAULT_REMAINING_SECONDS;
 
     if (!user) {
       return NextResponse.json(
         { success: false, code: 'INVALID_REQUEST' },
-        { status: 500, headers: secureHeaders }
+        { status: 500, headers }
       );
     }
 
@@ -87,12 +92,33 @@ export async function GET(request: NextRequest) {
         },
         sessionInfo: { remaining },
       },
-      { status: 200, headers: secureHeaders }
+      { status: 200, headers }
     );
-  } catch {
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
+    const isTimeout =
+      error instanceof Error &&
+      (error.name === 'AbortError' || error.name === 'TimeoutError');
+
+    if (isTimeout) {
+      return NextResponse.json(
+        { success: false, code: 'INVALID_REQUEST' },
+        { status: 504, headers }
+      );
+    }
+
+    console.error(
+      JSON.stringify({
+        event: 'auth.session.proxy_error',
+        requestId,
+        error: errorMessage,
+      })
+    );
+
     return NextResponse.json(
       { success: false, code: 'INVALID_REQUEST' },
-      { status: 500, headers: secureHeaders }
+      { status: 500, headers }
     );
   }
 }
