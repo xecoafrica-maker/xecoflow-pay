@@ -2,15 +2,40 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Globe, Users, Code, CheckCircle, Send } from 'lucide-react';
-import { registerMerchant } from '../../../lib/auth-api';
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  Globe,
+  Send,
+  AlertCircle,
+} from 'lucide-react';
+import {
+  registerMerchant,
+  SUPPORTED_COUNTRIES,
+  type CountryCode,
+} from '../../../lib/auth-api';
+
+// ─── Constants ─────────────────────────────────────────────────────
+// Keep this identical to the backend regex in auth-engine/routes/auth.js.
+const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$/;
+const TERMS_VERSION = 'v1.0';
+
+type FormErrors = {
+  businessName?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  password?: string;
+  confirmPassword?: string;
+  terms?: string;
+  form?: string;
+};
 
 export default function SignUpPage() {
-  // ── Role state ──
-  const [role, setRole] = useState<'merchant' | 'developer'>('merchant');
-
-  // ── Form data ──
-  const [country, setCountry] = useState('Kenya');
+  const [country, setCountry] = useState<CountryCode>('KE');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [businessName, setBusinessName] = useState('');
@@ -19,84 +44,87 @@ export default function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
-  // ── UI state ──
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [apiError, setApiError] = useState('');
-  const [showVerificationMessage, setShowVerificationMessage] = useState(false);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [registered, setRegistered] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
 
-  // ── Handlers ──
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate
-    if (!businessName || !firstName || !lastName || !email || !password || !confirmPassword) {
-      alert('Please fill in all fields');
-      return;
-    }
+  function validate(): FormErrors {
+    const e: FormErrors = {};
 
-    if (!acceptedTerms) {
-      alert('Please accept the Terms and Conditions');
-      return;
-    }
-    
-    if (password !== confirmPassword) {
-      alert('Passwords do not match');
-      return;
-    }
-    
-    if (password.length < 8) {
-      alert('Password must be at least 8 characters');
+    if (!businessName.trim()) e.businessName = 'Business name is required.';
+    if (!firstName.trim()) e.firstName = 'First name is required.';
+    if (!lastName.trim()) e.lastName = 'Last name is required.';
+
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail) e.email = 'Email is required.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail))
+      e.email = 'Enter a valid email address.';
+
+    if (!password) e.password = 'Password is required.';
+    else if (!PASSWORD_RULE.test(password))
+      e.password =
+        'Password must be 8+ characters and include both letters and numbers.';
+
+    if (!confirmPassword) e.confirmPassword = 'Please confirm your password.';
+    else if (confirmPassword !== password)
+      e.confirmPassword = 'Passwords do not match.';
+
+    if (!acceptedTerms) e.terms = 'You must accept the Terms and Conditions.';
+
+    return e;
+  }
+
+  const handleSubmit = async (ev: React.FormEvent) => {
+    ev.preventDefault();
+
+    const validation = validate();
+    if (Object.keys(validation).length > 0) {
+      setErrors(validation);
       return;
     }
 
     setLoading(true);
-    setApiError('');
-    
+    setErrors({});
+
     try {
-      const result = await registerMerchant({
-        email,
+      await registerMerchant({
+        email: email.trim().toLowerCase(),
         password,
-        businessName,
-        firstName,
-        lastName,
-        role,
+        businessName: businessName.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         country,
+        termsVersion: TERMS_VERSION,
+        termsAcceptedAt: new Date().toISOString(),
       });
-      
-      console.log('Registration result:', result);
-      setRegisteredEmail(email);
-      setShowVerificationMessage(true);
-      
-    } catch (err: any) {
-      setApiError(err.message || 'Registration failed. Please try again.');
+
+      setRegisteredEmail(email.trim().toLowerCase());
+      setRegistered(true);
+    } catch (err: unknown) {
+      setErrors({ form: friendlyError(err) });
     } finally {
       setLoading(false);
     }
   };
 
-  // ─── NEW MODERN VERIFICATION SCREEN ────────────────────────────────
-  if (showVerificationMessage) {
+  // ─── Verification screen ──────────────────────────────────────────
+  if (registered) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4">
-        {/* Centered Card */}
         <div className="max-w-md w-full text-center space-y-6">
-          
-          {/* Icon */}
           <div className="w-20 h-20 mx-auto bg-emerald-50 rounded-full flex items-center justify-center">
             <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
               <Send className="w-6 h-6 text-emerald-600" />
             </div>
           </div>
 
-          {/* Heading */}
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
             Verify your email address
           </h2>
 
-          {/* Subtext */}
           <p className="text-gray-500 text-base leading-relaxed">
             Please click the link that was sent to <br />
             <span className="font-medium text-gray-700">
@@ -105,9 +133,8 @@ export default function SignUpPage() {
             to verify your email.
           </p>
 
-          {/* Back to Login Link */}
           <div className="pt-6">
-            <Link 
+            <Link
               href="/login"
               className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
             >
@@ -115,12 +142,11 @@ export default function SignUpPage() {
             </Link>
           </div>
 
-          <p className="text-xs text-gray-400 pt-4 border-t border-gray-100 inline-block px-4 pt-4">
+          <p className="text-xs text-gray-400 pt-4 border-t border-gray-100 inline-block px-4">
             Did not receive the email? Check your spam folder or{' '}
-            <button 
-              onClick={() => {
-                setShowVerificationMessage(false);
-              }}
+            <button
+              type="button"
+              onClick={() => setRegistered(false)}
               className="text-indigo-600 hover:text-indigo-700 font-medium"
             >
               try again
@@ -131,283 +157,486 @@ export default function SignUpPage() {
     );
   }
 
-  // ─── MAIN SIGNUP FORM ──────────────────────────────────────────────
-  return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
-      <div className="w-full max-w-5xl flex flex-col lg:flex-row bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
-        
-        {/* LEFT PANEL */}
-        <div className="lg:w-1/2 bg-[#0a2540] p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden min-h-[500px]">
-          <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
-          <div className="absolute top-[-100px] right-[-100px] w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-[-100px] left-[-100px] w-[300px] h-[300px] bg-emerald-500/10 rounded-full blur-3xl" />
+  // ─── Form fields — reused for mobile and desktop ──────────────────
+  const formFields = (
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      {/* Country */}
+      <div>
+        <label
+          htmlFor="country"
+          className="block text-sm font-medium text-gray-700 mb-1.5"
+        >
+          Country
+        </label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+            <Globe className="w-4 h-4 text-gray-400" />
+          </div>
+          <select
+            id="country"
+            value={country}
+            onChange={(e) => setCountry(e.target.value as CountryCode)}
+            className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all appearance-none text-gray-900"
+          >
+            {SUPPORTED_COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
-          <div className="relative z-10 flex flex-col h-full justify-between">
-            <div>
-              <Link href="/" className="inline-block">
-                <h1 className="text-2xl font-bold text-white">
-                  Xeco<span className="text-emerald-400">Flow</span>
-                </h1>
-              </Link>
-            </div>
-            <div className="space-y-4 py-8">
-              <h2 className="text-4xl lg:text-5xl font-bold text-white leading-tight">
-                {role === 'merchant' ? (
-                  <>
-                    Start accepting
-                    <br />
-                    payments in
-                    <br />
-                    <span className="text-emerald-400">minutes.</span>
-                  </>
-                ) : (
-                  <>
-                    Build your
-                    <br />
-                    payment integration
-                    <br />
-                    <span className="text-emerald-400">with ease.</span>
-                  </>
-                )}
-              </h2>
-              <p className="text-slate-400 text-base max-w-sm">
-                {role === 'merchant' 
-                  ? "Create your account and get instant access to Africa's leading payment infrastructure."
-                  : "Create your developer account and start building with our powerful payment APIs."}
-              </p>
-            </div>
-            <div className="flex items-center gap-4 flex-wrap pt-4 border-t border-white/10">
-              <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Trusted by</span>
-              <div className="flex items-center gap-3 text-sm text-slate-300">
-                <span className="bg-white/5 px-3 py-1 rounded-full text-xs">500+ businesses</span>
-                <span className="bg-white/5 px-3 py-1 rounded-full text-xs">4 countries</span>
+      {/* Business name */}
+      <div>
+        <label
+          htmlFor="businessName"
+          className="block text-sm font-medium text-gray-700 mb-1.5"
+        >
+          Business Name
+        </label>
+        <input
+          id="businessName"
+          type="text"
+          autoComplete="organization"
+          value={businessName}
+          onChange={(e) => {
+            setBusinessName(e.target.value);
+            if (errors.businessName)
+              setErrors((p) => ({ ...p, businessName: undefined }));
+          }}
+          placeholder="Enter your business name"
+          aria-invalid={!!errors.businessName}
+          className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all text-gray-900 ${
+            errors.businessName
+              ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500'
+              : 'border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+          }`}
+        />
+        {errors.businessName && (
+          <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            {errors.businessName}
+          </p>
+        )}
+      </div>
+
+      {/* First name */}
+      <div>
+        <label
+          htmlFor="firstName"
+          className="block text-sm font-medium text-gray-700 mb-1.5"
+        >
+          First Name
+        </label>
+        <input
+          id="firstName"
+          type="text"
+          autoComplete="given-name"
+          value={firstName}
+          onChange={(e) => {
+            setFirstName(e.target.value);
+            if (errors.firstName)
+              setErrors((p) => ({ ...p, firstName: undefined }));
+          }}
+          placeholder="Enter your first name"
+          aria-invalid={!!errors.firstName}
+          className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all text-gray-900 ${
+            errors.firstName
+              ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500'
+              : 'border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+          }`}
+        />
+        {errors.firstName && (
+          <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            {errors.firstName}
+          </p>
+        )}
+      </div>
+
+      {/* Last name */}
+      <div>
+        <label
+          htmlFor="lastName"
+          className="block text-sm font-medium text-gray-700 mb-1.5"
+        >
+          Last Name
+        </label>
+        <input
+          id="lastName"
+          type="text"
+          autoComplete="family-name"
+          value={lastName}
+          onChange={(e) => {
+            setLastName(e.target.value);
+            if (errors.lastName)
+              setErrors((p) => ({ ...p, lastName: undefined }));
+          }}
+          placeholder="Enter your last name"
+          aria-invalid={!!errors.lastName}
+          className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all text-gray-900 ${
+            errors.lastName
+              ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500'
+              : 'border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+          }`}
+        />
+        {errors.lastName && (
+          <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            {errors.lastName}
+          </p>
+        )}
+      </div>
+
+      {/* Email */}
+      <div>
+        <label
+          htmlFor="email"
+          className="block text-sm font-medium text-gray-700 mb-1.5"
+        >
+          Email
+        </label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+            <Mail
+              className={`w-4 h-4 ${
+                errors.email ? 'text-red-400' : 'text-gray-400'
+              }`}
+            />
+          </div>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            inputMode="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (errors.email) setErrors((p) => ({ ...p, email: undefined }));
+            }}
+            placeholder="Enter your email address"
+            aria-invalid={!!errors.email}
+            className={`w-full pl-11 pr-4 py-3 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all text-gray-900 ${
+              errors.email
+                ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500'
+                : 'border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+            }`}
+          />
+        </div>
+        {errors.email && (
+          <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            {errors.email}
+          </p>
+        )}
+      </div>
+
+      {/* Password */}
+      <div>
+        <label
+          htmlFor="password"
+          className="block text-sm font-medium text-gray-700 mb-1.5"
+        >
+          Password
+        </label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+            <Lock
+              className={`w-4 h-4 ${
+                errors.password ? 'text-red-400' : 'text-gray-400'
+              }`}
+            />
+          </div>
+          <input
+            id="password"
+            type={showPassword ? 'text' : 'password'}
+            autoComplete="new-password"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (errors.password)
+                setErrors((p) => ({ ...p, password: undefined }));
+            }}
+            placeholder="Create a password"
+            aria-invalid={!!errors.password}
+            className={`w-full pl-11 pr-12 py-3 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all text-gray-900 ${
+              errors.password
+                ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500'
+                : 'border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+            }`}
+          />
+          <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              className="text-gray-400 hover:text-gray-600 focus:outline-none"
+            >
+              {showPassword ? (
+                <EyeOff className="w-4 h-4" />
+              ) : (
+                <Eye className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+        </div>
+        {errors.password ? (
+          <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            {errors.password}
+          </p>
+        ) : (
+          <p className="mt-1.5 text-xs text-gray-400">
+            Must be 8+ characters with letters and numbers.
+          </p>
+        )}
+      </div>
+
+      {/* Confirm password */}
+      <div>
+        <label
+          htmlFor="confirmPassword"
+          className="block text-sm font-medium text-gray-700 mb-1.5"
+        >
+          Confirm Password
+        </label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+            <Lock
+              className={`w-4 h-4 ${
+                errors.confirmPassword ? 'text-red-400' : 'text-gray-400'
+              }`}
+            />
+          </div>
+          <input
+            id="confirmPassword"
+            type={showConfirm ? 'text' : 'password'}
+            autoComplete="new-password"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            value={confirmPassword}
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              if (errors.confirmPassword)
+                setErrors((p) => ({ ...p, confirmPassword: undefined }));
+            }}
+            placeholder="Confirm your password"
+            aria-invalid={!!errors.confirmPassword}
+            className={`w-full pl-11 pr-12 py-3 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all text-gray-900 ${
+              errors.confirmPassword
+                ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500'
+                : 'border-gray-200 focus:ring-indigo-500/20 focus:border-indigo-500'
+            }`}
+          />
+          <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
+            <button
+              type="button"
+              onClick={() => setShowConfirm(!showConfirm)}
+              aria-label={showConfirm ? 'Hide password' : 'Show password'}
+              className="text-gray-400 hover:text-gray-600 focus:outline-none"
+            >
+              {showConfirm ? (
+                <EyeOff className="w-4 h-4" />
+              ) : (
+                <Eye className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+        </div>
+        {errors.confirmPassword && (
+          <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            {errors.confirmPassword}
+          </p>
+        )}
+      </div>
+
+      {/* Terms */}
+      <div className="flex items-start gap-2">
+        <input
+          type="checkbox"
+          id="terms"
+          checked={acceptedTerms}
+          onChange={(e) => {
+            setAcceptedTerms(e.target.checked);
+            if (errors.terms) setErrors((p) => ({ ...p, terms: undefined }));
+          }}
+          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+        />
+        <label htmlFor="terms" className="text-xs text-gray-500">
+          I accept the{' '}
+          <Link href="/terms" className="text-indigo-600 hover:underline">
+            Terms and Conditions
+          </Link>
+        </label>
+      </div>
+      {errors.terms && (
+        <p className="text-xs text-red-500 flex items-center gap-1">
+          <AlertCircle className="w-3 h-3" />
+          {errors.terms}
+        </p>
+      )}
+
+      {/* Form-level error */}
+      {errors.form && (
+        <div
+          role="alert"
+          className="rounded-xl bg-red-50 border border-red-200 p-3.5 flex items-start gap-2.5"
+        >
+          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-red-700">Error</p>
+            <p className="text-sm text-red-600">{errors.form}</p>
+          </div>
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/10 flex items-center justify-center gap-2"
+      >
+        {loading ? (
+          <>
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            Creating Account...
+          </>
+        ) : (
+          <>
+            Create Account <ArrowRight className="w-4 h-4" />
+          </>
+        )}
+      </button>
+    </form>
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-50 sm:bg-gradient-to-br sm:from-gray-50 sm:to-gray-100 block lg:flex lg:items-center lg:justify-center p-0 sm:p-4 md:p-8">
+      <div className="w-full max-w-[1000px] flex flex-col bg-white shadow-none sm:shadow-[0_10px_40px_rgba(0,0,0,0.08)] border-0 lg:border lg:border-gray-100 lg:rounded-3xl lg:overflow-hidden">
+        {/* ─── Mobile header — full-bleed dark, no card ─────────────── */}
+        <div className="lg:hidden bg-[#0a2540] relative overflow-hidden p-8 sm:p-10">
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
+          <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
+
+          <div className="relative z-10 text-left">
+            <Link href="/" className="inline-block mb-4">
+              <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
+                Xeco<span className="text-emerald-400">Flow</span>
+              </h1>
+            </Link>
+            <h2 className="text-2xl sm:text-3xl font-bold text-white leading-tight tracking-tight">
+              Start accepting payments in minutes.
+            </h2>
+            <p className="text-emerald-400 text-base font-medium mt-3 opacity-90">
+              Join Africa&apos;s leading payment infrastructure.
+            </p>
+          </div>
+        </div>
+
+        {/* ─── Desktop layout — hidden on mobile ────────────────────── */}
+        <div className="hidden lg:flex w-full">
+          {/* Left brand panel */}
+          <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex-col justify-between relative overflow-hidden min-h-[420px] lg:min-h-[560px] flex">
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
+            <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
+            <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
+
+            <div className="relative z-10 flex flex-col h-full justify-between">
+              <div>
+                <Link href="/" className="inline-block">
+                  <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                    Xeco<span className="text-emerald-400">Flow</span>
+                  </h1>
+                </Link>
               </div>
+
+              <div className="space-y-7 py-6 lg:py-8">
+                <h2 className="text-3xl sm:text-4xl xl:text-[2.75rem] font-bold text-white leading-[1.15] tracking-tight">
+                  Start accepting
+                  <br />
+                  payments in
+                  <br />
+                  <span className="text-emerald-400">minutes.</span>
+                </h2>
+
+                <p className="text-slate-400 text-sm sm:text-base max-w-[320px] leading-relaxed">
+                  Create your account and get instant access to Africa&apos;s
+                  leading payment infrastructure.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 pt-5 border-t border-white/10">
+                <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-widest">
+                  Trusted by
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  <span className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-white/5 text-slate-300 border border-white/10">
+                    500+ businesses
+                  </span>
+                  <span className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-white/5 text-slate-300 border border-white/10">
+                    4 countries
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right form panel */}
+          <div className="lg:w-1/2 p-6 sm:p-8 md:p-10 lg:p-12 bg-white flex flex-col justify-center">
+            <div className="max-w-sm mx-auto w-full">
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
+                  Create your account
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Join XecoFlow and start accepting payments.
+                </p>
+              </div>
+
+              {formFields}
+
+              <p className="mt-6 text-center text-sm text-gray-500">
+                Already have an account?{' '}
+                <Link
+                  href="/login"
+                  className="font-medium text-indigo-600 hover:text-indigo-700"
+                >
+                  Sign in
+                </Link>
+              </p>
             </div>
           </div>
         </div>
 
-        {/* RIGHT PANEL - Form */}
-        <div className="lg:w-1/2 p-8 lg:p-12 bg-white">
-          <div className="max-w-sm mx-auto w-full">
-            <div className="lg:hidden mb-8">
-              <Link href="/" className="inline-block">
-                <h1 className="text-2xl font-bold text-[#0a2540]">
-                  Xeco<span className="text-emerald-500">Flow</span>
-                </h1>
-              </Link>
-            </div>
-
+        {/* ─── Mobile form — full width, no card wrapper ────────────── */}
+        <div className="lg:hidden p-6 sm:p-8 bg-white">
+          <div className="max-w-md mx-auto w-full">
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
+              <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
+                Create your account
+              </h2>
               <p className="text-sm text-gray-500 mt-1">
                 Join XecoFlow and start accepting payments.
               </p>
             </div>
 
-            {/* ── Signup Form ── */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              
-              {/* Country - at the very top */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
-                <div className="relative">
-                  <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <select
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all appearance-none"
-                  >
-                    <option value="Kenya">Kenya</option>
-                    <option value="Uganda">Uganda</option>
-                    <option value="Tanzania">Tanzania</option>
-                    <option value="Rwanda">Rwanda</option>
-                    <option value="Nigeria">Nigeria</option>
-                    <option value="Ghana">Ghana</option>
-                    <option value="South Africa">South Africa</option>
-                    <option value="United States">United States</option>
-                    <option value="United Kingdom">United Kingdom</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Business Name - moved above First Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Business Name *</label>
-                <input
-                  type="text"
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  placeholder="Enter your business name"
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                  required
-                />
-              </div>
-
-              {/* First Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
-                <input
-                  type="text"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="Enter your first name"
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                  required
-                />
-              </div>
-
-              {/* Last Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
-                <input
-                  type="text"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  placeholder="Enter your last name"
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                  required
-                />
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                  required
-                />
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Create a password"
-                    className="w-full pl-10 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                    required
-                    minLength={8}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-                    ) : (
-                      <Eye className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-                    )}
-                  </button>
-                </div>
-                <p className="mt-1 text-xs text-gray-400">Must be at least 8 characters</p>
-              </div>
-
-              {/* Confirm Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type={showConfirm ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm your password"
-                    className="w-full pl-10 pr-11 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirm(!showConfirm)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2"
-                  >
-                    {showConfirm ? (
-                      <EyeOff className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-                    ) : (
-                      <Eye className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* ── Role Selector (Moved to Bottom) ── */}
-              <div className="pt-2">
-                <p className="text-sm font-medium text-gray-700 mb-2">Are you a software developer?</p>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      checked={role === 'developer'}
-                      onChange={() => setRole('developer')}
-                      className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-sm text-gray-700">Yes, I am</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      checked={role === 'merchant'}
-                      onChange={() => setRole('merchant')}
-                      className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-sm text-gray-700">No, I'm not</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Terms & Conditions */}
-              <div className="flex items-start gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="terms"
-                  checked={acceptedTerms}
-                  onChange={(e) => setAcceptedTerms(e.target.checked)}
-                  className="mt-1 w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label htmlFor="terms" className="text-xs text-gray-500">
-                  I accept the{' '}
-                  <Link href="/terms" className="text-indigo-600 hover:underline">
-                    Terms and Conditions
-                  </Link>
-                </label>
-              </div>
-
-              {apiError && (
-                <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-xl">
-                  {apiError}
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Creating Account...
-                  </>
-                ) : (
-                  <>
-                    Create Account <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
+            {formFields}
 
             <p className="mt-6 text-center text-sm text-gray-500">
               Already have an account?{' '}
-              <Link href="/login" className="font-medium text-indigo-600 hover:text-indigo-700">
+              <Link
+                href="/login"
+                className="font-medium text-indigo-600 hover:text-indigo-700"
+              >
                 Sign in
               </Link>
             </p>
@@ -416,4 +645,33 @@ export default function SignUpPage() {
       </div>
     </div>
   );
+}
+
+// ─── Error mapping ─────────────────────────────────────────────────
+function friendlyError(err: unknown): string {
+  if (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    typeof (err as { code: unknown }).code === 'string'
+  ) {
+    const code = (err as { code: string }).code;
+    switch (code) {
+      case 'EMAIL_ALREADY_EXISTS':
+        return 'This email is already registered. Try signing in instead.';
+      case 'INVALID_EMAIL':
+        return 'Please enter a valid email address.';
+      case 'WEAK_PASSWORD':
+        return 'Password must be 8+ characters with letters and numbers.';
+      case 'RATE_LIMITED':
+        return 'Too many attempts. Please wait a moment and try again.';
+      case 'NETWORK_ERROR':
+        return 'Unable to reach the server. Please check your connection.';
+      case 'BAD_GATEWAY':
+        return 'The service is temporarily unavailable. Please try again.';
+      default:
+        break;
+    }
+  }
+  return 'Registration failed. Please try again.';
 }
