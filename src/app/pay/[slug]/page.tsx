@@ -1197,18 +1197,6 @@ export default function PaymentLinkPage() {
 
         <div className="px-6 py-8 sm:px-10 lg:px-16 lg:py-12 flex flex-col justify-center">
           <div className="w-full max-w-[420px] mx-auto">
-            <div className="flex items-center justify-end gap-2 mb-3">
-              {isSocketConnected ? (
-                <span className="flex items-center gap-1.5 text-[10px] text-emerald-600">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
-                </span>
-              ) : (
-                <span className="flex items-center gap-1.5 text-[10px] text-amber-600">
-                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Polling
-                </span>
-              )}
-            </div>
-
             {isPaid ? (
               <div className="text-center py-6">
                 <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
