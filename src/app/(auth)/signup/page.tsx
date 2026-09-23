@@ -544,13 +544,14 @@ export default function SignUpPage() {
 
         {/* ─── Desktop layout — hidden on mobile ────────────────────── */}
         <div className="hidden lg:flex w-full">
-          {/* Left brand panel */}
-          <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 flex-col justify-between relative overflow-hidden min-h-[420px] lg:min-h-[560px] flex">
+          {/* Left brand panel — anchored layout, no floating gaps */}
+          <div className="lg:w-1/2 bg-[#0a2540] p-8 sm:p-10 md:p-12 lg:p-14 relative overflow-hidden min-h-[560px] flex">
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
             <div className="absolute -top-32 -right-32 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl" />
             <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl" />
 
-            <div className="relative z-10 flex flex-col h-full justify-between">
+            <div className="relative z-10 flex flex-col h-full w-full">
+              {/* Logo */}
               <div>
                 <Link href="/" className="inline-block">
                   <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
@@ -559,7 +560,8 @@ export default function SignUpPage() {
                 </Link>
               </div>
 
-              <div className="space-y-7 py-6 lg:py-8">
+              {/* Headline + description — anchored just below logo */}
+              <div className="space-y-7 mt-10 lg:mt-14">
                 <h2 className="text-3xl sm:text-4xl xl:text-[2.75rem] font-bold text-white leading-[1.15] tracking-tight">
                   Start accepting
                   <br />
@@ -574,7 +576,8 @@ export default function SignUpPage() {
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3 pt-5 border-t border-white/10">
+              {/* Trusted by — pinned to bottom, three pills for visual weight */}
+              <div className="flex flex-col gap-3 pt-5 border-t border-white/10 mt-auto">
                 <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-widest">
                   Trusted by
                 </span>
@@ -584,6 +587,9 @@ export default function SignUpPage() {
                   </span>
                   <span className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-white/5 text-slate-300 border border-white/10">
                     4 countries
+                  </span>
+                  <span className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-white/5 text-slate-300 border border-white/10">
+                    Mobile Money, Cards &amp; Banks
                   </span>
                 </div>
               </div>

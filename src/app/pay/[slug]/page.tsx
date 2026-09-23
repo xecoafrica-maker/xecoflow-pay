@@ -21,6 +21,8 @@ import {
   Trash2,
   Copy,
   Check,
+  Download,
+  Share2,
 } from 'lucide-react';
 
 interface PaymentLinkData {
@@ -129,6 +131,7 @@ export default function PaymentLinkPage() {
 
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [isWebSocketAvailable, setIsWebSocketAvailable] = useState(true);
+  const [receiptSharing, setReceiptSharing] = useState(false);
   const socketRef = useRef<any>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const MAX_POLLING_ATTEMPTS = 30;
@@ -239,7 +242,7 @@ export default function PaymentLinkPage() {
       if (isConnectingRef.current) return;
       isConnectingRef.current = true;
       try {
-        const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 
+        const WS_URL = process.env.NEXT_PUBLIC_WS_URL ||
                        (typeof window !== 'undefined' && window.location.origin) ||
                        'wss://xecoflow-2gen.onrender.com';
         const { io } = await import('socket.io-client');
@@ -593,6 +596,189 @@ export default function PaymentLinkPage() {
     };
   }, []);
 
+  // ─── Receipt: draw, download, share ────────────────────────────────
+  const getReceiptData = () => {
+    const paidAmount = Number(amount || paymentLink?.price || 0);
+    return {
+      merchant: paymentLink?.businessName || 'Merchant',
+      item: paymentLink?.name || 'Payment',
+      amount: paidAmount,
+      currency: paymentLink?.currency || 'KES',
+      date: new Date(),
+      reference: transactionId || paymentLink?.billId || slug || '—',
+      methodLabel: METHOD_LOGOS[method]?.label || 'M-PESA',
+    };
+  };
+
+  const drawReceiptCanvas = (): HTMLCanvasElement => {
+    const data = getReceiptData();
+    const scale = 2;
+    const width = 480;
+    const height = 620;
+    const canvas = document.createElement('canvas');
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return canvas;
+    ctx.scale(scale, scale);
+
+    // background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+
+    // top accent bar
+    ctx.fillStyle = '#10B981';
+    ctx.fillRect(0, 0, width, 6);
+
+    // success badge
+    ctx.beginPath();
+    ctx.arc(width / 2, 74, 28, 0, Math.PI * 2);
+    ctx.fillStyle = '#ECFDF5';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#10B981';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#10B981';
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.moveTo(width / 2 - 10, 74);
+    ctx.lineTo(width / 2 - 2, 83);
+    ctx.lineTo(width / 2 + 13, 63);
+    ctx.stroke();
+
+    ctx.fillStyle = '#0a2540';
+    ctx.font = '600 15px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Payment Successful', width / 2, 126);
+
+    ctx.fillStyle = '#111827';
+    ctx.font = '700 30px Arial';
+    ctx.fillText(
+      `${data.currency} ${data.amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      width / 2,
+      165
+    );
+
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(40, 195);
+    ctx.lineTo(width - 40, 195);
+    ctx.stroke();
+
+    const rows: [string, string][] = [
+      ['Paid to', data.merchant],
+      ['For', data.item],
+      ['Payment method', data.methodLabel],
+      ['Reference', String(data.reference)],
+      ['Date', data.date.toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' })],
+    ];
+
+    let y = 230;
+    rows.forEach(([label, value]) => {
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '400 12.5px Arial';
+      ctx.fillText(label, 40, y);
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#111827';
+      ctx.font = '600 12.5px Arial';
+      const displayValue = value.length > 30 ? value.slice(0, 30) + '…' : value;
+      ctx.fillText(displayValue, width - 40, y);
+      y += 36;
+    });
+
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.beginPath();
+    ctx.moveTo(40, y + 6);
+    ctx.lineTo(width - 40, y + 6);
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '400 11px Arial';
+    ctx.fillText('Powered by XecoFlow', width / 2, y + 36);
+
+    return canvas;
+  };
+
+  const downloadReceipt = () => {
+    const data = getReceiptData();
+    const canvas = drawReceiptCanvas();
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `receipt-${data.reference}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  };
+
+  const shareReceipt = async () => {
+    setReceiptSharing(true);
+    try {
+      const data = getReceiptData();
+      const text = `Payment of ${data.currency} ${data.amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} to ${data.merchant} — Ref: ${data.reference}`;
+      const canvas = drawReceiptCanvas();
+      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+
+      if (typeof navigator !== 'undefined' && (navigator as any).share) {
+        if (blob) {
+          const file = new File([blob], `receipt-${data.reference}.png`, { type: 'image/png' });
+          if ((navigator as any).canShare && (navigator as any).canShare({ files: [file] })) {
+            await (navigator as any).share({ files: [file], title: 'Payment receipt', text });
+            return;
+          }
+        }
+        await (navigator as any).share({ title: 'Payment receipt', text });
+        return;
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+        setCopiedId('receipt');
+        setTimeout(() => setCopiedId(null), 2000);
+      }
+    } catch {
+      // user cancelled the native share sheet, or an error occurred — no-op
+    } finally {
+      setReceiptSharing(false);
+    }
+  };
+
+  const receiptActions = (
+    <div className="flex items-center gap-2 mt-5 w-full">
+      <button
+        type="button"
+        onClick={downloadReceipt}
+        className="flex-1 h-10 rounded-lg border border-gray-300 bg-white text-[13px] font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-1.5 transition-colors"
+      >
+        <Download className="w-3.5 h-3.5" /> Download
+      </button>
+      <button
+        type="button"
+        onClick={shareReceipt}
+        disabled={receiptSharing}
+        className="flex-1 h-10 rounded-lg bg-[#0a2540] text-white text-[13px] font-semibold hover:bg-[#152a45] flex items-center justify-center gap-1.5 transition-colors disabled:opacity-60"
+      >
+        {receiptSharing ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : copiedId === 'receipt' ? (
+          <><Check className="w-3.5 h-3.5" /> Copied</>
+        ) : (
+          <><Share2 className="w-3.5 h-3.5" /> Share</>
+        )}
+      </button>
+    </div>
+  );
+
   const renderPaymentStatus = () => {
     if (paymentStatus === 'processing') {
       return (
@@ -605,33 +791,93 @@ export default function PaymentLinkPage() {
         </div>
       );
     }
+
     if (paymentStatus === 'pending') {
+      const elapsedSec = pollingCount * (POLLING_INTERVAL / 1000);
+      const mm = Math.floor(elapsedSec / 60);
+      const ss = Math.floor(elapsedSec % 60);
+      const pct = Math.min((pollingCount / MAX_POLLING_ATTEMPTS) * 100, 96);
+      const radius = 26;
+      const circumference = 2 * Math.PI * radius;
+      const offset = circumference - (pct / 100) * circumference;
+
+      const steps = [
+        { label: 'Request sent to your phone' },
+        { label: 'Enter your PIN' },
+        { label: `Confirming with ${METHOD_LOGOS[method]?.label || 'provider'}` },
+      ];
+      const activeStepIndex = pollingCount < 1 ? 0 : pollingCount < 3 ? 1 : 2;
+
       return (
-        <div className="flex flex-col items-start gap-2.5 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-3">
-          <div className="flex items-center gap-2.5 w-full">
-            <Loader2 className="w-4 h-4 animate-spin shrink-0 text-amber-600" />
-            <div className="flex-1">
-              <p className="font-medium text-[13px]">Waiting for payment confirmation</p>
-              <p className="text-amber-600 text-[12px] mt-0.5">Please check your phone and enter your PIN</p>
+        <div className="rounded-2xl border border-gray-200 bg-white px-5 py-6">
+          <div className="flex flex-col items-center text-center">
+            <div className="relative w-20 h-20">
+              <svg viewBox="0 0 64 64" className="w-20 h-20 -rotate-90">
+                <circle cx="32" cy="32" r={radius} fill="none" stroke="#FEF3C7" strokeWidth="5" />
+                <circle
+                  cx="32"
+                  cy="32"
+                  r={radius}
+                  fill="none"
+                  stroke="#F59E0B"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={offset}
+                  style={{ transition: 'stroke-dashoffset 1s linear' }}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Smartphone className="w-6 h-6 text-amber-600 animate-pulse" />
+              </div>
             </div>
-            {isSocketConnected ? <Wifi className="w-4 h-4 text-emerald-500 shrink-0" /> : <WifiOff className="w-4 h-4 text-amber-400 shrink-0" />}
+
+            <p className="mt-4 text-[14px] font-semibold text-gray-900">Waiting for confirmation</p>
+            <p className="text-[12px] text-gray-500 mt-1">
+              {mm}m {ss.toString().padStart(2, '0')}s elapsed
+            </p>
+
+            <div className="w-full mt-5 space-y-2.5 text-left">
+              {steps.map((step, idx) => (
+                <div key={step.label} className="flex items-center gap-2.5">
+                  <div
+                    className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+                      idx < activeStepIndex ? 'bg-emerald-500' : idx === activeStepIndex ? 'bg-amber-500' : 'bg-gray-200'
+                    }`}
+                  >
+                    {idx < activeStepIndex ? (
+                      <Check className="w-3 h-3 text-white" />
+                    ) : idx === activeStepIndex ? (
+                      <Loader2 className="w-3 h-3 text-white animate-spin" />
+                    ) : null}
+                  </div>
+                  <span
+                    className={`text-[12.5px] ${
+                      idx <= activeStepIndex ? 'text-gray-900 font-medium' : 'text-gray-400'
+                    }`}
+                  >
+                    {step.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="w-full mt-4 pt-4 border-t border-gray-100 flex items-center justify-center gap-1.5">
+              {isSocketConnected ? (
+                <span className="flex items-center gap-1.5 text-[11px] text-emerald-600">
+                  <Wifi className="w-3.5 h-3.5" /> Live updates connected
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-[11px] text-gray-400">
+                  <WifiOff className="w-3.5 h-3.5" /> Checking status automatically
+                </span>
+              )}
+            </div>
           </div>
-          <div className="w-full mt-1">
-            <div className="flex justify-between text-[10px] text-amber-600">
-              <span>Processing...</span>
-              <span>{Math.min(Math.round(pollingCount * 3 / 60), 2)}m {pollingCount * 3 % 60}s</span>
-            </div>
-            <div className="w-full h-1 bg-amber-200 rounded-full mt-1 overflow-hidden">
-              <div className="h-full bg-amber-500 rounded-full transition-all duration-1000"
-                style={{ width: `${Math.min((pollingCount / MAX_POLLING_ATTEMPTS) * 100, 95)}%` }} />
-            </div>
-          </div>
-          {!isSocketConnected && (
-            <p className="text-[10px] text-amber-500 mt-0.5">⚡ Live updates unavailable - checking status automatically</p>
-          )}
         </div>
       );
     }
+
     if (paymentStatus === 'error') {
       return (
         <div className="flex flex-col gap-2.5 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3.5 py-3">
@@ -651,19 +897,24 @@ export default function PaymentLinkPage() {
         </div>
       );
     }
+
     if (paymentStatus === 'success') {
       return (
-        <div className="flex items-start gap-3 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-          <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
-          <div>
-            <p className="font-medium text-[13px]">Payment Successful!</p>
-            <p className="text-emerald-600 text-[12px] mt-0.5">
-              {formatPrice(Number(amount || paymentLink?.price || 0), paymentLink?.currency || 'KES')} paid successfully
-            </p>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+          <div className="flex items-start gap-3 text-sm text-emerald-800">
+            <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
+            <div>
+              <p className="font-medium text-[13px]">Payment Successful!</p>
+              <p className="text-emerald-600 text-[12px] mt-0.5">
+                {formatPrice(Number(amount || paymentLink?.price || 0), paymentLink?.currency || 'KES')} paid successfully
+              </p>
+            </div>
           </div>
+          {receiptActions}
         </div>
       );
     }
+
     return null;
   };
 
@@ -741,13 +992,17 @@ export default function PaymentLinkPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-[15px] font-semibold text-gray-900 truncate">{merchantName}</p>
-                {isVerified ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 mt-0.5">
-                    <BadgeCheck className="w-3.5 h-3.5" /> Verified merchant
-                  </span>
-                ) : (
-                  <span className="text-[11px] text-gray-400 mt-0.5 block">Merchant</span>
-                )}
+                <p className="text-[11px] mt-0.5 flex items-center gap-1">
+                  <span className="text-gray-400">Merchant</span>
+                  {isVerified && (
+                    <>
+                      <span className="text-gray-300">·</span>
+                      <span className="inline-flex items-center gap-0.5 text-emerald-600 font-semibold">
+                        <BadgeCheck className="w-3.5 h-3.5" /> Verified
+                      </span>
+                    </>
+                  )}
+                </p>
               </div>
             </div>
           </div>
@@ -963,6 +1218,7 @@ export default function PaymentLinkPage() {
                 <p className="text-sm text-gray-500 mt-2">
                   {formatPrice(displayAmount, paymentLink.currency)} paid to {merchantName}
                 </p>
+                {receiptActions}
               </div>
             ) : isChildPending ? (
               <div className="rounded-xl bg-amber-50 border border-amber-200 px-5 py-6 text-center">
