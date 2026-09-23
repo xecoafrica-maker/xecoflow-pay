@@ -1,22 +1,65 @@
 ﻿// src/lib/auth-api.ts
 
-// ─── Configuration ──────────────────────────────────────────────────
-const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL || 'https://xecoflow-2gen.onrender.com';
+// ─── Config ────────────────────────────────────────────────────────
+// NEXT_PUBLIC_* values are inlined at build time and visible in the
+// browser bundle. That's fine for the API base URL. But we fail hard
+// if it's missing — silently falling back to a stale URL is worse.
+//
+// NOTE: This is being phased out. Functions that have migrated to the
+// BFF (see registerMerchant below) use a relative /api/auth/* path
+// instead, so the backend URL is never exposed to the browser.
+const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL;
 
-// ─── Session Duration ──────────────────────────────────────────────
-export const SESSION_DURATION_SECONDS = 5 * 60; // 5 minutes
-export const SESSION_DURATION_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
+if (!AUTH_API_BASE) {
+  throw new Error(
+    'NEXT_PUBLIC_AUTH_API_URL is not set. Refusing to start with an unknown backend.'
+  );
+}
 
-// ─── Types ──────────────────────────────────────────────────────────
+// ─── Session duration ──────────────────────────────────────────────
+export const SESSION_DURATION_SECONDS = 5 * 60;
+export const SESSION_DURATION_MS = 5 * 60 * 1000;
+
+// ─── Country codes ─────────────────────────────────────────────────
+// ISO 3166-1 alpha-2. Keep in sync with the backend allow-list.
+export const SUPPORTED_COUNTRIES = [
+  { code: 'KE', name: 'Kenya' },
+  { code: 'UG', name: 'Uganda' },
+  { code: 'TZ', name: 'Tanzania' },
+  { code: 'RW', name: 'Rwanda' },
+  { code: 'NG', name: 'Nigeria' },
+  { code: 'GH', name: 'Ghana' },
+  { code: 'ZA', name: 'South Africa' },
+] as const;
+
+export type CountryCode = (typeof SUPPORTED_COUNTRIES)[number]['code'];
+
+// ─── Error class ───────────────────────────────────────────────────
+// Structured error the UI can switch on. Never leak the raw backend
+// message to the user — map by code in the component.
+export class AuthApiError extends Error {
+  code: string;
+  status: number;
+
+  constructor(code: string, message: string, status: number) {
+    super(message);
+    this.name = 'AuthApiError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
+// ─── Types ─────────────────────────────────────────────────────────
 export interface RegisterRequest {
   email: string;
   password: string;
   businessName: string;
-  firstName?: string;
-  lastName?: string;
-  role?: string;
-  country?: string;
-  phone?: string;
+  firstName: string;
+  lastName: string;
+  country: CountryCode;
+  // Legal evidence. Backend must persist both.
+  termsVersion: string;
+  termsAcceptedAt: string;
 }
 
 export interface RegisterResponse {
@@ -27,12 +70,7 @@ export interface RegisterResponse {
     businessName: string;
     email: string;
     status: string;
-    apiKey?: string;
-    apiSecret?: string;
   };
-  merchantId?: number;
-  apiKey?: string;
-  rawSecret?: string;
 }
 
 export interface LoginRequest {
@@ -48,8 +86,6 @@ export interface LoginResponse {
   lock_until?: string;
   email?: string;
   message?: string;
-  token?: string;
-  refreshToken?: string;
   attempts_remaining?: number;
   sessionDuration?: number;
   merchant?: {
@@ -65,7 +101,6 @@ export interface LoginResponse {
 }
 
 export interface MerchantProfile {
-  // ─── Core (existing) ────────────────────────────────────────────
   merchant_id: number;
   business_name: string;
   email: string;
@@ -97,8 +132,6 @@ export interface MerchantProfile {
     idNumber: string;
     role: string;
   }>;
-
-  // ─── Business Profile additions ─────────────────────────────────
   trading_name?: string;
   business_category?: string;
   description?: string;
@@ -110,243 +143,220 @@ export interface MerchantProfile {
   physical_address?: string;
   brand_color?: string;
   logo_url?: string;
-  merchantId?: number; // camelCase alias for some responses
+  merchantId?: number;
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────
+// Parse a fetch Response into JSON, or throw a structured error if
+// the backend didn't send JSON (e.g. an HTML 502 from the proxy).
+async function parseResponse(res: Response): Promise<unknown> {
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new AuthApiError(
+      'BAD_GATEWAY',
+      'The service is temporarily unavailable. Please try again.',
+      res.status
+    );
+  }
+  return res.json();
 }
 
 // ─── REGISTER ──────────────────────────────────────────────────────
-export async function registerMerchant(data: RegisterRequest): Promise<RegisterResponse> {
+// Routed through the Next.js BFF at /api/auth/register. The BFF owns
+// the backend URL, validates the request AND response, and enforces
+// the field whitelist. The browser never learns the backend host.
+export async function registerMerchant(
+  data: RegisterRequest
+): Promise<RegisterResponse> {
   if (!data.email || !data.password || !data.businessName) {
-    throw new Error('Email, password, and business name are required');
+    throw new AuthApiError(
+      'INVALID_REQUEST',
+      'Email, password, and business name are required',
+      400
+    );
   }
 
   const payload = {
-    email: data.email.trim(),
+    email: data.email.trim().toLowerCase(),
     password: data.password,
     businessName: data.businessName.trim(),
-    firstName: data.firstName || '',
-    lastName: data.lastName || '',
-    role: data.role || 'merchant',
-    country: data.country || 'KE',
+    firstName: data.firstName.trim(),
+    lastName: data.lastName.trim(),
+    country: data.country,
+    termsVersion: data.termsVersion,
+    termsAcceptedAt: data.termsAcceptedAt,
   };
 
-  console.log('📤 Register request to:', AUTH_API_BASE + '/v1/auth/register');
-
+  let res: Response;
   try {
-    const res = await fetch(AUTH_API_BASE + '/v1/auth/register', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const responseData = await res.json();
-    console.log('📥 Register response:', responseData);
-
-    if (!res.ok) {
-      if (responseData.message && responseData.message.includes('settlement_phone')) {
-        throw new Error('Settlement phone error. Please try again.');
-      }
-      if (responseData.message && responseData.message.includes('duplicate key')) {
-        throw new Error('A merchant with this email already exists. Please login instead.');
-      }
-      throw new Error(responseData.message || 'Registration failed. Please try again.');
-    }
-
-    if (responseData.success && responseData.data) {
-      return {
-        success: true,
-        message: responseData.message || 'Registration successful',
-        data: {
-          merchantId: responseData.data.merchantId,
-          businessName: responseData.data.businessName,
-          email: responseData.data.email,
-          status: responseData.data.status,
-          apiKey: responseData.data.apiKey,
-          apiSecret: responseData.data.apiSecret
-        },
-        merchantId: responseData.data.merchantId,
-        apiKey: responseData.data.apiKey,
-        rawSecret: responseData.data.apiSecret
-      };
-    }
-
-    return {
-      success: true,
-      message: responseData.message || 'Registration successful',
-      merchantId: responseData.merchantId,
-      apiKey: responseData.apiKey,
-      rawSecret: responseData.rawSecret,
-    };
-  } catch (error: any) {
-    console.error('❌ Register error:', error.message);
-    throw new Error(error.message || 'Registration failed. Please try again.');
-  }
-}
-
-// ─── LOGIN ──────────────────────────────────────────────────────────
-export async function loginMerchant(data: LoginRequest): Promise<LoginResponse> {
-  console.log('📤 Login request to:', AUTH_API_BASE + '/v1/auth/login');
-
-  try {
-    const res = await fetch(AUTH_API_BASE + '/v1/auth/login', {
+    res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
-
-    const responseData = await res.json();
-    console.log('📥 Login response:', responseData);
-    console.log('📥 Login status:', res.status);
-
-    if (res.status === 401) {
-      console.log('🔴 401 Unauthorized - Invalid credentials');
-      let message = responseData.message || 'Invalid email or password';
-      let attempts = responseData.attempts_remaining;
-      console.log('📤 Returning 401 result - Message:', message, 'Attempts:', attempts);
-      return {
-        success: false,
-        message: message,
-        attempts_remaining: attempts
-      };
-    }
-
-    if (res.status === 423) {
-      console.log('🔴 423 Account locked');
-      return {
-        success: false,
-        locked: true,
-        message: responseData.message || 'Too many failed attempts. Please try again later.',
-        lock_until: responseData.lock_until
-      };
-    }
-
-    if (res.status === 403) {
-      console.log('🔴 403 Email not verified');
-      return {
-        success: false,
-        requiresVerification: true,
-        message: responseData.message || 'Please verify your email before logging in.'
-      };
-    }
-
-    if (!res.ok) {
-      console.log('🔴 Other error:', res.status);
-      return {
-        success: false,
-        message: responseData.message || 'Login failed'
-      };
-    }
-
-    if (responseData.success && responseData.data) {
-      const data = responseData.data;
-      console.log('✅ Login successful');
-      return {
-        success: true,
-        token: data.accessToken || data.token,
-        refreshToken: data.refreshToken,
-        sessionDuration: SESSION_DURATION_SECONDS,
-        merchant: {
-          merchantId: data.merchantId,
-          merchant_id: data.merchantId,
-          businessName: data.businessName,
-          business_name: data.businessName,
-          email: data.email,
-          phone: data.phone || '',
-          settlementPhone: data.settlementPhone || data.phone || '',
-          status: data.status,
-        }
-      };
-    }
-
-    if (responseData.success) {
-      const token = responseData.token || responseData.data?.token;
-      const merchantData = responseData.merchant || responseData.data;
-      return {
-        success: true,
-        token: token,
-        sessionDuration: SESSION_DURATION_SECONDS,
-        merchant: {
-          merchantId: merchantData?.merchantId || merchantData?.merchant_id,
-          merchant_id: merchantData?.merchant_id || merchantData?.merchantId,
-          businessName: merchantData?.businessName || merchantData?.business_name,
-          business_name: merchantData?.business_name || merchantData?.businessName,
-          email: merchantData?.email,
-          phone: merchantData?.phone || '',
-          settlementPhone: merchantData?.settlementPhone || merchantData?.phone || '',
-          status: merchantData?.status || 'Active',
-        }
-      };
-    }
-
-    return {
-      success: false,
-      message: responseData.message || 'Login failed'
-    };
-  } catch (error) {
-    console.error('❌ Login fetch error:', error);
-    return {
-      success: false,
-      message: 'Network error. Please check your connection.'
-    };
+  } catch {
+    throw new AuthApiError(
+      'NETWORK_ERROR',
+      'Unable to reach the server. Please check your connection.',
+      0
+    );
   }
+
+  const body = (await parseResponse(res)) as {
+    success?: boolean;
+    message?: string;
+    code?: string;
+    data?: RegisterResponse['data'];
+  };
+
+  if (!res.ok) {
+    // Prefer the BFF's structured code. Fall back to a generic one.
+    const code =
+      typeof body.code === 'string'
+        ? body.code
+        : res.status === 409
+        ? 'EMAIL_ALREADY_EXISTS'
+        : res.status === 429
+        ? 'RATE_LIMITED'
+        : 'REGISTER_FAILED';
+
+    throw new AuthApiError(
+      code,
+      body.message || 'Registration failed',
+      res.status
+    );
+  }
+
+  return {
+    success: true,
+    message: body.message || 'Registration successful',
+    data: body.data,
+  };
 }
 
-// ─── REFRESH TOKEN ──────────────────────────────────────────────────
-export async function refreshToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
-  const res = await fetch(AUTH_API_BASE + '/v1/auth/refresh', {
+// ─── LOGIN ─────────────────────────────────────────────────────────
+// Still hits auth-engine directly. Will be migrated to the BFF in a
+// later pass. When it is, this function becomes a thin wrapper around
+// fetch('/api/auth/login', ...) and AUTH_API_BASE goes away entirely.
+export async function loginMerchant(
+  data: LoginRequest
+): Promise<LoginResponse> {
+  let res: Response;
+  try {
+    res = await fetch(`${AUTH_API_BASE}/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: data.email.trim().toLowerCase(),
+        password: data.password,
+      }),
+    });
+  } catch {
+    return {
+      success: false,
+      message: 'Network error. Please check your connection.',
+    };
+  }
+
+  const body = (await parseResponse(res)) as Record<string, unknown>;
+
+  if (res.status === 401) {
+    return {
+      success: false,
+      message: (body.message as string) || 'Invalid email or password',
+      attempts_remaining: body.attempts_remaining as number | undefined,
+    };
+  }
+
+  if (res.status === 423) {
+    return {
+      success: false,
+      locked: true,
+      message:
+        (body.message as string) ||
+        'Too many failed attempts. Please try again later.',
+      lock_until: body.lock_until as string | undefined,
+    };
+  }
+
+  if (res.status === 403) {
+    return {
+      success: false,
+      requiresVerification: true,
+      message:
+        (body.message as string) ||
+        'Please verify your email before logging in.',
+    };
+  }
+
+  if (!res.ok) {
+    return {
+      success: false,
+      message: (body.message as string) || 'Login failed',
+    };
+  }
+
+  // Successful login — the merchant must complete OTP next.
+  return {
+    success: true,
+    requiresOTP: (body.requiresOTP as boolean) || false,
+    sessionDuration: SESSION_DURATION_SECONDS,
+  };
+}
+
+// ─── REFRESH ───────────────────────────────────────────────────────
+export async function refreshToken(
+  token: string
+): Promise<{ accessToken: string; refreshToken: string }> {
+  const res = await fetch(`${AUTH_API_BASE}/v1/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
+    body: JSON.stringify({ refreshToken: token }),
   });
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.message || 'Failed to refresh token');
+    throw new AuthApiError(
+      'REFRESH_FAILED',
+      'Your session has expired. Please log in again.',
+      res.status
+    );
   }
-  const data = await res.json();
-  return data.data;
+  const body = (await res.json()) as {
+    data: { accessToken: string; refreshToken: string };
+  };
+  return body.data;
 }
 
-// ─── LOGOUT ──────────────────────────────────────────────────────────
+// ─── LOGOUT ────────────────────────────────────────────────────────
 export async function logoutMerchant(token: string): Promise<void> {
-  await fetch(AUTH_API_BASE + '/v1/auth/logout', {
+  await fetch(`${AUTH_API_BASE}/v1/auth/logout`, {
     method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + token,
-    },
+    headers: { Authorization: `Bearer ${token}` },
   });
 }
 
-// ─── GET MERCHANT PROFILE ──────────────────────────────────────────
-export async function getMerchantProfile(token: string): Promise<MerchantProfile> {
-  const res = await fetch(AUTH_API_BASE + '/v1/auth/account/details', {
-    headers: {
-      'Authorization': 'Bearer ' + token,
-    },
+// ─── PROFILE ───────────────────────────────────────────────────────
+export async function getMerchantProfile(
+  token: string
+): Promise<MerchantProfile> {
+  const res = await fetch(`${AUTH_API_BASE}/v1/auth/account/details`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || 'Failed to fetch profile');
+    throw new AuthApiError(
+      'PROFILE_FETCH_FAILED',
+      'Failed to fetch profile',
+      res.status
+    );
   }
-  const json = await res.json();
-  console.log('📥 Profile response:', json);
-
-  if (json.success && json.data) {
-    return json.data;
-  }
-  if (json.merchant_id) {
-    return json;
-  }
-  if (json.merchant) {
-    return json.merchant;
-  }
-  if (json.data) {
-    return json.data;
-  }
-  return json;
+  const json = (await res.json()) as {
+    success?: boolean;
+    data?: MerchantProfile;
+  } & Partial<MerchantProfile>;
+  if (json.success && json.data) return json.data;
+  return json as MerchantProfile;
 }
 
-// ─── API CREDENTIALS ──────────────────────────────────────────────
+// ─── API CREDENTIALS ───────────────────────────────────────────────
 export interface ApiCredentials {
   apiKey: string;
 }
@@ -357,47 +367,61 @@ export interface RotateCredentialsResponse {
   rawSecret: string;
 }
 
-export async function getApiCredentials(token: string): Promise<ApiCredentials> {
-  const res = await fetch(AUTH_API_BASE + '/v1/keys/credentials', {
-    headers: {
-      'Authorization': 'Bearer ' + token,
-    },
+export async function getApiCredentials(
+  token: string
+): Promise<ApiCredentials> {
+  const res = await fetch(`${AUTH_API_BASE}/v1/keys/credentials`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || 'Failed to fetch API credentials');
+    throw new AuthApiError(
+      'CREDENTIALS_FETCH_FAILED',
+      'Failed to fetch API credentials',
+      res.status
+    );
   }
   return res.json();
 }
 
-export async function rotateApiCredentials(token: string): Promise<RotateCredentialsResponse> {
-  const res = await fetch(AUTH_API_BASE + '/v1/keys/credentials/rotate', {
+export async function rotateApiCredentials(
+  token: string
+): Promise<RotateCredentialsResponse> {
+  const res = await fetch(`${AUTH_API_BASE}/v1/keys/credentials/rotate`, {
     method: 'POST',
     headers: {
-      'Authorization': 'Bearer ' + token,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({}),
   });
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || 'Failed to rotate API credentials');
+    throw new AuthApiError(
+      'CREDENTIALS_ROTATE_FAILED',
+      'Failed to rotate API credentials',
+      res.status
+    );
   }
   return res.json();
 }
 
-export async function getApiSecret(token: string, password: string): Promise<{ secret: string }> {
-  const res = await fetch(AUTH_API_BASE + '/v1/keys/secret', {
+export async function getApiSecret(
+  token: string,
+  password: string
+): Promise<{ secret: string }> {
+  const res = await fetch(`${AUTH_API_BASE}/v1/keys/secret`, {
     method: 'POST',
     headers: {
-      'Authorization': 'Bearer ' + token,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ password }),
   });
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || 'Failed to retrieve secret');
+    throw new AuthApiError(
+      'SECRET_FETCH_FAILED',
+      'Failed to retrieve secret',
+      res.status
+    );
   }
   return res.json();
 }
