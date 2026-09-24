@@ -17,7 +17,6 @@ import {
   Send,
   Building,
   Shield,
-  X,
   Clock,
   History,
   Wallet,
@@ -38,9 +37,6 @@ import {
   Layers,
   ChevronUp,
   UserCircle,
-  Eye,
-  EyeOff,
-  CheckCircle,
   BadgeDollarSign,
   Box,
 } from 'lucide-react';
@@ -196,15 +192,6 @@ export default function Sidebar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Password verification modal
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [passwordError, setPasswordError] = useState('');
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [pendingHref, setPendingHref] = useState<string | null>(null);
-  const [verificationSuccess, setVerificationSuccess] = useState(false);
-
   const isFullPageApp = pathname?.startsWith('/dashboard/ecosystem') || false;
 
   // Close user menu on outside click.
@@ -285,68 +272,9 @@ export default function Sidebar() {
   const hasExpanded = Object.values(expanded).some((v) => v === true);
   const hasHref = (item: SidebarItem) => Boolean(item.href);
 
-  // Verify the merchant's password before entering Apps Marketplace.
-  const verifyPassword = async (enteredPassword: string): Promise<boolean> => {
-    try {
-      const storedMerchant = getStoredMerchant();
-      const merchantId = storedMerchant?.merchantId || storedMerchant?.merchant_id || '';
-
-      const response = await fetch('/api/auth/verify-password', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Merchant-ID': String(merchantId),
-        },
-        body: JSON.stringify({ password: enteredPassword }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (response.ok && data.success) return true;
-
-      setPasswordError(data.message || 'Incorrect password. Please try again.');
-      return false;
-    } catch {
-      setPasswordError('Network error. Please try again.');
-      return false;
-    }
-  };
-
-  const handleMarketplaceClick = (href: string) => {
-    setPendingHref(href);
-    setPassword('');
-    setPasswordError('');
-    setVerificationSuccess(false);
-    setShowPasswordModal(true);
-  };
-
-  const handlePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!password) {
-      setPasswordError('Please enter your password');
-      return;
-    }
-
-    setIsVerifying(true);
-    setPasswordError('');
-    const isValid = await verifyPassword(password);
-    setIsVerifying(false);
-
-    if (isValid && pendingHref) {
-      setVerificationSuccess(true);
-      setTimeout(() => {
-        setShowPasswordModal(false);
-        setPassword('');
-        setVerificationSuccess(false);
-        handleFullPageApp(pendingHref);
-      }, 800);
-    }
-  };
-
   const handleFullPageApp = (href: string) => {
     setShowLoading(true);
-    setTimeout(() => router.push(href), 800);
+    setTimeout(() => router.push(href), 300);
   };
 
   // Hide the loading overlay once the ecosystem page mounts.
@@ -364,7 +292,6 @@ export default function Sidebar() {
       // Ignore — the user is being logged out regardless.
     }
 
-    // Clear cached profile data (auth cookies are cleared by the server).
     try {
       localStorage.removeItem('merchant');
       localStorage.removeItem('merchant_id');
@@ -385,128 +312,6 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Password verification modal */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-in zoom-in duration-200">
-            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-emerald-100/50">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-emerald-500 rounded-xl shadow-lg shadow-emerald-500/20">
-                  <Shield className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Verify Your Identity</h3>
-                  <p className="text-sm text-gray-500">
-                    Enter your password to continue to Apps Marketplace
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6">
-              <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-emerald-500/20">
-                    {merchantName.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">Continuing as</p>
-                    <p className="text-sm text-gray-600">{merchantName}</p>
-                    {merchantEmail && (
-                      <p className="text-xs text-gray-400">{merchantEmail}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <form onSubmit={handlePasswordSubmit}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Account Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={password}
-                        onChange={(e) => {
-                          setPassword(e.target.value);
-                          setPasswordError('');
-                        }}
-                        placeholder="Enter your password"
-                        className={`w-full pl-4 pr-12 py-3 bg-white border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm ${
-                          passwordError ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        autoFocus
-                        disabled={isVerifying}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    {passwordError && (
-                      <p className="mt-1.5 text-sm text-red-500 flex items-center gap-1">
-                        <X className="w-3.5 h-3.5" />
-                        {passwordError}
-                      </p>
-                    )}
-                  </div>
-
-                  {verificationSuccess && (
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-sm text-emerald-700">
-                      <CheckCircle className="w-4 h-4 text-emerald-500" />
-                      Password verified! Redirecting…
-                    </div>
-                  )}
-
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowPasswordModal(false);
-                        setPassword('');
-                        setPasswordError('');
-                        setPendingHref(null);
-                        setVerificationSuccess(false);
-                      }}
-                      className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isVerifying || !password || verificationSuccess}
-                      className="flex-1 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isVerifying ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          Verifying…
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="w-4 h-4" />
-                          Continue
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </form>
-
-              <p className="mt-4 text-xs text-gray-400 text-center">
-                This is a security measure to protect your account
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Full-page app loading overlay */}
       {showLoading && (
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/95 backdrop-blur-sm transition-all duration-500">
@@ -576,43 +381,6 @@ export default function Sidebar() {
 
                     const showExpanded = expanded[item.label] || false;
                     const isParentWithHref = !isLeaf && hasHref(item);
-
-                    // Apps Marketplace — requires password verification.
-                    if (
-                      item.label === 'Apps Marketplace' &&
-                      item.href === '/dashboard/ecosystem/marketplace'
-                    ) {
-                      return (
-                        <button
-                          key={item.label}
-                          type="button"
-                          onClick={() => handleMarketplaceClick(item.href!)}
-                          className={`w-full group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-all ${
-                            isActive
-                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/5'
-                              : 'text-white hover:bg-slate-800/50 hover:text-white border border-transparent'
-                          }`}
-                        >
-                          {item.icon && (
-                            <item.icon
-                              size={18}
-                              className={`flex-shrink-0 ${
-                                isActive ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'
-                              }`}
-                            />
-                          )}
-                          <span className="truncate text-[13px]">{item.label}</span>
-                          {item.badge && (
-                            <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full animate-pulse">
-                              {item.badge}
-                            </span>
-                          )}
-                          {!isActive && (
-                            <Shield className="w-3 h-3 text-slate-500 group-hover:text-emerald-400 transition-colors ml-0.5" />
-                          )}
-                        </button>
-                      );
-                    }
 
                     return (
                       <div key={item.label}>
