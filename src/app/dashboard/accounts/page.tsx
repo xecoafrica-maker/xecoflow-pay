@@ -19,12 +19,31 @@ import {
 } from 'lucide-react';
 import { getStoredMerchant } from '@/lib/auth';
 
+// ─── Types ─────────────────────────────────────────────────────────
+// Loose merchant shape — only fields this page reads.
+interface MerchantSummary {
+  merchant_id?: number;
+  merchantId?: number;
+  business_name?: string;
+  businessName?: string;
+  status?: string;
+  business_type?: string;
+  created_at?: string;
+  settlement_method?: 'mpesa' | 'bank' | 'airtel' | string;
+  settlement_phone?: string;
+  phone?: string;
+  bank_name?: string;
+  bank_account_number?: string;
+  bank_account_holder?: string;
+}
+
 export default function AccountsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<MerchantSummary | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [merchantId, setMerchantId] = useState<number | null>(null);
 
   // ─── Delete Account State ────────────────────────────────────────
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -33,24 +52,28 @@ export default function AccountsPage() {
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
 
-  // ─── Load Profile — cache first, no token check ─────────────────
+  // ─── Load Profile — cached merchant, no token check ──────────────
+  // getStoredMerchant is called exactly once and cached in local
+  // state so later handlers can rely on the same value.
   useEffect(() => {
-    const cached = getStoredMerchant();
-    const id = cached?.merchant_id || cached?.merchantId;
+    const cached = getStoredMerchant() as MerchantSummary | null;
+    const id = cached?.merchant_id ?? cached?.merchantId ?? null;
 
     if (!id) {
-      console.warn('⚠️ No merchant — redirecting to login');
-      router.push('/login?session=expired');
+      router.replace('/login?session=expired');
       return;
     }
 
-    // Read from cache immediately
+    setMerchantId(id);
     setProfile(cached);
     setLoading(false);
   }, [router]);
 
   // ─── Copy to Clipboard ───────────────────────────────────────────
-  const copyToClipboard = (text: string | number | undefined, id: string) => {
+  const copyToClipboard = (
+    text: string | number | undefined,
+    id: string
+  ) => {
     if (!text) return;
     navigator.clipboard?.writeText(String(text));
     setCopied(id);
@@ -58,6 +81,9 @@ export default function AccountsPage() {
   };
 
   // ─── Delete Account Handler ──────────────────────────────────────
+  // NOTE: The backend endpoint is not implemented yet. To avoid
+  // pretending a destructive action succeeded, we refuse to submit
+  // and surface a clear message instead.
   const handleDeleteAccount = async () => {
     setDeleteError('');
 
@@ -69,33 +95,34 @@ export default function AccountsPage() {
       setDeleteError('Please enter your password');
       return;
     }
+    if (!merchantId) {
+      router.replace('/login?session=expired');
+      return;
+    }
 
     setDeleting(true);
+
     try {
-      const cached = getStoredMerchant();
-      const id = cached?.merchant_id || cached?.merchantId;
+      // TODO: replace with real endpoint when ready:
+      //   await fetch('/api/auth/delete-account', {
+      //     method: 'POST',
+      //     credentials: 'include',
+      //     headers: { 'Content-Type': 'application/json' },
+      //     body: JSON.stringify({
+      //       password: deletePassword,
+      //       confirm: 'DELETE',
+      //     }),
+      //   });
+      //
+      // Until the endpoint exists, refuse rather than fake success.
 
-      if (!id) {
-        router.push('/login?session=expired');
-        return;
-      }
-
-      // TODO: wire to real endpoint
-      // const res = await fetch('/v1/auth/delete-account', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   credentials: 'include',
-      //   body: JSON.stringify({ password: deletePassword, confirm: 'DELETE' }),
-      // });
-
-      await new Promise((r) => setTimeout(r, 1200));
-
-      // Clear session and redirect
-      localStorage.clear();
-      sessionStorage.clear();
-      router.push('/login?deleted=true');
-    } catch (err: any) {
-      setDeleteError(err.message || 'Failed to delete account');
+      setDeleteError(
+        'Account deletion is not available yet. Please contact support.'
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to delete account';
+      setDeleteError(message);
     } finally {
       setDeleting(false);
     }
@@ -113,8 +140,7 @@ export default function AccountsPage() {
   // ─── Derived Values ──────────────────────────────────────────────
   const businessName =
     profile?.business_name || profile?.businessName || '—';
-  const merchantId =
-    profile?.merchant_id || profile?.merchantId || '—';
+  const displayMerchantId = merchantId ?? '—';
   const status = (profile?.status || 'PENDING').toUpperCase();
   const businessType = profile?.business_type || '—';
   const createdAt = profile?.created_at;
@@ -197,12 +223,14 @@ export default function AccountsPage() {
               </label>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-sm font-mono font-semibold text-gray-900">
-                  {merchantId}
+                  {displayMerchantId}
                 </span>
                 <button
-                  onClick={() => copyToClipboard(merchantId, 'account')}
+                  type="button"
+                  onClick={() => copyToClipboard(displayMerchantId, 'account')}
                   className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
                   title="Copy account number"
+                  aria-label="Copy account number"
                 >
                   {copied === 'account' ? (
                     <Check className="w-4 h-4 text-emerald-500" />
@@ -265,9 +293,11 @@ export default function AccountsPage() {
                   {destinationLabel}
                 </span>
                 <button
+                  type="button"
                   onClick={() => copyToClipboard(destinationLabel, 'destination')}
                   className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
                   title="Copy destination"
+                  aria-label="Copy settlement destination"
                 >
                   {copied === 'destination' ? (
                     <Check className="w-4 h-4 text-emerald-500" />
@@ -347,6 +377,9 @@ export default function AccountsPage() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => !deleting && setShowDeleteModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-account-title"
         >
           <div
             className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
@@ -359,7 +392,10 @@ export default function AccountsPage() {
                   <AlertTriangle className="w-4 h-4 text-red-600" />
                 </div>
                 <div>
-                  <h3 className="text-[15px] font-bold text-red-900">
+                  <h3
+                    id="delete-account-title"
+                    className="text-[15px] font-bold text-red-900"
+                  >
                     Delete Account?
                   </h3>
                   <p className="text-[12px] text-red-700 mt-0.5">
@@ -372,6 +408,7 @@ export default function AccountsPage() {
                 onClick={() => !deleting && setShowDeleteModal(false)}
                 className="p-1.5 hover:bg-red-100 rounded-lg transition-colors"
                 disabled={deleting}
+                aria-label="Close"
               >
                 <X className="w-4 h-4 text-red-600" />
               </button>
@@ -386,11 +423,15 @@ export default function AccountsPage() {
               </div>
 
               <div>
-                <label className="block text-[12px] font-medium text-gray-700 mb-1.5">
+                <label
+                  htmlFor="delete-confirm"
+                  className="block text-[12px] font-medium text-gray-700 mb-1.5"
+                >
                   Type <span className="font-mono text-red-600">DELETE</span> to
                   confirm
                 </label>
                 <input
+                  id="delete-confirm"
                   type="text"
                   value={deleteConfirmText}
                   onChange={(e) => {
@@ -399,15 +440,23 @@ export default function AccountsPage() {
                   }}
                   placeholder="DELETE"
                   disabled={deleting}
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
                   className="w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-lg text-[13px] font-mono focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none disabled:bg-gray-50"
                 />
               </div>
 
               <div>
-                <label className="block text-[12px] font-medium text-gray-700 mb-1.5">
+                <label
+                  htmlFor="delete-password"
+                  className="block text-[12px] font-medium text-gray-700 mb-1.5"
+                >
                   Enter your password
                 </label>
                 <input
+                  id="delete-password"
                   type="password"
                   value={deletePassword}
                   onChange={(e) => {
@@ -416,12 +465,19 @@ export default function AccountsPage() {
                   }}
                   placeholder="Your account password"
                   disabled={deleting}
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   className="w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-lg text-[13px] focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none disabled:bg-gray-50"
                 />
               </div>
 
               {deleteError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-[12px] p-2.5 rounded-lg flex items-center gap-2">
+                <div
+                  role="alert"
+                  className="bg-red-50 border border-red-200 text-red-700 text-[12px] p-2.5 rounded-lg flex items-center gap-2"
+                >
                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                   {deleteError}
                 </div>
