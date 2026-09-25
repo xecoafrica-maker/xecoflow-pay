@@ -308,7 +308,7 @@ export default function Header() {
               Log In
             </Link>
             <Link
-              href="/login"
+              href="/signup"
               className="px-6 py-2.5 rounded-full bg-[#A3E5F3] text-gray-800 text-[17px] font-medium hover:bg-[#8ED9E9] transition-all"
             >
               Sign Up
