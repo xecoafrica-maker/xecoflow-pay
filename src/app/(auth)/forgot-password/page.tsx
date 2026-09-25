@@ -52,6 +52,12 @@ export default function ForgotPasswordPage() {
 
       const data = await res.json().catch(() => ({}));
 
+      // ── Diagnostic log — remove after the flow is confirmed working ──
+      console.log('[forgot-password] check response', {
+        status: res.status,
+        data,
+      });
+
       if (!res.ok) {
         setError(
           data.message || 'Could not process your request. Please try again.'
@@ -59,10 +65,19 @@ export default function ForgotPasswordPage() {
         return;
       }
 
+      // ── Accept both field names ──────────────────────────────────────
+      // The backend may respond with `hasQuestions` (current shape) or
+      // `canReset` (older shape). The definitive signals are:
+      //   1. exactly 3 questions returned
+      //   2. a non-empty challengeId (a signed JWT issued by the backend)
+      const canProceed =
+        data.canReset === true || data.hasQuestions === true;
+
       if (
-        data.success &&
-        data.canReset === true &&
-        data.challengeId &&
+        data.success === true &&
+        canProceed === true &&
+        typeof data.challengeId === 'string' &&
+        data.challengeId.length > 0 &&
         Array.isArray(data.questions) &&
         data.questions.length === 3
       ) {
@@ -79,7 +94,8 @@ export default function ForgotPasswordPage() {
       // Merchant not found OR email mismatch OR no questions configured.
       // Same UI for all three — no enumeration.
       setStep({ kind: 'cannot_reset' });
-    } catch {
+    } catch (err) {
+      console.error('[forgot-password] check failed', err);
       setError('Network error. Please try again.');
     } finally {
       setLoading(false);
