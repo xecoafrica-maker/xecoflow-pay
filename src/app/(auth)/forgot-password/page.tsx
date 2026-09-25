@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
 
       const data = await res.json().catch(() => ({}));
 
-      // ── Diagnostic log — remove after the flow is confirmed working ──
+      // Diagnostic log — remove after the flow is confirmed working.
       console.log('[forgot-password] check response', {
         status: res.status,
         data,
@@ -65,17 +65,14 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      // ── Accept both field names ──────────────────────────────────────
-      // The backend may respond with `hasQuestions` (current shape) or
-      // `canReset` (older shape). The definitive signals are:
-      //   1. exactly 3 questions returned
-      //   2. a non-empty challengeId (a signed JWT issued by the backend)
-      const canProceed =
-        data.canReset === true || data.hasQuestions === true;
-
+      // ── Success signals ─────────────────────────────────────────────
+      // The backend does NOT send `canReset` or `hasQuestions`. It
+      // signals success by returning:
+      //   1. success: true
+      //   2. a non-empty challengeId (a signed JWT)
+      //   3. exactly 3 questions
       if (
         data.success === true &&
-        canProceed === true &&
         typeof data.challengeId === 'string' &&
         data.challengeId.length > 0 &&
         Array.isArray(data.questions) &&
