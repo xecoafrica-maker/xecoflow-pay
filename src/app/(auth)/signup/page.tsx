@@ -355,7 +355,7 @@ function SignupForm(props: SignupFormProps) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-5" noValidate>
-      {/* Form-level error — rendered at the top so it's the first thing seen */}
+      {/* Form-level error */}
       {formError && (
         <div
           role="alert"
@@ -832,83 +832,94 @@ function VerifyEmailScreen({ email }: { email: string }) {
   return (
     <div className="min-h-[100svh] bg-white dark:bg-[#0f1f3a] flex flex-col items-center justify-center p-4">
       <div className="max-w-md w-full text-center space-y-6">
+        {/* Solid check circle — matches the classic success pattern */}
         <div className="w-20 h-20 mx-auto bg-emerald-50 dark:bg-emerald-950/40 rounded-full flex items-center justify-center">
-          <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/60 rounded-full flex items-center justify-center">
-            <Send className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+          <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30">
+            <CheckCircle2 className="w-8 h-8 text-white" />
           </div>
         </div>
 
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
-          Verify your email address
+          Account created successfully
         </h2>
 
-        <p className="text-gray-500 dark:text-gray-400 text-base leading-relaxed">
-          We sent a verification link to{' '}
-          <span className="font-medium text-gray-700 dark:text-gray-200">
-            {email}
-          </span>
-          . Click the link in that email, then sign in to continue.
+        <p className="text-gray-600 dark:text-gray-300 text-base leading-relaxed">
+          Congratulations! Your XecoFlow account has been created.
         </p>
 
-        <div className="pt-2">
-          {statusMessage && (
-            <div
-              className={`mb-4 rounded-xl p-3 text-sm flex items-start gap-2 text-left ${
-                status === 'sent'
-                  ? 'bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
-                  : 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400'
-              }`}
-              role="status"
-            >
-              {status === 'sent' ? (
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              ) : (
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              )}
-              <span>{statusMessage}</span>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={handleResend}
-            disabled={cooldown > 0 || status === 'sending'}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:bg-gray-200 dark:disabled:bg-gray-700 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed shadow-lg shadow-indigo-600/10"
-          >
-            {status === 'sending'
-              ? 'Sending...'
-              : cooldown > 0
-              ? `Resend in ${cooldown}s`
-              : 'Resend verification email'}
-          </button>
+        {/* Email card — highlighted next step */}
+        <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-4 text-left space-y-2">
+          <div className="flex items-center gap-2">
+            <Mail className="w-4 h-4 text-emerald-700 dark:text-emerald-400 flex-shrink-0" />
+            <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-400">
+              Check your email to verify it
+            </p>
+          </div>
+          <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+            We sent a verification link to{' '}
+            <span className="font-medium text-gray-900 dark:text-white">
+              {email}
+            </span>
+            .
+          </p>
         </div>
 
-        <div className="pt-4">
+        {/* Status message (from resend) */}
+        {statusMessage && (
+          <div
+            className={`rounded-xl p-3 text-sm flex items-start gap-2 text-left ${
+              status === 'sent'
+                ? 'bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                : 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400'
+            }`}
+            role="status"
+          >
+            {status === 'sent' ? (
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            )}
+            <span>{statusMessage}</span>
+          </div>
+        )}
+
+        {/* Primary action */}
+        <div className="pt-2 space-y-4">
           <Link
             href="/login"
-            className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 transition-colors"
+            className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-indigo-600/10 flex items-center justify-center gap-2"
           >
-            ← Back to Login
+            Login to get started <ArrowRight className="w-4 h-4" />
           </Link>
-        </div>
 
-        <p className="text-xs text-gray-400 dark:text-gray-500 pt-4 border-t border-gray-100 dark:border-gray-700">
-          Not your email?{' '}
-          <Link
-            href="/signup"
-            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium"
-          >
-            Start over
-          </Link>{' '}
-          or{' '}
-          <a
-            href="mailto:support@xecoflow.com"
-            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium"
-          >
-            contact support
-          </a>
-          .
-        </p>
+          {/* Option 3 footer — two small lines, no divider */}
+          <div className="space-y-1 pt-2">
+            <p className="text-[11px] text-gray-400 dark:text-gray-500">
+              Didn&rsquo;t receive it?{' '}
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={cooldown > 0 || status === 'sending'}
+                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed"
+              >
+                {status === 'sending'
+                  ? 'Sending...'
+                  : cooldown > 0
+                  ? `Resend in ${cooldown}s`
+                  : 'Resend'}
+              </button>
+            </p>
+            <p className="text-[11px] text-gray-400 dark:text-gray-500">
+              Wrong email?{' '}
+              <a
+                href="mailto:support@xecoflow.com"
+                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 font-medium"
+              >
+                Contact support
+              </a>
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
