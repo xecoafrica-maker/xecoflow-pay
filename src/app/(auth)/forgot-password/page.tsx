@@ -13,7 +13,6 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-// ─── Types ─────────────────────────────────────────────────────────
 interface SecurityQuestion {
   position: number;
   text: string;
@@ -32,12 +31,10 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Questions step state
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState('');
 
-  // ─── Step 1: check merchant + get questions ────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -62,7 +59,6 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      // Case 1 — merchant can reset (has questions)
       if (
         data.success &&
         data.canReset === true &&
@@ -80,8 +76,8 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      // Case 2 — cannot reset (merchant missing, email mismatch,
-      // or merchant has no questions). All three give the same UI.
+      // Merchant not found OR email mismatch OR no questions configured.
+      // Same UI for all three — no enumeration.
       setStep({ kind: 'cannot_reset' });
     } catch {
       setError('Network error. Please try again.');
@@ -90,7 +86,6 @@ export default function ForgotPasswordPage() {
     }
   };
 
-  // ─── Step 2: verify answers → send reset email ─────────────────
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (step.kind !== 'questions') return;
@@ -169,7 +164,6 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-5xl flex flex-col lg:flex-row bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
-        {/* ── LEFT PANEL ── */}
         <div className="lg:w-1/2 bg-[#0a2540] p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden min-h-[400px]">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
           <div className="absolute top-[-100px] right-[-100px] w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-3xl" />
@@ -214,7 +208,6 @@ export default function ForgotPasswordPage() {
           </div>
         </div>
 
-        {/* ── RIGHT PANEL ── */}
         <div className="lg:w-1/2 p-8 lg:p-12 bg-white">
           <div className="max-w-sm mx-auto w-full">
             <div className="lg:hidden mb-8">
@@ -225,7 +218,6 @@ export default function ForgotPasswordPage() {
               </Link>
             </div>
 
-            {/* ─── STEP 1: Form ─── */}
             {step.kind === 'form' && (
               <>
                 <div className="mb-8">
@@ -323,7 +315,6 @@ export default function ForgotPasswordPage() {
               </>
             )}
 
-            {/* ─── STEP 2: Questions ─── */}
             {step.kind === 'questions' && (
               <>
                 <div className="mb-6">
@@ -413,7 +404,6 @@ export default function ForgotPasswordPage() {
               </>
             )}
 
-            {/* ─── STEP 3: Cannot reset ─── */}
             {step.kind === 'cannot_reset' && (
               <div className="text-center space-y-4 py-6">
                 <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto">
@@ -453,7 +443,6 @@ export default function ForgotPasswordPage() {
               </div>
             )}
 
-            {/* ─── STEP 4: Sent (only after correct answers) ─── */}
             {step.kind === 'sent' && (
               <div className="text-center space-y-4 py-6">
                 <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto">
@@ -483,7 +472,6 @@ export default function ForgotPasswordPage() {
               </div>
             )}
 
-            {/* ─── Back to login ─── */}
             <p className="mt-8 text-center text-sm text-gray-500">
               Remember your password?{' '}
               <Link
