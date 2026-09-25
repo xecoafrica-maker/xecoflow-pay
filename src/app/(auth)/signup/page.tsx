@@ -778,7 +778,7 @@ function SignupForm(props: SignupFormProps) {
   );
 }
 
-// ─── Verify email screen ──────────────────────────────────────────
+// ─── Verify email screen — now inside a card ──────────────────────
 function VerifyEmailScreen({ email }: { email: string }) {
   const [cooldown, setCooldown] = useState(0);
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>(
@@ -830,9 +830,9 @@ function VerifyEmailScreen({ email }: { email: string }) {
   };
 
   return (
-    <div className="min-h-[100svh] bg-white dark:bg-[#0f1f3a] flex flex-col items-center justify-center p-4">
-      <div className="max-w-md w-full text-center space-y-6">
-        {/* Solid check circle — matches the classic success pattern */}
+    <div className="min-h-[100svh] bg-slate-50 dark:bg-[#0a2540] flex flex-col items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-md bg-white dark:bg-[#0f1f3a] border border-gray-100 dark:border-gray-800 rounded-2xl shadow-xl shadow-gray-200/50 dark:shadow-black/30 p-8 sm:p-10 text-center space-y-6">
+        {/* Checkmark */}
         <div className="w-20 h-20 mx-auto bg-emerald-50 dark:bg-emerald-950/40 rounded-full flex items-center justify-center">
           <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30">
             <CheckCircle2 className="w-8 h-8 text-white" />
@@ -847,7 +847,7 @@ function VerifyEmailScreen({ email }: { email: string }) {
           Congratulations! Your XecoFlow account has been created.
         </p>
 
-        {/* Email card — highlighted next step */}
+        {/* Email card */}
         <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 p-4 text-left space-y-2">
           <div className="flex items-center gap-2">
             <Mail className="w-4 h-4 text-emerald-700 dark:text-emerald-400 flex-shrink-0" />
@@ -864,7 +864,7 @@ function VerifyEmailScreen({ email }: { email: string }) {
           </p>
         </div>
 
-        {/* Status message (from resend) */}
+        {/* Status message */}
         {statusMessage && (
           <div
             className={`rounded-xl p-3 text-sm flex items-start gap-2 text-left ${
@@ -883,7 +883,7 @@ function VerifyEmailScreen({ email }: { email: string }) {
           </div>
         )}
 
-        {/* Primary action */}
+        {/* Primary action + two-line footer */}
         <div className="pt-2 space-y-4">
           <Link
             href="/login"
@@ -892,7 +892,6 @@ function VerifyEmailScreen({ email }: { email: string }) {
             Login to get started <ArrowRight className="w-4 h-4" />
           </Link>
 
-          {/* Option 3 footer — two small lines, no divider */}
           <div className="space-y-1 pt-2">
             <p className="text-[11px] text-gray-400 dark:text-gray-500">
               Didn&rsquo;t receive it?{' '}
