@@ -1,13 +1,19 @@
 ﻿// src/lib/auth-api.ts
 
+import { AuthApiError } from './errors';
+
+// Re-export so existing imports from './auth-api' keep working.
+export { AuthApiError };
+
 // ─── Config ────────────────────────────────────────────────────────
 // NEXT_PUBLIC_* values are inlined at build time and visible in the
-// browser bundle. That's fine for the API base URL. But we fail hard
-// if it's missing — silently falling back to a stale URL is worse.
+// browser bundle. That's fine for the API base URL — but we fail hard
+// if it's missing, because silently falling back to a stale URL is
+// worse than refusing to start.
 //
-// NOTE: This is being phased out. Functions that have migrated to the
-// BFF (see registerMerchant below) use a relative /api/auth/* path
-// instead, so the backend URL is never exposed to the browser.
+// This is being phased out. Functions that have migrated to the BFF
+// (registerMerchant, resendVerification) use relative /api/auth/*
+// paths so the backend host is never exposed to the browser.
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL;
 
 if (!AUTH_API_BASE) {
@@ -19,6 +25,16 @@ if (!AUTH_API_BASE) {
 // ─── Session duration ──────────────────────────────────────────────
 export const SESSION_DURATION_SECONDS = 5 * 60;
 export const SESSION_DURATION_MS = 5 * 60 * 1000;
+
+// ─── Shared auth constants ─────────────────────────────────────────
+// Password rule — must match the backend regex in
+// auth-engine/routes/auth.js. If the backend changes, change both.
+// Used by signup, password reset, and change-password flows.
+export const PASSWORD_RULE =
+  /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$/;
+
+// Terms version — one source of truth. Bump when terms are reissued.
+export const TERMS_VERSION = 'v1.0';
 
 // ─── Country codes ─────────────────────────────────────────────────
 // ISO 3166-1 alpha-2. Keep in sync with the backend allow-list.
@@ -34,21 +50,6 @@ export const SUPPORTED_COUNTRIES = [
 
 export type CountryCode = (typeof SUPPORTED_COUNTRIES)[number]['code'];
 
-// ─── Error class ───────────────────────────────────────────────────
-// Structured error the UI can switch on. Never leak the raw backend
-// message to the user — map by code in the component.
-export class AuthApiError extends Error {
-  code: string;
-  status: number;
-
-  constructor(code: string, message: string, status: number) {
-    super(message);
-    this.name = 'AuthApiError';
-    this.code = code;
-    this.status = status;
-  }
-}
-
 // ─── Types ─────────────────────────────────────────────────────────
 export interface RegisterRequest {
   email: string;
@@ -57,9 +58,8 @@ export interface RegisterRequest {
   firstName: string;
   lastName: string;
   country: CountryCode;
-  // Legal evidence. Backend must persist both.
+  // Legal evidence. Server records the acceptance timestamp.
   termsVersion: string;
-  termsAcceptedAt: string;
 }
 
 export interface RegisterResponse {
@@ -148,7 +148,7 @@ export interface MerchantProfile {
 
 // ─── Helpers ───────────────────────────────────────────────────────
 // Parse a fetch Response into JSON, or throw a structured error if
-// the backend didn't send JSON (e.g. an HTML 502 from the proxy).
+// the backend sent non-JSON (e.g. an HTML 502 from the proxy).
 async function parseResponse(res: Response): Promise<unknown> {
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
@@ -164,7 +164,7 @@ async function parseResponse(res: Response): Promise<unknown> {
 // ─── REGISTER ──────────────────────────────────────────────────────
 // Routed through the Next.js BFF at /api/auth/register. The BFF owns
 // the backend URL, validates the request AND response, and enforces
-// the field whitelist. The browser never learns the backend host.
+// the field whitelist.
 export async function registerMerchant(
   data: RegisterRequest
 ): Promise<RegisterResponse> {
@@ -184,7 +184,6 @@ export async function registerMerchant(
     lastName: data.lastName.trim(),
     country: data.country,
     termsVersion: data.termsVersion,
-    termsAcceptedAt: data.termsAcceptedAt,
   };
 
   let res: Response;
@@ -210,7 +209,6 @@ export async function registerMerchant(
   };
 
   if (!res.ok) {
-    // Prefer the BFF's structured code. Fall back to a generic one.
     const code =
       typeof body.code === 'string'
         ? body.code
@@ -234,10 +232,40 @@ export async function registerMerchant(
   };
 }
 
+// ─── RESEND VERIFICATION ───────────────────────────────────────────
+// Routed through the BFF at /api/auth/resend-verification.
+export async function resendVerification(email: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch('/api/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    });
+  } catch {
+    throw new AuthApiError(
+      'NETWORK_ERROR',
+      'Unable to reach the server. Please check your connection.',
+      0
+    );
+  }
+
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as {
+      code?: string;
+      message?: string;
+    };
+    throw new AuthApiError(
+      typeof body.code === 'string' ? body.code : 'RESEND_FAILED',
+      body.message || 'Could not resend the verification email.',
+      res.status
+    );
+  }
+}
+
 // ─── LOGIN ─────────────────────────────────────────────────────────
 // Still hits auth-engine directly. Will be migrated to the BFF in a
-// later pass. When it is, this function becomes a thin wrapper around
-// fetch('/api/auth/login', ...) and AUTH_API_BASE goes away entirely.
+// later pass.
 export async function loginMerchant(
   data: LoginRequest
 ): Promise<LoginResponse> {
@@ -296,7 +324,6 @@ export async function loginMerchant(
     };
   }
 
-  // Successful login — the merchant must complete OTP next.
   return {
     success: true,
     requiresOTP: (body.requiresOTP as boolean) || false,
