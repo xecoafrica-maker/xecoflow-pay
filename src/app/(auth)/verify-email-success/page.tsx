@@ -12,7 +12,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
-// ─── Success cases ─────────────────────────────────────────────────
+// ─── Success ───────────────────────────────────────────────────────
 function SuccessView({ email }: { email?: string }) {
   return (
     <>
@@ -53,7 +53,7 @@ function SuccessView({ email }: { email?: string }) {
   );
 }
 
-// ─── Already-verified case ─────────────────────────────────────────
+// ─── Already verified ──────────────────────────────────────────────
 function AlreadyView() {
   return (
     <>
@@ -81,7 +81,7 @@ function AlreadyView() {
   );
 }
 
-// ─── Failure cases ─────────────────────────────────────────────────
+// ─── Failure ───────────────────────────────────────────────────────
 type FailureReason = 'invalid' | 'expired' | 'missing' | 'error';
 
 const FAILURE_COPY: Record<
@@ -114,14 +114,10 @@ function FailureView({ reason }: { reason: FailureReason }) {
   const copy = FAILURE_COPY[reason];
   const Icon = copy.tone === 'red' ? AlertCircle : AlertTriangle;
 
-  const iconBg =
-    copy.tone === 'red' ? 'bg-red-50' : 'bg-amber-50';
-  const iconInnerBg =
-    copy.tone === 'red' ? 'bg-red-500' : 'bg-amber-500';
+  const iconBg = copy.tone === 'red' ? 'bg-red-50' : 'bg-amber-50';
+  const iconInnerBg = copy.tone === 'red' ? 'bg-red-500' : 'bg-amber-500';
   const iconShadow =
-    copy.tone === 'red'
-      ? 'shadow-red-500/30'
-      : 'shadow-amber-500/30';
+    copy.tone === 'red' ? 'shadow-red-500/30' : 'shadow-amber-500/30';
 
   return (
     <>
@@ -186,21 +182,18 @@ function VerifyEmailSuccessInner() {
 
   return (
     <div className="min-h-[100svh] bg-[#0a2540] flex flex-col items-center justify-center px-4 py-10">
-      {/* Logo above the card */}
       <Link href="/" className="inline-block mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
           Xeco<span className="text-emerald-400">Flow</span>
         </h1>
       </Link>
 
-      {/* Card */}
       <div className="w-full max-w-[440px] bg-white dark:bg-[#0f1f3a] rounded-2xl shadow-2xl shadow-black/30 p-8 text-center space-y-5">
         {verified && already && <AlreadyView />}
         {verified && !already && <SuccessView email={email} />}
         {!verified && <FailureView reason={reason} />}
       </div>
 
-      {/* Footer */}
       <p className="mt-8 text-xs text-slate-500">
         © 2026 XecoFlow. All rights reserved.
       </p>
@@ -209,7 +202,6 @@ function VerifyEmailSuccessInner() {
 }
 
 export default function VerifyEmailSuccessPage() {
-  // useSearchParams requires a Suspense boundary in Next.js App Router.
   return (
     <Suspense
       fallback={
