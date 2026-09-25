@@ -17,14 +17,11 @@ import SettingsTabs from '@/components/settings/SettingsTabs';
 // ─── Question Bank ─────────────────────────────────────────────────
 const QUESTION_BANK = [
   'What was the name of your first primary school teacher?',
-  'What was the make of your first car?',
   'In what city were you born?',
   'What was your childhood nickname?',
-  'What was the name of your favourite childhood friend?',
   'What was the name of your first pet?',
   'What street did you live on during your childhood?',
   'What was your favourite subject in school?',
-  'What is the name of the town where your parents first met?',
   'What was the name of your first employer?',
 ];
 
