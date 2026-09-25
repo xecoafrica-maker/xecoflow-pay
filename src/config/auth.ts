@@ -33,6 +33,9 @@ export const AUTH_CONFIG = {
 export interface AuthResponse {
   success?: boolean;
   requiresOTP?: boolean;
+  /** True when the account exists but the email hasn't been verified yet.
+   *  Set by the login BFF when the backend returns ACCOUNT_NOT_VERIFIED. */
+  requiresVerification?: boolean;
   message?: string;
   code?: string;
   retryAfter?: number;

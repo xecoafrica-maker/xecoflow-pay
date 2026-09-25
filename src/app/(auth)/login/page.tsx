@@ -145,7 +145,6 @@ export default function LoginPage() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const toastId = useRef(0);
 
-  // Redirect already-authenticated visitors away from the login page.
   useEffect(() => {
     let cancelled = false;
 
@@ -249,6 +248,7 @@ export default function LoginPage() {
         data = { message: text || 'An error occurred' };
       }
 
+      // 429 / 423 — rate limited or locked out.
       if (response.status === 429 || response.status === 423) {
         const retryAfter = data.retryAfter || 60;
         setFormError(
@@ -258,17 +258,30 @@ export default function LoginPage() {
         return;
       }
 
-      if (response.status === 400) {
-        setFormError(data.message || 'Please enter both email and password.');
+      // 403 — email not verified. The account exists but the merchant
+      // must click the verification link before signing in.
+      if (data.requiresVerification) {
+        setFormError(
+          data.message ||
+            'Please verify your email before signing in. Check your inbox for the verification link.'
+        );
         return;
       }
 
+      // 400 — malformed request or backend validation.
+      if (response.status === 400) {
+        setFormError(data.message || 'Please check your email and password.');
+        return;
+      }
+
+      // 401 — invalid credentials.
       if (response.status === 401) {
         handleFailedAttempt();
         setFormError('Invalid email or password. Please check your credentials.');
         return;
       }
 
+      // 5xx — server error.
       if (response.status >= 500) {
         setFormError(
           'We are experiencing technical difficulties. Please try again later.'
@@ -276,6 +289,7 @@ export default function LoginPage() {
         return;
       }
 
+      // Success — OTP next, or straight to the dashboard.
       if (data.success) {
         setFailedAttempts(0);
 
@@ -441,6 +455,9 @@ export default function LoginPage() {
                       required
                       disabled={loading}
                       autoComplete="email"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                     />
                   </div>
                   {emailError && (
@@ -480,6 +497,9 @@ export default function LoginPage() {
                       required
                       disabled={loading}
                       autoComplete="current-password"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                     />
                     <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
                       <button
@@ -645,6 +665,9 @@ export default function LoginPage() {
                     required
                     disabled={loading}
                     autoComplete="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                   />
                 </div>
                 {emailError && (
@@ -684,6 +707,9 @@ export default function LoginPage() {
                     required
                     disabled={loading}
                     autoComplete="current-password"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                   />
                   <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
                     <button

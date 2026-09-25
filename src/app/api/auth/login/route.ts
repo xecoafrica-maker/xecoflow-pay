@@ -1,5 +1,12 @@
+// xecoflow-pay/src/app/api/auth/login/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+
+// Force Node.js runtime for crypto.randomUUID and long fetches.
+// Bypass the static cache so a POST never gets cached.
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const BACKEND_URL = process.env.AUTH_ENGINE_URL;
 
@@ -8,6 +15,7 @@ if (!BACKEND_URL) {
 }
 
 const REQUEST_TIMEOUT_MS = 15000;
+const MAX_IDEMPOTENCY_KEY_LENGTH = 100;
 
 const AUTH_COOKIE_NAMES = new Set(['xeco_session', 'xeco_otp', 'xeco_refresh']);
 
@@ -20,13 +28,13 @@ const COOKIE_FLAGS: Record<string, string> = {
 };
 
 const loginRequestSchema = z.object({
-  email: z.string().trim().email('Invalid email format'),
-  password: z.string().min(1, 'Password is required'),
+  email: z.string().trim().toLowerCase().email(),
+  password: z.string().min(1),
   rememberMe: z.boolean().optional().default(false),
 });
 
-// Error codes are kept in sync with the auth engine's /login endpoint.
-// parse will fail and the proxy will return 500 to the client.
+// Whitelist of fields the BFF will return to the browser. Anything not
+// listed here is dropped, even if the backend sends it.
 const safeLoginResponseSchema = z.discriminatedUnion('success', [
   z.object({
     success: z.literal(true),
@@ -37,20 +45,27 @@ const safeLoginResponseSchema = z.discriminatedUnion('success', [
     code: z.enum([
       'INVALID_CREDENTIALS',
       'ACCOUNT_LOCKED',
+      'ACCOUNT_NOT_VERIFIED',
       'RATE_LIMITED',
       'INVALID_REQUEST',
+      'INVALID_EMAIL',
     ]),
+    message: z.string().optional(),
+    requiresVerification: z.boolean().optional(),
     retryAfter: z.number().int().min(0).max(3600).optional(),
   }),
 ]);
 
+// Pass through backend status codes we know. Anything else collapses
+// to 500 so we never leak odd backend statuses.
 function normalizeStatus(backendStatus: number): number {
   const KNOWN = [200, 400, 401, 403, 423, 429, 500, 502, 503, 504];
   return KNOWN.includes(backendStatus) ? backendStatus : 500;
 }
 
+// Rewrite Set-Cookie from the backend into our fixed cookie policy.
+// Keep only Max-Age; Expires is locale-sensitive and redundant.
 function normalizeAuthCookie(cookie: string, name: string): string {
-  // Split on first '=' — JWT values contain '=' as base64 padding.
   const separatorIndex = cookie.indexOf('=');
   if (separatorIndex === -1) {
     throw new Error('Malformed Set-Cookie header');
@@ -58,7 +73,6 @@ function normalizeAuthCookie(cookie: string, name: string): string {
   const rawName = cookie.slice(0, separatorIndex).trim();
   const value = cookie.slice(separatorIndex + 1).split(';')[0].trim();
 
-  // Keep only Max-Age; Expires is locale-sensitive and redundant.
   const rawAttributes = cookie
     .split(';')
     .slice(1)
@@ -72,17 +86,23 @@ function normalizeAuthCookie(cookie: string, name: string): string {
   });
 
   const flags = COOKIE_FLAGS[name] || COOKIE_FLAGS.xeco_session;
-
   return [`${rawName}=${value}`, flags, maxAge].filter(Boolean).join('; ');
 }
 
-// Reads the client IP from X-Forwarded-For. The trusted value is the
-// LAST entry — that's the IP recorded by the nearest upstream proxy
+// Reads the client IP from X-Forwarded-For. Render (our ingress) puts
+// the original client IP as the FIRST entry — the rest of the chain is
+// proxies we don't trust.
 function getClientIp(request: NextRequest): string {
   const xff = request.headers.get('x-forwarded-for');
   if (!xff) return 'unknown';
-  const parts = xff.split(',').map((p) => p.trim());
-  return parts[parts.length - 1] || 'unknown';
+  const first = xff.split(',')[0]?.trim();
+  return first || 'unknown';
+}
+
+function getIdempotencyKey(request: NextRequest, fallback: string): string {
+  const raw = request.headers.get('idempotency-key');
+  if (!raw) return fallback;
+  return raw.slice(0, MAX_IDEMPOTENCY_KEY_LENGTH);
 }
 
 export async function POST(request: NextRequest) {
@@ -101,7 +121,7 @@ export async function POST(request: NextRequest) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-    const idempotencyKey = request.headers.get('idempotency-key') || requestId;
+    const idempotencyKey = getIdempotencyKey(request, requestId);
 
     const backendResponse = await fetch(`${BACKEND_URL}/v1/auth/login`, {
       method: 'POST',
@@ -119,11 +139,72 @@ export async function POST(request: NextRequest) {
 
     const contentType = backendResponse.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      throw new Error('Expected JSON from backend');
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'INVALID_REQUEST',
+          message: 'The service is temporarily unavailable. Please try again.',
+          requestId,
+        },
+        { status: 502, headers: secureHeaders }
+      );
     }
 
-    const rawBackendData = await backendResponse.json();
-    const sanitizedData = safeLoginResponseSchema.parse(rawBackendData);
+    const rawBackendData = (await backendResponse.json()) as unknown;
+
+    // Normalize the backend response before whitelist parsing.
+    // 1. ACCOUNT_NOT_VERIFIED → also set requiresVerification for the UI.
+    // 2. Un-coded error responses → infer a code from HTTP status.
+    const normalizedBackendData = (() => {
+      if (
+        rawBackendData &&
+        typeof rawBackendData === 'object' &&
+        (rawBackendData as { code?: unknown }).code === 'ACCOUNT_NOT_VERIFIED'
+      ) {
+        return { ...rawBackendData, requiresVerification: true };
+      }
+
+      if (
+        rawBackendData &&
+        typeof rawBackendData === 'object' &&
+        'success' in rawBackendData &&
+        (rawBackendData as { success: unknown }).success === false &&
+        !('code' in rawBackendData)
+      ) {
+        const status = backendResponse.status;
+        const code =
+          status === 409
+            ? 'INVALID_REQUEST'
+            : status === 429
+            ? 'RATE_LIMITED'
+            : status === 403
+            ? 'ACCOUNT_NOT_VERIFIED'
+            : status === 400
+            ? 'INVALID_REQUEST'
+            : 'INVALID_CREDENTIALS';
+        return { ...rawBackendData, code };
+      }
+
+      return rawBackendData;
+    })();
+
+    let sanitizedData: z.infer<typeof safeLoginResponseSchema>;
+    try {
+      sanitizedData = safeLoginResponseSchema.parse(normalizedBackendData);
+    } catch {
+      // Backend sent a shape we don't understand. Fail closed — do not
+      // echo the backend body.
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'INVALID_REQUEST',
+          message: 'Login could not be completed. Please try again.',
+          requestId,
+        },
+        { status: 502, headers: secureHeaders }
+      );
+    }
+
     const finalStatus = normalizeStatus(backendResponse.status);
 
     const nextResponse = NextResponse.json(sanitizedData, {
@@ -143,10 +224,8 @@ export async function POST(request: NextRequest) {
 
     return nextResponse;
   } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error';
-
     if (error instanceof z.ZodError) {
+      // Never leak field names or expected types.
       return NextResponse.json(
         { success: false, code: 'INVALID_REQUEST', requestId },
         { status: 400, headers: secureHeaders }
@@ -173,7 +252,7 @@ export async function POST(request: NextRequest) {
       JSON.stringify({
         event: 'auth.login.proxy_error',
         requestId,
-        error: errorMessage,
+        errorName: error instanceof Error ? error.name : 'unknown',
       })
     );
 
