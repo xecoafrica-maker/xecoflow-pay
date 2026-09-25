@@ -22,6 +22,7 @@ interface SecurityQuestion {
 type Step =
   | { kind: 'form' }
   | { kind: 'questions'; challengeId: string; questions: SecurityQuestion[] }
+  | { kind: 'cannot_reset' }
   | { kind: 'sent'; email: string };
 
 export default function ForgotPasswordPage() {
@@ -31,12 +32,12 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Modal state
+  // Questions step state
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState('');
 
-  // ─── Step 1: request security questions ──────────────────────────
+  // ─── Step 1: check merchant + get questions ────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -61,10 +62,10 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      // Case 1 — merchant has questions → show modal
+      // Case 1 — merchant can reset (has questions)
       if (
         data.success &&
-        data.hasQuestions &&
+        data.canReset === true &&
         data.challengeId &&
         Array.isArray(data.questions) &&
         data.questions.length === 3
@@ -79,10 +80,9 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      // Case 2 — merchant has no questions → same "check inbox" message.
-      // (We do NOT leak whether the merchant exists. The backend already
-      //  handles that by returning hasQuestions=false for unknown emails.)
-      setStep({ kind: 'sent', email: email.trim().toLowerCase() });
+      // Case 2 — cannot reset (merchant missing, email mismatch,
+      // or merchant has no questions). All three give the same UI.
+      setStep({ kind: 'cannot_reset' });
     } catch {
       setError('Network error. Please try again.');
     } finally {
@@ -90,14 +90,13 @@ export default function ForgotPasswordPage() {
     }
   };
 
-  // ─── Step 2: verify answers, then send reset email ───────────────
+  // ─── Step 2: verify answers → send reset email ─────────────────
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (step.kind !== 'questions') return;
 
     setVerifyError('');
 
-    // Validate all 3 answered
     for (const q of step.questions) {
       const val = (answers[q.position] || '').trim();
       if (val.length < 2) {
@@ -109,7 +108,6 @@ export default function ForgotPasswordPage() {
     setVerifying(true);
 
     try {
-      // 2a. Verify the answers
       const verifyRes = await fetch('/api/security-questions/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -132,7 +130,6 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      // 2b. Ask the backend to generate and email the reset link
       const sendRes = await fetch('/api/security-questions/send-reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -146,7 +143,6 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      // 2c. Show the "check your inbox" screen
       setStep({ kind: 'sent', email: email.trim().toLowerCase() });
     } catch {
       setVerifyError('Network error. Please try again.');
@@ -155,7 +151,6 @@ export default function ForgotPasswordPage() {
     }
   };
 
-  // ─── Helpers ─────────────────────────────────────────────────────
   const resetToStart = () => {
     setStep({ kind: 'form' });
     setEmail('');
@@ -166,7 +161,6 @@ export default function ForgotPasswordPage() {
   };
 
   const closeQuestions = () => {
-    // Cancel modal, return to form with values preserved
     setStep({ kind: 'form' });
     setAnswers({});
     setVerifyError('');
@@ -175,7 +169,7 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-5xl flex flex-col lg:flex-row bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
-        {/* ── LEFT PANEL – Brand ── */}
+        {/* ── LEFT PANEL ── */}
         <div className="lg:w-1/2 bg-[#0a2540] p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden min-h-[400px]">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-[#0a2540] to-emerald-900/20" />
           <div className="absolute top-[-100px] right-[-100px] w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-3xl" />
@@ -220,7 +214,7 @@ export default function ForgotPasswordPage() {
           </div>
         </div>
 
-        {/* ── RIGHT PANEL – Content ── */}
+        {/* ── RIGHT PANEL ── */}
         <div className="lg:w-1/2 p-8 lg:p-12 bg-white">
           <div className="max-w-sm mx-auto w-full">
             <div className="lg:hidden mb-8">
@@ -231,7 +225,7 @@ export default function ForgotPasswordPage() {
               </Link>
             </div>
 
-            {/* ─── STEP 1: Form ───────────────────────────────── */}
+            {/* ─── STEP 1: Form ─── */}
             {step.kind === 'form' && (
               <>
                 <div className="mb-8">
@@ -317,7 +311,7 @@ export default function ForgotPasswordPage() {
                     {loading ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Continuing...
+                        Checking...
                       </>
                     ) : (
                       <>
@@ -329,7 +323,7 @@ export default function ForgotPasswordPage() {
               </>
             )}
 
-            {/* ─── STEP 2: Security questions (inline, not modal) ─── */}
+            {/* ─── STEP 2: Questions ─── */}
             {step.kind === 'questions' && (
               <>
                 <div className="mb-6">
@@ -414,36 +408,65 @@ export default function ForgotPasswordPage() {
                 </form>
 
                 <p className="text-[11px] text-gray-400 text-center mt-6">
-                  Answers are case-insensitive. If you don&apos;t remember them,
-                  please{' '}
-                  <a
-                    href="mailto:support@xecoflow.com"
-                    className="text-indigo-600 hover:underline font-medium"
-                  >
-                    contact support
-                  </a>
-                  .
+                  Answers are case-insensitive.
                 </p>
               </>
             )}
 
-            {/* ─── STEP 3: Sent ─────────────────────────────────── */}
+            {/* ─── STEP 3: Cannot reset ─── */}
+            {step.kind === 'cannot_reset' && (
+              <div className="text-center space-y-4 py-6">
+                <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto">
+                  <AlertCircle className="w-8 h-8 text-amber-500" />
+                </div>
+
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">
+                    Unable to reset password
+                  </h2>
+                  <p className="text-sm text-gray-600 max-w-sm mx-auto leading-relaxed">
+                    We couldn&apos;t verify these details, or this account
+                    isn&apos;t set up for self-service password reset.
+                  </p>
+                  <p className="text-sm text-gray-600 max-w-sm mx-auto mt-2">
+                    Please contact support to reset your password.
+                  </p>
+                </div>
+
+                <div className="pt-4">
+                  <a
+                    href="mailto:support@xecoflow.com"
+                    className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-indigo-600/10"
+                  >
+                    <Mail className="w-4 h-4" />
+                    Contact support
+                  </a>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={resetToStart}
+                  className="block mx-auto text-sm text-gray-500 hover:text-gray-700 font-medium"
+                >
+                  ← Try a different account
+                </button>
+              </div>
+            )}
+
+            {/* ─── STEP 4: Sent (only after correct answers) ─── */}
             {step.kind === 'sent' && (
               <div className="text-center space-y-4 py-6">
                 <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto">
                   <CheckCircle className="w-8 h-8 text-emerald-500" />
                 </div>
+
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 mb-2">
                     Check your inbox
                   </h2>
                   <p className="text-sm text-gray-600 max-w-sm mx-auto">
-                    If your answers were correct, a password reset link will
-                    arrive at{' '}
-                    <strong className="text-gray-900">
-                      {step.email}
-                    </strong>{' '}
-                    shortly.
+                    A password reset link has been sent to{' '}
+                    <strong className="text-gray-900">{step.email}</strong>.
                   </p>
                   <p className="text-xs text-gray-400 mt-3">
                     Didn&apos;t receive the email? Check your spam folder or{' '}
@@ -460,7 +483,7 @@ export default function ForgotPasswordPage() {
               </div>
             )}
 
-            {/* ─── Back to login ────────────────────────────────── */}
+            {/* ─── Back to login ─── */}
             <p className="mt-8 text-center text-sm text-gray-500">
               Remember your password?{' '}
               <Link
