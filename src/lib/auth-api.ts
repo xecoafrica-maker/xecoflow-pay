@@ -12,8 +12,9 @@ export { AuthApiError };
 // worse than refusing to start.
 //
 // This is being phased out. Functions that have migrated to the BFF
-// (registerMerchant, resendVerification) use relative /api/auth/*
-// paths so the backend host is never exposed to the browser.
+// (registerMerchant, resendVerification, security questions) use
+// relative /api/* paths so the backend host is never exposed to the
+// browser.
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL;
 
 if (!AUTH_API_BASE) {
@@ -49,6 +50,32 @@ export const SUPPORTED_COUNTRIES = [
 ] as const;
 
 export type CountryCode = (typeof SUPPORTED_COUNTRIES)[number]['code'];
+
+// ─── Security questions ────────────────────────────────────────────
+// The catalog — must match the backend's SECURITY_QUESTION_CATALOG
+// in auth-engine/routes/auth.js. If the backend catalog changes,
+// change both.
+export const SECURITY_QUESTION_CATALOG = [
+  'What was the name of your first primary school?',
+  'What is your mother\u2019s maiden name?',
+  'In which town or city were you born?',
+  'What was the name of your first pet?',
+  'What is your father\u2019s middle name?',
+  'What was the first name of your best childhood friend?',
+] as const;
+
+export type SecurityQuestionText =
+  (typeof SECURITY_QUESTION_CATALOG)[number];
+
+export interface SecurityQuestionSetupInput {
+  question: string;
+  answer: string;
+}
+
+export interface SecurityQuestionChallenge {
+  position: number;
+  text: string;
+}
 
 // ─── Types ─────────────────────────────────────────────────────────
 export interface RegisterRequest {
@@ -451,4 +478,191 @@ export async function getApiSecret(
     );
   }
   return res.json();
+}
+
+// ─── SECURITY QUESTIONS ────────────────────────────────────────────
+// All routed through the Next.js BFF at /api/security-questions/*.
+// The BFF owns the backend URL and validates request/response shapes.
+
+// Status check for the dashboard banner. Never throws — returns a
+// safe default if the endpoint is unreachable, because the banner
+// is a non-critical UX hint.
+export async function getSecurityQuestionStatus(): Promise<{
+  hasRecovery: boolean;
+}> {
+  try {
+    const res = await fetch('/api/security-questions/status', {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      return { hasRecovery: false };
+    }
+
+    const body = (await res.json()) as {
+      success?: boolean;
+      hasRecovery?: boolean;
+    };
+
+    return { hasRecovery: body.hasRecovery === true };
+  } catch {
+    return { hasRecovery: false };
+  }
+}
+
+// Save (or replace) the merchant's 3 security questions. Throws
+// AuthApiError on any failure.
+export async function setupSecurityQuestions(
+  questions: SecurityQuestionSetupInput[]
+): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch('/api/security-questions/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ questions }),
+    });
+  } catch {
+    throw new AuthApiError(
+      'NETWORK_ERROR',
+      'Unable to reach the server. Please check your connection.',
+      0
+    );
+  }
+
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as {
+      code?: string;
+      message?: string;
+    };
+    throw new AuthApiError(
+      typeof body.code === 'string' ? body.code : 'SETUP_FAILED',
+      body.message || 'Could not save security questions.',
+      res.status
+    );
+  }
+}
+
+// Step 1 of password reset. Given merchantId + email, returns the
+// question texts if the merchant has them. Never throws for a bad
+// pair — the API deliberately returns the same shape for "no
+// questions" and "wrong details" so email enumeration is blocked.
+export async function checkSecurityQuestions(
+  merchantId: string | number,
+  email: string
+): Promise<{
+  hasQuestions: boolean;
+  challengeId: string | null;
+  questions: SecurityQuestionChallenge[];
+}> {
+  let res: Response;
+  try {
+    res = await fetch('/api/security-questions/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ merchantId, email: email.trim().toLowerCase() }),
+    });
+  } catch {
+    throw new AuthApiError(
+      'NETWORK_ERROR',
+      'Unable to reach the server. Please check your connection.',
+      0
+    );
+  }
+
+  const body = (await res.json().catch(() => ({}))) as {
+    success?: boolean;
+    hasQuestions?: boolean;
+    challengeId?: string | null;
+    questions?: SecurityQuestionChallenge[];
+    code?: string;
+    message?: string;
+  };
+
+  if (!res.ok) {
+    throw new AuthApiError(
+      typeof body.code === 'string' ? body.code : 'CHECK_FAILED',
+      body.message || 'Could not check your security questions.',
+      res.status
+    );
+  }
+
+  return {
+    hasQuestions: body.hasQuestions === true,
+    challengeId: body.challengeId ?? null,
+    questions: Array.isArray(body.questions) ? body.questions : [],
+  };
+}
+
+// Step 2 of password reset. Given a challengeId + 3 answers, verifies
+// them and returns a short-lived reset token. Throws on any failure.
+export async function verifySecurityAnswers(
+  challengeId: string,
+  answers: { position: number; answer: string }[]
+): Promise<{ resetToken: string }> {
+  let res: Response;
+  try {
+    res = await fetch('/api/security-questions/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ challengeId, answers }),
+    });
+  } catch {
+    throw new AuthApiError(
+      'NETWORK_ERROR',
+      'Unable to reach the server. Please check your connection.',
+      0
+    );
+  }
+
+  const body = (await res.json().catch(() => ({}))) as {
+    success?: boolean;
+    resetToken?: string;
+    code?: string;
+    message?: string;
+  };
+
+  if (!res.ok || !body.resetToken) {
+    throw new AuthApiError(
+      typeof body.code === 'string' ? body.code : 'VERIFY_FAILED',
+      body.message || 'One or more answers are incorrect.',
+      res.status
+    );
+  }
+
+  return { resetToken: body.resetToken };
+}
+
+// Step 3. Given the resetToken from verify, ask the backend to
+// generate and email the reset link.
+export async function sendResetEmail(resetToken: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch('/api/security-questions/send-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resetToken }),
+    });
+  } catch {
+    throw new AuthApiError(
+      'NETWORK_ERROR',
+      'Unable to reach the server. Please check your connection.',
+      0
+    );
+  }
+
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as {
+      code?: string;
+      message?: string;
+    };
+    throw new AuthApiError(
+      typeof body.code === 'string' ? body.code : 'SEND_FAILED',
+      body.message || 'Could not send the reset email.',
+      res.status
+    );
+  }
 }
