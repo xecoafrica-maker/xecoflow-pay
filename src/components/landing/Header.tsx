@@ -8,6 +8,7 @@ export default function Header() {
   const [pinId, setPinId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showResult, setShowResult] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,10 +24,17 @@ export default function Header() {
     }, 1500);
   };
 
+  const handleCopyPin = () => {
+    navigator.clipboard.writeText('A020360004V');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const resetForm = () => {
     setPinId('');
     setShowResult(false);
     setIsLoading(false);
+    setCopied(false);
   };
 
   const closeModal = () => {
@@ -459,17 +467,6 @@ export default function Header() {
               )}
             </form>
 
-            {/* Loading State Message */}
-            {isLoading && (
-              <div className="mt-4 flex items-center justify-center gap-2 text-sm text-gray-500">
-                <svg className="animate-spin h-4 w-4 text-[#0a2540]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Calling KRA PIN lookup...
-              </div>
-            )}
-
             {/* Result State */}
             {showResult && (
               <div className="mt-5 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -487,14 +484,23 @@ export default function Header() {
                     </div>
                     <div className="flex justify-between items-center border-b border-gray-100 pb-2">
                       <span className="text-gray-500">KRA PIN</span>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 relative">
                         <span className="font-mono font-bold text-[#0a2540]">A020360004V</span>
-                        <button className="text-gray-400 hover:text-gray-600 transition-colors" title="Copy PIN">
+                        <button 
+                          onClick={handleCopyPin}
+                          className="text-gray-400 hover:text-gray-600 transition-colors" 
+                          title="Copy PIN"
+                        >
                           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                           </svg>
                         </button>
+                        {copied && (
+                          <span className="absolute -top-6 right-0 text-xs text-green-600 font-medium bg-white px-1.5 py-0.5 rounded shadow-sm border border-gray-100">
+                            Copied!
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
