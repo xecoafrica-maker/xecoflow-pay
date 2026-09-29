@@ -98,14 +98,18 @@ export default function Header() {
     resetForm();
   };
 
-  // ─── Show only the first letter of each name word, mask the rest ───
-  const maskName = (name: string) => {
-    if (!name) return '';
-    return name
-      .split(' ')
-      .map((part) => (part.length > 0 ? part[0] + '*'.repeat(part.length - 1) : ''))
-      .join(' ');
-  };
+// First word stays full, subsequent words are masked
+const maskName = (name: string) => {
+  if (!name) return '';
+  const parts = name.trim().split(/\s+/);
+  return parts
+    .map((part, index) => {
+      if (index === 0) return part; // first name unmasked
+      if (part.length <= 1) return part;
+      return part[0] + '*'.repeat(part.length - 1);
+    })
+    .join(' ');
+};
 
   return (
     <>
