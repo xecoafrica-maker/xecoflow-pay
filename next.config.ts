@@ -51,6 +51,7 @@ const nextConfig: NextConfig = {
 
     return [
       {
+        // Global CSP headers
         source: "/(.*)",
         headers: [
           {
@@ -63,20 +64,24 @@ const nextConfig: NextConfig = {
               // than 'unsafe-inline' on script-src.
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
-              "connect-src 'self'",
-              "https://*.supabase.co",
-              "https://*.onrender.com",
-              "wss://*.onrender.com",
-              "ws://*.onrender.com",
-              "https://api.ipify.org",
-              "https://api.my-ip.io",
-              "https://ipapi.co",
+              "connect-src 'self' https://*.supabase.co https://*.onrender.com wss://*.onrender.com ws://*.onrender.com https://api.ipify.org https://api.my-ip.io https://ipapi.co",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
               "object-src 'none'",
             ].join(" "),
           },
+        ],
+      },
+      {
+        // CORS for API routes — allows cross-origin calls from Taxflow Africa
+        // and any other authorized frontends.
+        source: "/api/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET, POST, PUT, PATCH, DELETE, OPTIONS" },
+          { key: "Access-Control-Allow-Headers", value: "Content-Type, Authorization, x-api-key" },
+          { key: "Access-Control-Max-Age", value: "86400" },
         ],
       },
     ];
