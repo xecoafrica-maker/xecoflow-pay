@@ -1,34 +1,83 @@
-// Placeholder — real implementation coming next.
+// src/app/dashboard/loans/products/page.tsx
 'use client';
 
-import { Package } from 'lucide-react';
-import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { Plus } from 'lucide-react';
+import PageHeader from '@/components/lending/PageHeader';
+import ProductTable from '@/components/lending/ProductTable';
+import ProductForm from '@/components/lending/ProductForm';
+import { listProducts, type LoanProduct } from '@/lib/lending-api';
 
-export default function Page() {
+export default function ProductsPage() {
+  const [products, setProducts] = useState<LoanProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await listProducts();
+      setProducts(result.products);
+    } catch (e: any) {
+      setError(e?.message ?? 'Failed to load products');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="space-y-6">
-      <div className="pb-5 border-b border-gray-200">
-        <h1 className="text-xl font-semibold text-gray-900 tracking-tight">Loan Products</h1>
-        <p className="text-sm text-gray-500 mt-1">Define the loan terms you offer: amounts, rates, and repayment structures.</p>
-      </div>
+      <PageHeader onRefresh={load} refreshing={loading} />
 
-      <div className="bg-white border border-gray-200 rounded-lg">
-        <div className="text-center py-16 px-6">
-          <div className="mx-auto w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-            <Package className="w-5 h-5 text-gray-400" />
-          </div>
-          <h3 className="text-sm font-semibold text-gray-900">Coming soon</h3>
-          <p className="text-xs text-gray-500 mt-1.5 max-w-md mx-auto">
-            This section is being built. The backend is already live — we're wiring the UI now.
-          </p>
-          <Link
-            href="/dashboard/loans"
-            className="inline-flex items-center gap-2 mt-5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+            Loan Products
+          </h2>
+          <button
+            onClick={() => setFormOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors"
           >
-            Back to Dashboard
-          </Link>
+            <Plus className="w-3.5 h-3.5" />
+            New Product
+          </button>
         </div>
-      </div>
+
+        {error && (
+          <div className="border border-red-200 bg-red-50 text-red-800 rounded-md px-4 py-3 text-sm mb-3">
+            {error}
+          </div>
+        )}
+
+        <ProductTable
+          products={products}
+          loading={loading}
+          emptyAction={
+            <button
+              onClick={() => setFormOpen(true)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Create your first product
+            </button>
+          }
+        />
+      </section>
+
+      <ProductForm
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        onCreated={(product) => {
+          setProducts((prev) => [product, ...prev]);
+        }}
+      />
     </div>
   );
 }

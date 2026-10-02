@@ -1,6 +1,9 @@
 // src/lib/lending-api.ts
 // Typed client for the lending admin API. All calls go through /api/lending/*.
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 export type LoanStatus =
   | 'PENDING' | 'APPROVED' | 'REJECTED' | 'DISBURSED'
   | 'ACTIVE' | 'OVERDUE' | 'PAID' | 'DEFAULTED' | 'WRITTEN_OFF';
@@ -79,6 +82,7 @@ export interface PortfolioSummary {
 
 export interface LoanProduct {
   id: string;
+  merchant_id?: number;
   code: string;
   name: string;
   description?: string | null;
@@ -90,9 +94,54 @@ export interface LoanProduct {
   default_term_days: number;
   interest_rate: string;
   interest_period: string;
+  interest_method?: string;
+  origination_fee_type?: string;
+  origination_fee_value?: string;
+  service_fee_type?: string;
+  service_fee_value?: string;
+  penalty_rate_per_day?: string;
+  grace_period_days?: number;
+  max_penalty_percent?: string;
   repayment_frequency: string;
+  allow_partial_prepay?: boolean;
+  allow_early_settlement?: boolean;
+  min_credit_score?: number;
+  requires_kyc?: boolean;
+  first_loan_max_amount?: string | null;
   status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
+  effective_from?: string | null;
+  effective_to?: string | null;
   created_at: string;
+  updated_at?: string;
+}
+
+export interface CreateProductInput {
+  code: string;
+  name: string;
+  description?: string;
+  currency?: string;
+  min_amount: string;
+  max_amount: string;
+  min_term_days: number;
+  max_term_days: number;
+  default_term_days: number;
+  interest_rate: string;
+  interest_period: 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'ANNUAL';
+  interest_method?: 'DECLINING' | 'FLAT' | 'COMPOUND';
+  origination_fee_type?: 'PERCENT' | 'FLAT';
+  origination_fee_value?: string;
+  service_fee_type?: 'PERCENT' | 'FLAT';
+  service_fee_value?: string;
+  penalty_rate_per_day?: string;
+  grace_period_days?: number;
+  max_penalty_percent?: string;
+  repayment_frequency: 'BULLET' | 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+  allow_partial_prepay?: boolean;
+  allow_early_settlement?: boolean;
+  min_credit_score?: number;
+  requires_kyc?: boolean;
+  first_loan_max_amount?: string;
+  status?: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
 }
 
 export interface WebhookSubscription {
@@ -115,6 +164,9 @@ export interface ApiErrorPayload {
   requestId?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Error class
+// ---------------------------------------------------------------------------
 export class LendingApiError extends Error {
   code: string;
   meta?: Record<string, unknown>;
@@ -131,6 +183,9 @@ export class LendingApiError extends Error {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Core fetch wrapper
+// ---------------------------------------------------------------------------
 async function call<T>(
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
@@ -162,10 +217,16 @@ async function call<T>(
   return ((raw && raw.data) !== undefined ? raw.data : raw) as T;
 }
 
+// ---------------------------------------------------------------------------
+// Portfolio
+// ---------------------------------------------------------------------------
 export async function getPortfolio(): Promise<PortfolioSummary> {
   return call<PortfolioSummary>('GET', '/portfolio');
 }
 
+// ---------------------------------------------------------------------------
+// Loans
+// ---------------------------------------------------------------------------
 export interface ListLoansParams {
   status?: LoanStatus;
   borrower_id?: string;
@@ -233,22 +294,55 @@ export async function penalizeLoan(id: string, reason?: string) {
   return call<Loan>('POST', '/loans/' + id + '/penalize', { body: { reason } });
 }
 
-export async function listProducts(): Promise<LoanProduct[]> {
-  const raw = await fetch('/api/lending/products', { credentials: 'include', cache: 'no-store' });
-  const body = await raw.json().catch(() => ({}));
-  if (!raw.ok) {
+// ---------------------------------------------------------------------------
+// Products
+// ---------------------------------------------------------------------------
+export interface ListProductsParams {
+  status?: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
+  limit?: number;
+  offset?: number;
+}
+
+export interface ListProductsResult {
+  products: LoanProduct[];
+  pagination: { count: number; limit: number; offset: number };
+}
+
+export async function listProducts(params: ListProductsParams = {}): Promise<ListProductsResult> {
+  const qs = new URLSearchParams();
+  if (params.status) qs.set('status', params.status);
+  if (params.limit)  qs.set('limit',  String(params.limit));
+  if (params.offset) qs.set('offset', String(params.offset));
+  const query = qs.toString() ? '?' + qs.toString() : '';
+
+  const res = await fetch('/api/lending/products' + query, {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
     throw new LendingApiError(
-      (body && body.error) || { code: 'HTTP_' + raw.status, message: 'Failed to list products' },
-      raw.status
+      (body && body.error) || { code: 'HTTP_' + res.status, message: 'Failed to list products' },
+      res.status
     );
   }
-  return ((body && body.data) || []) as LoanProduct[];
+  const products = (body && body.data) || [];
+  return {
+    products: products as LoanProduct[],
+    pagination: (body && body.pagination) || { count: products.length, limit: 100, offset: 0 },
+  };
 }
 
-export async function createProduct(input: Record<string, unknown>) {
-  return call<LoanProduct>('POST', '/products', { body: input });
+export async function createProduct(input: CreateProductInput) {
+  return call<LoanProduct>('POST', '/products', {
+    body: input,
+    idempotencyKey: 'prod-' + input.code + '-' + Date.now(),
+  });
 }
 
+// ---------------------------------------------------------------------------
+// Webhooks
+// ---------------------------------------------------------------------------
 export async function listWebhooks(): Promise<WebhookSubscription[]> {
   const raw = await fetch('/api/lending/webhooks', { credentials: 'include', cache: 'no-store' });
   const body = await raw.json().catch(() => ({}));
@@ -303,15 +397,50 @@ export async function listWebhookDeliveries(id: string): Promise<WebhookDelivery
   return ((body && body.data) || []) as WebhookDelivery[];
 }
 
+// ---------------------------------------------------------------------------
+// Applications (extension — merge into lending-api.ts)
+// ---------------------------------------------------------------------------
+
+export interface ApplicationWithBorrower extends Loan {
+  borrower_name?: string | null;
+  borrower_phone?: string | null;
+  borrower_kyc_status?: string | null;
+  product_name?: string | null;
+}
+
+/**
+ * Fetch only pending applications for the merchant.
+ * Uses the existing /loans endpoint with status=PENDING.
+ */
+export async function listApplications(params: {
+  limit?: number;
+  offset?: number;
+} = {}): Promise<ListLoansResult> {
+  return listLoans({ status: 'PENDING', ...params });
+}
+
+/**
+ * Count pending applications (fast — uses the portfolio endpoint).
+ */
+export async function countPendingApplications(): Promise<number> {
+  const portfolio = await getPortfolio();
+  return (
+    portfolio.by_status.find((s) => s.status === 'PENDING')?.count ?? 0
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Formatting helpers
+// ---------------------------------------------------------------------------
 export function formatKES(amount: string | number | null | undefined): string {
-  if (amount === null || amount === undefined) return 'KES 0';
+  if (amount === null || amount === undefined) return 'KES 0.00';
   const n = typeof amount === 'string' ? Number(amount) : amount;
-  if (Number.isNaN(n)) return 'KES 0';
+  if (Number.isNaN(n)) return 'KES 0.00';
   return new Intl.NumberFormat('en-KE', {
     style: 'currency',
     currency: 'KES',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(n);
 }
 
