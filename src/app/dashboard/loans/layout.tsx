@@ -25,29 +25,20 @@ export default function LoansLayout({ children }: { children: React.ReactNode })
     tab.exact ? pathname === tab.href : (pathname?.startsWith(tab.href) ?? false);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 pt-6">
-          <h1 className="text-2xl font-bold text-gray-900">Boost Biashara Loan</h1>
-          <p className="text-sm text-gray-500 mt-1 mb-4">
-            Manage your lending portfolio and borrowers
-          </p>
-        </div>
-        <div className="max-w-7xl mx-auto px-6">
-          <nav className="flex gap-1 overflow-x-auto -mb-px" aria-label="Lending tabs">
+    <div className="min-h-screen bg-gray-50">
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-[1400px] mx-auto px-6">
+          <nav className="flex gap-0 overflow-x-auto -mb-px" aria-label="Lending tabs">
             {TABS.map((tab) => {
               const active = isActive(tab);
               const Icon = tab.icon;
               return (
-                <Link
-                  key={tab.href}
-                  href={tab.href}
-                  className={'flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ' +
+                <Link key={tab.href} href={tab.href}
+                  className={'flex items-center gap-2 px-3 py-3 text-[13px] font-medium whitespace-nowrap border-b-2 transition-colors ' +
                     (active
-                      ? 'border-emerald-500 text-emerald-700'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300')}
-                >
-                  <Icon className="w-4 h-4" aria-hidden="true" />
+                      ? 'border-emerald-600 text-emerald-700'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300')}>
+                  <Icon className="w-3.5 h-3.5" aria-hidden="true" />
                   {tab.label}
                 </Link>
               );
@@ -55,7 +46,7 @@ export default function LoansLayout({ children }: { children: React.ReactNode })
           </nav>
         </div>
       </div>
-      <div className="max-w-7xl mx-auto px-6 py-8">{children}</div>
+      <div className="max-w-[1400px] mx-auto px-6 py-6">{children}</div>
     </div>
   );
 }

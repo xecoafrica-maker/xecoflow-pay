@@ -1,36 +1,46 @@
 // src/components/lending/LoanTable.tsx
 'use client';
 
-import LoanRow from './LoanRow';
-import EmptyState from './EmptyState';
-import { Inbox } from 'lucide-react';
-import type { Loan } from '@/lib/lending-api';
+import Link from 'next/link';
+import { FileText } from 'lucide-react';
+import StatusBadge from './StatusBadge';
+import { formatKES, formatDate, type Loan } from '@/lib/lending-api';
 
 interface Props {
   loans: Loan[];
   loading?: boolean;
   emptyTitle?: string;
   emptyDescription?: string;
+  emptyAction?: React.ReactNode;
+  dense?: boolean;
 }
 
 export function LoanTable({
-  loans,
-  loading,
+  loans, loading,
   emptyTitle = 'No loans yet',
-  emptyDescription = 'Once you start lending, your portfolio will show up here.',
+  emptyDescription = 'Loans you originate or approve will appear here.',
+  emptyAction, dense = false,
 }: Props) {
+  const rowPad = dense ? 'py-2.5' : 'py-3.5';
+
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="flex items-center gap-4 px-5 py-4 border-b border-gray-100 animate-pulse">
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <div className="flex items-center gap-4 px-5 py-2.5 bg-gray-50/60 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+          <div className="flex-1">Borrower / Reference</div>
+          <div className="w-28 text-right">Principal</div>
+          <div className="w-32 text-right">Outstanding</div>
+          <div className="w-24 text-right">Status</div>
+        </div>
+        {[1, 2, 3].map((i) => (
+          <div key={i} className={'flex items-center gap-4 px-5 border-b border-gray-50 animate-pulse ' + rowPad}>
             <div className="flex-1">
-              <div className="h-4 bg-gray-200 rounded w-32 mb-2" />
-              <div className="h-3 bg-gray-100 rounded w-48" />
+              <div className="h-3.5 bg-gray-200 rounded w-40 mb-1.5" />
+              <div className="h-3 bg-gray-100 rounded w-56" />
             </div>
-            <div className="h-4 bg-gray-200 rounded w-20" />
-            <div className="h-4 bg-gray-200 rounded w-24" />
-            <div className="h-6 bg-gray-100 rounded-full w-20" />
+            <div className="h-3.5 bg-gray-100 rounded w-20" />
+            <div className="h-3.5 bg-gray-100 rounded w-24" />
+            <div className="h-5 bg-gray-100 rounded-full w-20" />
           </div>
         ))}
       </div>
@@ -39,32 +49,57 @@ export function LoanTable({
 
   if (!loans || loans.length === 0) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-        <EmptyState icon={Inbox} title={emptyTitle} description={emptyDescription} />
+      <div className="bg-white border border-gray-200 rounded-lg">
+        <div className="text-center py-14 px-6">
+          <div className="mx-auto w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+            <FileText className="w-5 h-5 text-gray-400" aria-hidden="true" />
+          </div>
+          <h3 className="text-sm font-semibold text-gray-900">{emptyTitle}</h3>
+          <p className="text-xs text-gray-500 mt-1.5 max-w-sm mx-auto">{emptyDescription}</p>
+          {emptyAction && <div className="mt-4">{emptyAction}</div>}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="flex items-center gap-4 px-5 py-3 bg-gray-50 border-b border-gray-200">
-        <div className="flex-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          Borrower / Reference
-        </div>
-        <div className="text-right hidden sm:block w-28 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          Principal
-        </div>
-        <div className="text-right hidden md:block w-32 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          Outstanding
-        </div>
-        <div className="w-24 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          Status
-        </div>
-        <div className="w-4" />
+    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <div className="flex items-center gap-4 px-5 py-2.5 bg-gray-50/60 border-b border-gray-100 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+        <div className="flex-1">Borrower / Reference</div>
+        <div className="text-right w-28 hidden sm:block">Principal</div>
+        <div className="text-right w-32 hidden md:block">Outstanding</div>
+        <div className="text-right w-24">Status</div>
       </div>
-      {loans.map((loan) => (
-        <LoanRow key={loan.id} loan={loan} />
-      ))}
+
+      {loans.map((loan) => {
+        const borrowerLabel = loan.external_customer_id || loan.loan_reference.slice(0, 24);
+        return (
+          <Link key={loan.id} href={'/dashboard/loans/' + loan.id}
+            className={'group flex items-center gap-4 px-5 border-b border-gray-50 hover:bg-gray-50/80 transition-colors ' + rowPad}>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-gray-900 truncate">{borrowerLabel}</div>
+              <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
+                <span className="font-mono tabular-nums">{loan.loan_reference}</span>
+                {loan.timeline.maturity_date && (
+                  <>
+                    <span className="text-gray-300">·</span>
+                    <span>Due {formatDate(loan.timeline.maturity_date)}</span>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="text-right w-28 hidden sm:block">
+              <div className="font-mono text-sm tabular-nums text-gray-700">{formatKES(loan.principal_amount)}</div>
+            </div>
+            <div className="text-right w-32 hidden md:block">
+              <div className="font-mono text-sm font-semibold tabular-nums text-gray-900">{formatKES(loan.outstanding.total)}</div>
+            </div>
+            <div className="w-24 flex justify-end">
+              <StatusBadge status={loan.status} />
+            </div>
+          </Link>
+        );
+      })}
     </div>
   );
 }

@@ -3,15 +3,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Inbox, Package, RefreshCw } from 'lucide-react';
-import PortfolioStats from '@/components/lending/PortfolioStats';
+import { ArrowRight, Plus } from 'lucide-react';
+import PageHeader from '@/components/lending/PageHeader';
+import StatGrid from '@/components/lending/StatGrid';
 import LoanTable from '@/components/lending/LoanTable';
-import {
-  getPortfolio,
-  listLoans,
-  type PortfolioSummary,
-  type Loan,
-} from '@/lib/lending-api';
+import OperationsPanel from '@/components/lending/OperationsPanel';
+import { getPortfolio, listLoans, type PortfolioSummary, type Loan } from '@/lib/lending-api';
 
 export default function LoansDashboardPage() {
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
@@ -25,7 +22,7 @@ export default function LoansDashboardPage() {
     try {
       const [portfolio, list] = await Promise.all([
         getPortfolio(),
-        listLoans({ limit: 10 }),
+        listLoans({ limit: 8 }),
       ]);
       setSummary(portfolio);
       setRecent(list.loans);
@@ -42,67 +39,54 @@ export default function LoansDashboardPage() {
   }, []);
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Portfolio Overview</h2>
-          <p className="text-sm text-gray-500">A snapshot of your lending business</p>
-        </div>
-        <button
-          onClick={load}
-          disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-50"
-        >
-          <RefreshCw className={'w-4 h-4 ' + (loading ? 'animate-spin' : '')} />
-          Refresh
-        </button>
-      </div>
-
-      <PortfolioStats summary={summary} loading={loading} />
+    <div className="space-y-6">
+      <PageHeader onRefresh={load} refreshing={loading} />
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
-          {error}
+        <div className="flex items-start gap-3 border border-red-200 bg-red-50 text-red-800 rounded-lg px-4 py-3 text-sm">
+          <div className="flex-1">
+            <div className="font-medium">Unable to load dashboard</div>
+            <div className="text-xs text-red-700/80 mt-0.5">{error}</div>
+          </div>
         </div>
       )}
 
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
-          <Link href="/dashboard/loans/active" className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 hover:text-emerald-800">
-            View all <ArrowRight className="w-4 h-4" />
-          </Link>
+      <section>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Portfolio</h2>
         </div>
-        <LoanTable
-          loans={recent}
-          loading={loading}
-          emptyTitle="No loans yet"
-          emptyDescription="Once you approve loan applications, they'll show up here."
-        />
-      </div>
+        <StatGrid summary={summary} loading={loading} />
+      </section>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Link href="/dashboard/loans/applications" className="group flex items-center gap-4 p-5 bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-emerald-200 transition-all">
-          <div className="p-3 rounded-xl bg-gradient-to-br from-violet-500 to-violet-600 text-white shadow-sm">
-            <Inbox className="w-5 h-5" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Recent Loans</h2>
+            <Link href="/dashboard/loans/active" className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-800">
+              View all <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
-          <div className="flex-1">
-            <p className="font-semibold text-gray-900 group-hover:text-emerald-700">Review Applications</p>
-            <p className="text-sm text-gray-500">Approve or reject pending loan requests</p>
-          </div>
-          <ArrowRight className="w-5 h-5 text-gray-300 group-hover:text-emerald-500 transition-colors" />
-        </Link>
 
-        <Link href="/dashboard/loans/products" className="group flex items-center gap-4 p-5 bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-md hover:border-emerald-200 transition-all">
-          <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-sm">
-            <Package className="w-5 h-5" />
+          <LoanTable
+            loans={recent}
+            loading={loading}
+            emptyTitle="No loans yet"
+            emptyDescription="Create a loan product to define the terms you offer your customers."
+            emptyAction={
+              <Link href="/dashboard/loans/products" className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors">
+                <Plus className="w-3.5 h-3.5" />
+                Create product
+              </Link>
+            }
+          />
+        </div>
+
+        <div className="lg:col-span-1">
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Quick Access</h2>
           </div>
-          <div className="flex-1">
-            <p className="font-semibold text-gray-900 group-hover:text-emerald-700">Manage Products</p>
-            <p className="text-sm text-gray-500">Define loan terms, rates, and limits</p>
-          </div>
-          <ArrowRight className="w-5 h-5 text-gray-300 group-hover:text-emerald-500 transition-colors" />
-        </Link>
+          <OperationsPanel summary={summary} loading={loading} />
+        </div>
       </div>
     </div>
   );
