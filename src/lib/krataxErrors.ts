@@ -16,12 +16,12 @@ export const KRA_ERROR_MESSAGES: Record<string, string> = {
   INTERNAL_ERROR: 'Something went wrong on our end. Please try again.',
 };
 
-// ✅ Notice: httpStatus is typed as `number` (not string)
 export function getKraErrorMessage(
   data: any,
   httpStatus?: number,
   fallback = 'Something went wrong. Please try again.'
 ): string {
+  // 1. Network outage → highest priority
   if (httpStatus === 503 || httpStatus === 504) {
     return 'Our services are temporarily unavailable. Please try again in a few minutes.';
   }
@@ -29,13 +29,17 @@ export function getKraErrorMessage(
   const code = data?.error?.code || data?.code;
   const message = data?.error?.message || data?.error;
 
-  if (code && KRA_ERROR_MESSAGES[code]) {
-    return KRA_ERROR_MESSAGES[code];
-  }
-
+  // 2. ✅ Prefer the backend's contextual message
+  //    (e.g. "No Non-Resident record found for this ID...")
   if (typeof message === 'string' && message.length > 0) {
     return message;
   }
 
+  // 3. Fallback: static map by error code
+  if (code && KRA_ERROR_MESSAGES[code]) {
+    return KRA_ERROR_MESSAGES[code];
+  }
+
+  // 4. Absolute fallback
   return fallback;
 }
