@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { getKraErrorMessage } from '@/lib/krataxErrors';
 
 // ─── Taxpayer type mapping (dropdown label → KRA code) ─────────────
 const TAXPAYER_TYPES = [
@@ -49,15 +50,8 @@ export default function Header() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.success) {
-        const msg =
-          data.error ||
-          (data.code === 'KRA_INVALID_ID'
-            ? 'This ID number was not found in KRA records.'
-            : data.code === 'KRA_TIMEOUT'
-            ? 'KRA is taking too long to respond. Please try again.'
-            : 'Could not retrieve KRA PIN. Please check the ID and try again.');
-        setError(msg);
-        setIsLoading(false);
+        // ✅ NEW: Use shared error mapper
+        setError(getKraErrorMessage(data, res.status));
         return;
       }
 
