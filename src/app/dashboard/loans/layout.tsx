@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Inbox, Activity, Users, Package,
-  BarChart3, Webhook, Settings,
+  BarChart3, Webhook, Settings, ShieldCheck,
 } from 'lucide-react';
 
 const TABS = [
@@ -13,6 +13,7 @@ const TABS = [
   { href: '/dashboard/loans/applications',  label: 'Applications', icon: Inbox },
   { href: '/dashboard/loans/active',        label: 'Active Loans', icon: Activity },
   { href: '/dashboard/loans/borrowers',     label: 'Borrowers',    icon: Users },
+  { href: '/dashboard/loans/kyc',           label: 'KYC',          icon: ShieldCheck },
   { href: '/dashboard/loans/products',      label: 'Products',     icon: Package },
   { href: '/dashboard/loans/reports',       label: 'Reports',      icon: BarChart3 },
   { href: '/dashboard/loans/webhooks',      label: 'Webhooks',     icon: Webhook },

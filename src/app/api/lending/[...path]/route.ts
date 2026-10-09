@@ -1,13 +1,18 @@
 // src/app/api/lending/[...path]/route.ts
 // Catch-all proxy to credit-service-engine.
 // Next.js 16+ — params is a Promise and must be awaited.
+//
+// The credit engine returns loans in a flat shape (dates at the top
+// level). The dashboard's components expect a nested shape with
+// `outstanding`, `terms`, and `timeline` sub-objects. We normalize
+// here, once, at the BFF boundary, so no component has to care.
 
 import { NextRequest, NextResponse } from 'next/server';
 
 const LENDING_API_URL =
   process.env.LENDING_API_URL ||
   process.env.API_URL ||
-  'http://localhost:4099';
+  'http://localhost:3009';
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const COOKIE_SESSION = 'xeco_session';
@@ -35,6 +40,112 @@ function buildTarget(path: string[], search: string): string {
   const base = LENDING_API_URL.replace(/\/+$/, '');
   const sub = path.join('/');
   return base + '/api/v1/admin/lending/' + sub + (search || '');
+}
+
+// ─── Loan shape normalizer ──────────────────────────────────────
+// Translates the credit engine's flat row into the nested shape the
+// dashboard components use. Leaves already-nested objects alone.
+function normalizeLoan(raw: any): any {
+  if (!raw || typeof raw !== 'object') return raw;
+
+  // Already nested? Leave it alone.
+  if (raw.timeline && raw.terms && raw.outstanding) return raw;
+
+  return {
+    id: raw.id,
+    loan_reference: raw.loan_reference,
+    status: raw.status,
+    currency: raw.currency,
+
+    principal_amount: raw.principal_amount,
+    interest_amount: raw.interest_amount,
+    fees_amount: raw.fees_amount,
+    penalty_amount: raw.penalty_amount,
+    total_due: raw.total_due,
+
+    outstanding: {
+      principal: raw.outstanding_principal ?? '0',
+      interest: raw.outstanding_interest ?? '0',
+      fees: raw.outstanding_fees ?? '0',
+      penalty: raw.outstanding_penalty ?? '0',
+      total: raw.outstanding_total ?? '0',
+    },
+
+    terms: {
+      term_days: raw.term_days ?? 0,
+      interest_rate: raw.interest_rate ?? '0',
+      interest_period: raw.interest_period ?? '',
+      repayment_frequency: raw.repayment_frequency ?? '',
+      penalty_rate_per_day: raw.penalty_rate_per_day ?? '0',
+      grace_period_days: raw.grace_period_days ?? 0,
+    },
+
+    timeline: {
+      requested_at: raw.requested_at ?? null,
+      approved_at: raw.approved_at ?? null,
+      disbursed_at: raw.disbursed_at ?? null,
+      first_due_date: raw.first_due_date ?? null,
+      maturity_date: raw.maturity_date ?? null,
+      last_payment_at: raw.last_payment_at ?? null,
+      closed_at: raw.closed_at ?? null,
+    },
+
+    external_customer_id: raw.external_customer_id ?? null,
+
+    created_at: raw.created_at,
+    updated_at: raw.updated_at,
+  };
+}
+
+// Applies normalizeLoan to a payload based on its shape.
+function normalizePayload(payload: any): any {
+  if (!payload || typeof payload !== 'object') return payload;
+
+  // List response: { data: [...], pagination }
+  if (Array.isArray(payload.data)) {
+    return { ...payload, data: payload.data.map(normalizeLoan) };
+  }
+
+  // Single loan wrapped: { data: { loan: {...}, schedule: [...] } }
+  if (payload.data && typeof payload.data === 'object' && payload.data.loan) {
+    return {
+      ...payload,
+      data: {
+        ...payload.data,
+        loan: normalizeLoan(payload.data.loan),
+      },
+    };
+  }
+
+  // Single loan flat: { data: { id, loan_reference, ... } }
+  if (
+    payload.data &&
+    typeof payload.data === 'object' &&
+    payload.data.id &&
+    payload.data.loan_reference
+  ) {
+    return { ...payload, data: normalizeLoan(payload.data) };
+  }
+
+  // Loan wrapped in nested data: { data: { data: {...} } }
+  if (
+    payload.data &&
+    typeof payload.data === 'object' &&
+    payload.data.data &&
+    typeof payload.data.data === 'object' &&
+    payload.data.data.id
+  ) {
+    return {
+      ...payload,
+      data: {
+        ...payload.data,
+        data: normalizeLoan(payload.data.data),
+      },
+    };
+  }
+
+  // Portfolio or other shapes: no change
+  return payload;
 }
 
 async function proxy(
@@ -89,9 +200,12 @@ async function proxy(
     clearTimeout(timer);
 
     const contentType = upstream.headers.get('content-type') || '';
-    const payload = contentType.includes('application/json')
+    const rawPayload = contentType.includes('application/json')
       ? await upstream.json()
       : { raw: await upstream.text() };
+
+    // Normalize the loan shape before returning to the browser.
+    const payload = normalizePayload(rawPayload);
 
     if (process.env.NODE_ENV !== 'production') {
       console.log(JSON.stringify({
