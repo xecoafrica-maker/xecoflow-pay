@@ -10,28 +10,33 @@ const isProduction = process.env.NODE_ENV === "production";
 // Where the backend lives in each environment.
 const BACKEND_URL = isProduction
   ? "https://xecoflow-2gen.onrender.com"
-  : "http://localhost:3009";
+  : "http://localhost:3001";
 
 const nextConfig: NextConfig = {
   async rewrites() {
-    // Only the /v1/* passthrough remains.
-    //
-    // The payments dashboard uses /v1/* paths directly (e.g.
-    // /v1/transactions/inflow, /v1/ledger/accounts/.../balance).
-    // These are forwarded to the backend.
-    //
-    // The /api/* shim that used to exist here has been REMOVED.
-    // It used to forward /api/* to ${BACKEND_URL}/v1/* which is the
-    // wrong path for the lending BFF — the backend expects
-    // /api/v1/admin/lending/* and /v1/imara/kyc/* etc. The BFF
-    // route handlers under src/app/api/* now handle /api/* and
-    // forward to the correct backend paths.
-    return [
+    const rules = [
       {
         source: "/v1/:path*",
         destination: `${BACKEND_URL}/v1/:path*`,
       },
     ];
+
+    // The /api/* rewrite is a transition shim. It forwards /api/* calls
+    // to the backend because the BFF was not yet implemented. Locally,
+    // we want /api/* to hit our own route handlers so we can develop
+    // and test the BFF. In production, we keep the old shim until every
+    // BFF route exists.
+    //
+    // When the migration is complete, delete this block entirely so
+    // production also uses the BFF.
+    if (isProduction) {
+      rules.unshift({
+        source: "/api/:path*",
+        destination: `${BACKEND_URL}/v1/:path*`,
+      });
+    }
+
+    return rules;
   },
 
   async headers() {
