@@ -6,6 +6,9 @@
 // level). The dashboard's components expect a nested shape with
 // `outstanding`, `terms`, and `timeline` sub-objects. We normalize
 // here, once, at the BFF boundary, so no component has to care.
+//
+// Normalization is scoped to /loans/* paths only. Products, webhooks,
+// portfolio, and every other resource pass through untouched.
 
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -43,8 +46,9 @@ function buildTarget(path: string[], search: string): string {
 }
 
 // ─── Loan shape normalizer ──────────────────────────────────────
-// Translates the credit engine's flat row into the nested shape the
-// dashboard components use. Leaves already-nested objects alone.
+// Translates the credit engine's flat loan row into the nested shape
+// the dashboard components use. Leaves already-nested objects alone.
+// ONLY applied on /loans/* requests.
 function normalizeLoan(raw: any): any {
   if (!raw || typeof raw !== 'object') return raw;
 
@@ -97,9 +101,16 @@ function normalizeLoan(raw: any): any {
   };
 }
 
-// Applies normalizeLoan to a payload based on its shape.
-function normalizePayload(payload: any): any {
+// Applies normalizeLoan only when the request targets a loan endpoint.
+// Products, webhooks, portfolio, and everything else pass through as-is.
+function normalizePayload(payload: any, path: string[]): any {
   if (!payload || typeof payload !== 'object') return payload;
+
+  // Path gate: only touch loan endpoints. `loans` is the first segment
+  // after the BFF prefix — e.g. GET /api/lending/loans,
+  // /api/lending/loans/:id, /api/lending/loans/:id/approve, etc.
+  const isLoansPath = path[0] === 'loans';
+  if (!isLoansPath) return payload;
 
   // List response: { data: [...], pagination }
   if (Array.isArray(payload.data)) {
@@ -144,7 +155,7 @@ function normalizePayload(payload: any): any {
     };
   }
 
-  // Portfolio or other shapes: no change
+  // Anything else on a /loans path: no change.
   return payload;
 }
 
@@ -205,7 +216,8 @@ async function proxy(
       : { raw: await upstream.text() };
 
     // Normalize the loan shape before returning to the browser.
-    const payload = normalizePayload(rawPayload);
+    // Scoped to /loans/* — everything else passes through untouched.
+    const payload = normalizePayload(rawPayload, path);
 
     if (process.env.NODE_ENV !== 'production') {
       console.log(JSON.stringify({
