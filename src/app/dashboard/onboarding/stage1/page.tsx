@@ -6,23 +6,18 @@ import {
   Building2,
   Save,
   Loader2,
-  MapPin,
-  FileText,
-  CheckCircle,
   Phone,
   Mail,
   Globe,
-  Tag,
-  Landmark,
   Calendar,
-  Check,
-  Info,
-  AlertCircle,
+  CheckCircle,
 } from 'lucide-react';
-import { getStoredMerchant } from '@/lib/auth';
+import { useSession } from '@/hooks/useSession';
 
 export default function OnboardingStage1() {
   const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -30,23 +25,18 @@ export default function OnboardingStage1() {
 
   // ─── Form Data ────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
-    // Business Identity
     business_name: '',
     trading_name: '',
-    // Registration
     business_type: '',
     business_registration_number: '',
     date_of_registration: '',
     country_of_registration: 'Kenya',
-    // Business Activity
     industry: '',
     business_description: '',
-    // Business Contact
     business_email: '',
     business_phone: '',
     website: '',
     has_no_website: false,
-    // Business Location
     country: 'Kenya',
     county: '',
     city: '',
@@ -56,73 +46,74 @@ export default function OnboardingStage1() {
     registered_address: '',
   });
 
-  // ─── Load Profile Data ────────────────────────────────────────────
-  const fetchBusinessProfile = async () => {
-    // ✅ Same session helper used everywhere else
-    const cached = getStoredMerchant();
-    const merchantId = cached?.merchant_id || cached?.merchantId;
-
-    if (!cached || !merchantId) {
-      console.warn('No merchant found, redirecting to login');
-      router.push('/login?session=expired');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const res = await fetch('/api/onboarding/business-profile', {
-        credentials: 'include',
-      });
-
-      // ✅ Only logout on explicit 401 — not on 500 or network errors
-      if (res.status === 401) {
-        router.push('/login?session=expired');
-        return;
-      }
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(
-          data.error || data.message || 'Failed to load business profile'
-        );
-      }
-
-      setFormData((prev) => ({
-        ...prev,
-        business_name: data.business_name || '',
-        business_email: data.email || '',
-        business_phone: data.phone || '',
-        country: data.country || 'Kenya',
-        business_type: data.business_type || '',
-        business_registration_number: data.business_registration_number || '',
-        trading_name: data.trading_name || '',
-        date_of_registration: data.date_of_registration || '',
-        country_of_registration: data.country_of_registration || 'Kenya',
-        industry: data.industry || '',
-        business_description: data.business_description || '',
-        website: data.website || '',
-        has_no_website: data.has_no_website || false,
-        county: data.county || '',
-        city: data.city || '',
-        physical_address: data.physical_address || '',
-        postal_code: data.postal_code || '',
-        same_as_registered_address: data.same_as_registered_address ?? true,
-        registered_address: data.registered_address || '',
-      }));
-    } catch (err: any) {
-      console.error('Failed to load business profile:', err);
-      setError(err.message || 'Failed to load business profile');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // ─── Load Profile Data (only after session resolves) ──────────────
   useEffect(() => {
-    fetchBusinessProfile();
-  }, [router]);
+    if (sessionLoading) return;
+    if (!user) return; // useSession handles the redirect
+
+    let cancelled = false;
+
+    (async () => {
+      setLoading(true);
+      setError('');
+
+      try {
+        const res = await fetch('/api/onboarding/business-profile', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+
+        // Real 401 → useSession will handle the redirect next tick.
+        // Do nothing here; returning is safe.
+        if (res.status === 401) {
+          return;
+        }
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(
+            data.error || data.message || 'Failed to load business profile'
+          );
+        }
+
+        if (cancelled) return;
+
+        setFormData((prev) => ({
+          ...prev,
+          business_name: data.business_name || '',
+          business_email: data.email || '',
+          business_phone: data.phone || '',
+          country: data.country || 'Kenya',
+          business_type: data.business_type || '',
+          business_registration_number: data.business_registration_number || '',
+          trading_name: data.trading_name || '',
+          date_of_registration: data.date_of_registration || '',
+          country_of_registration: data.country_of_registration || 'Kenya',
+          industry: data.industry || '',
+          business_description: data.business_description || '',
+          website: data.website || '',
+          has_no_website: data.has_no_website || false,
+          county: data.county || '',
+          city: data.city || '',
+          physical_address: data.physical_address || '',
+          postal_code: data.postal_code || '',
+          same_as_registered_address: data.same_as_registered_address ?? true,
+          registered_address: data.registered_address || '',
+        }));
+      } catch (err: any) {
+        if (cancelled) return;
+        console.error('Failed to load business profile:', err);
+        setError(err.message || 'Failed to load business profile');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionLoading, user]);
 
   // ─── Handle Input Changes ─────────────────────────────────────────
   const handleChange = (
@@ -152,14 +143,6 @@ export default function OnboardingStage1() {
     setError('');
     setSaved(false);
 
-    const cached = getStoredMerchant();
-    const merchantId = cached?.merchant_id || cached?.merchantId;
-
-    if (!cached || !merchantId) {
-      router.push('/login?session=expired');
-      return;
-    }
-
     try {
       const res = await fetch('/api/onboarding/business-profile/submit', {
         method: 'POST',
@@ -188,8 +171,8 @@ export default function OnboardingStage1() {
         }),
       });
 
+      // Real 401 → useSession handles redirect. Just stop here.
       if (res.status === 401) {
-        router.push('/login?session=expired');
         return;
       }
 
@@ -197,20 +180,6 @@ export default function OnboardingStage1() {
 
       if (data.success) {
         setSaved(true);
-
-        const cachedMerchant = getStoredMerchant();
-        if (cachedMerchant) {
-          localStorage.setItem(
-            'merchant',
-            JSON.stringify({
-              ...cachedMerchant,
-              business_type: formData.business_type,
-              country: formData.country,
-              phone: formData.business_phone,
-            })
-          );
-        }
-
         const nextStep = data.onboarding?.currentStep || 2;
         setTimeout(() => {
           router.replace(`/dashboard/onboarding/stage${nextStep}`);
@@ -225,7 +194,8 @@ export default function OnboardingStage1() {
     }
   };
 
-  if (loading) {
+  // ─── Loading gate ─────────────────────────────────────────────────
+  if (sessionLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
@@ -233,9 +203,10 @@ export default function OnboardingStage1() {
     );
   }
 
+  if (!user) return null; // useSession already redirected
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* ─── Page Header ────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
         <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-sm shadow-indigo-200">
           <Building2 className="w-5 h-5 text-white" />
@@ -258,7 +229,7 @@ export default function OnboardingStage1() {
         onSubmit={handleSave}
         className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-8"
       >
-        {/* ─── Section 1: Business Type ─────────────────────────────── */}
+        {/* Section 1: Business Type */}
         <div>
           <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
             Business Type
@@ -266,7 +237,6 @@ export default function OnboardingStage1() {
           <p className="text-xs text-gray-500 mb-3">
             Determines which other fields/documents will be required later.
           </p>
-
           <select
             name="business_type"
             value={formData.business_type}
@@ -284,12 +254,11 @@ export default function OnboardingStage1() {
           </select>
         </div>
 
-        {/* ─── Section 2: Business Identity ─────────────────────────── */}
+        {/* Section 2: Business Identity */}
         <div className="border-t border-gray-100 pt-6">
           <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
             Business Identity
           </h3>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -307,7 +276,6 @@ export default function OnboardingStage1() {
                 The exact name registered with the relevant authority.
               </p>
             </div>
-
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Trading Name
@@ -327,12 +295,11 @@ export default function OnboardingStage1() {
           </div>
         </div>
 
-        {/* ─── Section 3: Registration Information ──────────────────── */}
+        {/* Section 3: Registration */}
         <div className="border-t border-gray-100 pt-6">
           <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
             Registration Information
           </h3>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -347,12 +314,7 @@ export default function OnboardingStage1() {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 required
               />
-              <p className="text-xs text-gray-400 mt-1">
-                For Kenyan registered companies, this is the company&apos;s
-                registration identifier—not the owner&apos;s ID number.
-              </p>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Date of Registration <span className="text-red-500">*</span>
@@ -369,7 +331,6 @@ export default function OnboardingStage1() {
                 />
               </div>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Country of Registration <span className="text-red-500">*</span>
@@ -392,12 +353,11 @@ export default function OnboardingStage1() {
           </div>
         </div>
 
-        {/* ─── Section 4: Business Activity ─────────────────────────── */}
+        {/* Section 4: Business Activity */}
         <div className="border-t border-gray-100 pt-6">
           <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
             Business Activity
           </h3>
-
           <div className="grid grid-cols-1 gap-4 mt-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -427,7 +387,6 @@ export default function OnboardingStage1() {
                 <option value="Other">Other</option>
               </select>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Business Description <span className="text-red-500">*</span>
@@ -449,7 +408,7 @@ export default function OnboardingStage1() {
           </div>
         </div>
 
-        {/* ─── Section 5: Business Contact ──────────────────────────── */}
+        {/* Section 5: Business Contact */}
         <div className="border-t border-gray-100 pt-6">
           <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
             Business Contact
@@ -457,7 +416,6 @@ export default function OnboardingStage1() {
           <p className="text-xs text-gray-500 mb-3">
             These are business contacts, not the owner&apos;s personal details.
           </p>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -476,7 +434,6 @@ export default function OnboardingStage1() {
                 />
               </div>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Business Phone <span className="text-red-500">*</span>
@@ -494,7 +451,6 @@ export default function OnboardingStage1() {
                 />
               </div>
             </div>
-
             <div>
               <div className="flex items-center gap-3 mt-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -533,12 +489,11 @@ export default function OnboardingStage1() {
           </div>
         </div>
 
-        {/* ─── Section 6: Business Location ─────────────────────────── */}
+        {/* Section 6: Business Location */}
         <div className="border-t border-gray-100 pt-6">
           <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
             Business Location
           </h3>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -556,7 +511,6 @@ export default function OnboardingStage1() {
                 <option value="Tanzania">Tanzania</option>
               </select>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 County / Region <span className="text-red-500">*</span>
@@ -576,7 +530,6 @@ export default function OnboardingStage1() {
                 <option value="Kiambu">Kiambu</option>
               </select>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 City / Town <span className="text-red-500">*</span>
@@ -591,7 +544,6 @@ export default function OnboardingStage1() {
                 required
               />
             </div>
-
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Physical Address <span className="text-red-500">*</span>
@@ -606,7 +558,6 @@ export default function OnboardingStage1() {
                 required
               />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Postal Code
@@ -620,7 +571,6 @@ export default function OnboardingStage1() {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
-
             <div className="md:col-span-2 flex items-start gap-3 bg-gray-50 p-4 rounded-lg border border-gray-200 mt-2">
               <input
                 type="checkbox"
@@ -657,7 +607,7 @@ export default function OnboardingStage1() {
           </div>
         </div>
 
-        {/* ─── Messages & Actions ────────────────────────────────────── */}
+        {/* Actions */}
         <div className="border-t border-gray-200 pt-6 space-y-3">
           {saved && (
             <div className="bg-emerald-50 border border-emerald-200 text-emerald-600 text-sm p-3 rounded-xl flex items-center gap-2">
@@ -665,7 +615,6 @@ export default function OnboardingStage1() {
               <span>Business profile saved! Moving to Stage 2...</span>
             </div>
           )}
-
           <button
             type="submit"
             disabled={saving}

@@ -9,10 +9,12 @@ import {
   ArrowLeft,
   FileText,
 } from 'lucide-react';
-import { getStoredMerchant } from '@/lib/auth';
+import { useSession } from '@/hooks/useSession';
 
 export default function OnboardingStage3() {
   const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -22,27 +24,22 @@ export default function OnboardingStage3() {
     kra_pin: '',
   });
 
-  // ─── Load Stage 3 Data ────────────────────────────────────────────
+  // ─── Load Stage 3 Data (after session resolves) ───────────────────
   useEffect(() => {
-    const fetchTaxCompliance = async () => {
-      // ✅ Same session helper used everywhere else
-      const cached = getStoredMerchant();
-      const merchantId = cached?.merchant_id || cached?.merchantId;
+    if (sessionLoading) return;
+    if (!user) return; // useSession handles the redirect
 
-      if (!cached || !merchantId) {
-        console.warn('No merchant found, redirecting to login');
-        router.push('/login?session=expired');
-        return;
-      }
+    let cancelled = false;
 
+    (async () => {
       try {
         const res = await fetch('/api/onboarding/tax-compliance', {
           credentials: 'include',
+          cache: 'no-store',
         });
 
-        // ✅ Only logout on explicit 401
         if (res.status === 401) {
-          router.push('/login?session=expired');
+          // useSession will redirect on next tick
           return;
         }
 
@@ -56,23 +53,27 @@ export default function OnboardingStage3() {
           );
         }
 
+        if (cancelled) return;
+
         setFormData({
           kra_pin: data.kra_pin || '',
         });
       } catch (err: any) {
+        if (cancelled) return;
         console.error('Failed to load Stage 3:', err);
         setError(err.message || 'Failed to load tax information');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    };
+    })();
 
-    fetchTaxCompliance();
-  }, [router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionLoading, user]);
 
   // ─── Input Handler ────────────────────────────────────────────────
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Uppercase and strip spaces immediately
     const value = e.target.value.toUpperCase().replace(/\s/g, '');
     setFormData({ kra_pin: value });
     setSaved(false);
@@ -86,15 +87,7 @@ export default function OnboardingStage3() {
     setSaved(false);
     setError('');
 
-    const cached = getStoredMerchant();
-    const merchantId = cached?.merchant_id || cached?.merchantId;
-
-    if (!cached || !merchantId) {
-      router.push('/login?session=expired');
-      return;
-    }
-
-    // ✅ 1. Frontend format validation
+    // Frontend format validation
     const kraPin = formData.kra_pin.trim().toUpperCase();
     if (!/^P\d{9}[A-Z]$/.test(kraPin)) {
       setError('Please enter a valid KRA PIN, e.g. P051234567A.');
@@ -103,7 +96,6 @@ export default function OnboardingStage3() {
     }
 
     try {
-      // ✅ 2. Proxy URL + cookie auth
       const res = await fetch('/api/onboarding/tax-compliance/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -114,7 +106,7 @@ export default function OnboardingStage3() {
       });
 
       if (res.status === 401) {
-        router.push('/login?session=expired');
+        // useSession handles redirect
         return;
       }
 
@@ -128,7 +120,6 @@ export default function OnboardingStage3() {
 
       setSaved(true);
 
-      // ✅ 3. Dynamic redirect with safe fallback
       const nextStep = data.onboarding?.currentStep || 4;
       setTimeout(() => {
         router.replace(`/dashboard/onboarding/stage${nextStep}`);
@@ -141,7 +132,8 @@ export default function OnboardingStage3() {
     }
   };
 
-  if (loading) {
+  // ─── Loading gate ─────────────────────────────────────────────────
+  if (sessionLoading || loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
@@ -149,9 +141,10 @@ export default function OnboardingStage3() {
     );
   }
 
+  if (!user) return null;
+
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div>
         <div className="flex items-center gap-2 text-indigo-600 mb-2">
           <FileText className="w-5 h-5" />
@@ -166,7 +159,6 @@ export default function OnboardingStage3() {
         </p>
       </div>
 
-      {/* Error */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-xl">
           {error}
@@ -177,7 +169,6 @@ export default function OnboardingStage3() {
         onSubmit={handleSave}
         className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-8"
       >
-        {/* KRA PIN */}
         <div>
           <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
             KRA PIN
@@ -207,7 +198,6 @@ export default function OnboardingStage3() {
           </p>
         </div>
 
-        {/* Actions */}
         <div className="border-t border-gray-200 pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <button
             type="button"

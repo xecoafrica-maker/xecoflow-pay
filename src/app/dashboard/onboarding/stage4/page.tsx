@@ -13,7 +13,7 @@ import {
   FileText,
   ArrowLeft,
 } from 'lucide-react';
-import { getStoredMerchant } from '@/lib/auth';
+import { useSession } from '@/hooks/useSession';
 
 const SETTLEMENT_METHODS = [
   { id: 'mpesa', label: 'M-PESA', icon: Smartphone },
@@ -23,6 +23,8 @@ const SETTLEMENT_METHODS = [
 
 export default function OnboardingStage4() {
   const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -36,28 +38,22 @@ export default function OnboardingStage4() {
     bank_account_holder: '',
   });
 
-  // ─── Load Settlement Data ────────────────────────────────────────
+  // ─── Load Settlement Data (after session resolves) ────────────────
   useEffect(() => {
-    const fetchSettlement = async () => {
-      // ✅ Same session helper used everywhere else
-      const cached = getStoredMerchant();
-      const merchantId = cached?.merchant_id || cached?.merchantId;
+    if (sessionLoading) return;
+    if (!user) return; // useSession handles the redirect
 
-      if (!cached || !merchantId) {
-        console.warn('No merchant found, redirecting to login');
-        router.push('/login?session=expired');
-        return;
-      }
+    let cancelled = false;
 
+    (async () => {
       try {
         const res = await fetch('/api/onboarding/settlement', {
           credentials: 'include',
+          cache: 'no-store',
         });
 
-        // ✅ Only logout on explicit 401
         if (res.status === 401) {
-          router.push('/login?session=expired');
-          return;
+          return; // useSession will redirect
         }
 
         const data = await res.json();
@@ -68,6 +64,8 @@ export default function OnboardingStage4() {
           );
         }
 
+        if (cancelled) return;
+
         setFormData({
           settlement_method: data.settlement_method || 'mpesa',
           settlement_phone: data.settlement_phone || '',
@@ -76,15 +74,18 @@ export default function OnboardingStage4() {
           bank_account_holder: data.bank_account_holder || '',
         });
       } catch (err: any) {
+        if (cancelled) return;
         console.error('Failed to load Stage 4:', err);
         setError(err.message || 'Failed to load settlement information');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    };
+    })();
 
-    fetchSettlement();
-  }, [router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionLoading, user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -104,14 +105,6 @@ export default function OnboardingStage4() {
     setError('');
     setSaved(false);
 
-    const cached = getStoredMerchant();
-    const merchantId = cached?.merchant_id || cached?.merchantId;
-
-    if (!cached || !merchantId) {
-      router.push('/login?session=expired');
-      return;
-    }
-
     try {
       const res = await fetch('/api/onboarding/settlement/submit', {
         method: 'POST',
@@ -127,8 +120,7 @@ export default function OnboardingStage4() {
       });
 
       if (res.status === 401) {
-        router.push('/login?session=expired');
-        return;
+        return; // useSession handles redirect
       }
 
       const data = await res.json();
@@ -141,7 +133,6 @@ export default function OnboardingStage4() {
 
       setSaved(true);
 
-      // ✅ Redirect to Stage 5 with safe fallback
       const nextStep = data.onboarding?.currentStep || 5;
       setTimeout(() => {
         router.replace(`/dashboard/onboarding/stage${nextStep}`);
@@ -154,13 +145,16 @@ export default function OnboardingStage4() {
     }
   };
 
-  if (loading) {
+  // ─── Loading gate ─────────────────────────────────────────────────
+  if (sessionLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
       </div>
     );
   }
+
+  if (!user) return null;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

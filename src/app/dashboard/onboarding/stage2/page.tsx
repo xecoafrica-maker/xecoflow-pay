@@ -15,7 +15,7 @@ import {
   Briefcase,
   ArrowLeft,
 } from 'lucide-react';
-import { getStoredMerchant } from '@/lib/auth';
+import { useSession } from '@/hooks/useSession';
 
 interface Director {
   id: string;
@@ -26,47 +26,43 @@ interface Director {
 
 export default function OnboardingStage2() {
   const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  // ─── Directors State ──────────────────────────────────────────────
   const [directors, setDirectors] = useState<Director[]>([
     { id: crypto.randomUUID(), fullName: '', idNumber: '', role: 'Director' },
   ]);
 
-  // ─── Load Data ────────────────────────────────────────────────────
+  // ─── Load directors (only after session resolves) ─────────────────
   useEffect(() => {
-    const fetchOwners = async () => {
-      // ✅ Same session helper used everywhere else
-      const cached = getStoredMerchant();
-      const merchantId = cached?.merchant_id || cached?.merchantId;
+    if (sessionLoading) return;
+    if (!user) return; // useSession handles the redirect
 
-      if (!cached || !merchantId) {
-        console.warn('No merchant found, redirecting to login');
-        router.push('/login?session=expired');
-        return;
-      }
+    let cancelled = false;
 
+    (async () => {
       try {
         const res = await fetch('/api/onboarding/owners-documents', {
           credentials: 'include',
+          cache: 'no-store',
         });
 
-        // ✅ Only logout on explicit 401 — not on transient errors
         if (res.status === 401) {
-          router.push('/login?session=expired');
+          // useSession will redirect on next tick
           return;
         }
 
         const data = await res.json();
 
         if (!res.ok) {
-          throw new Error(
-            data.error || data.message || 'Failed to load owners'
-          );
+          throw new Error(data.error || data.message || 'Failed to load owners');
         }
+
+        if (cancelled) return;
 
         if (Array.isArray(data.directors) && data.directors.length > 0) {
           setDirectors(
@@ -79,16 +75,19 @@ export default function OnboardingStage2() {
           );
         }
       } catch (err: any) {
+        if (cancelled) return;
         setError(err.message || 'Failed to load owners');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
+    })();
+
+    return () => {
+      cancelled = true;
     };
+  }, [sessionLoading, user]);
 
-    fetchOwners();
-  }, [router]);
-
-  // ─── Director Handlers ────────────────────────────────────────────
+  // ─── Director handlers ────────────────────────────────────────────
   const addDirector = () => {
     setDirectors([
       ...directors,
@@ -114,15 +113,7 @@ export default function OnboardingStage2() {
     setError('');
     setSaved(false);
 
-    const cached = getStoredMerchant();
-    const merchantId = cached?.merchant_id || cached?.merchantId;
-
-    if (!cached || !merchantId) {
-      router.push('/login?session=expired');
-      return;
-    }
-
-    // 1. Frontend validation
+    // Frontend validation
     const invalidDirector = directors.some(
       (director) =>
         !director.fullName.trim() ||
@@ -139,10 +130,8 @@ export default function OnboardingStage2() {
     }
 
     try {
-      // 2. Strip temporary frontend IDs before sending
       const cleanDirectors = directors.map(({ id, ...director }) => director);
 
-      // 3. ✅ Proxy URL + cookie auth
       const res = await fetch('/api/onboarding/owners-documents/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -151,7 +140,7 @@ export default function OnboardingStage2() {
       });
 
       if (res.status === 401) {
-        router.push('/login?session=expired');
+        // useSession handles redirect
         return;
       }
 
@@ -159,7 +148,6 @@ export default function OnboardingStage2() {
 
       if (data.success) {
         setSaved(true);
-
         const nextStep = data.onboarding?.currentStep || 3;
         setTimeout(() => {
           router.replace(`/dashboard/onboarding/stage${nextStep}`);
@@ -174,7 +162,8 @@ export default function OnboardingStage2() {
     }
   };
 
-  if (loading) {
+  // ─── Loading gate ─────────────────────────────────────────────────
+  if (sessionLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
@@ -182,9 +171,10 @@ export default function OnboardingStage2() {
     );
   }
 
+  if (!user) return null;
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* ─── Page Header ────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
         <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-sm shadow-indigo-200">
           <Users className="w-5 h-5 text-white" />
@@ -210,7 +200,6 @@ export default function OnboardingStage2() {
         onSubmit={handleSave}
         className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-8"
       >
-        {/* ─── Section 1: Directors / Owners ────────────────────────── */}
         <div>
           <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
             Directors &amp; Beneficial Owners
@@ -220,7 +209,7 @@ export default function OnboardingStage2() {
           </p>
 
           <div className="space-y-4">
-            {directors.map((director, index) => (
+            {directors.map((director) => (
               <div
                 key={director.id}
                 className="flex flex-col sm:flex-row gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200 relative"
@@ -292,7 +281,6 @@ export default function OnboardingStage2() {
           </div>
         </div>
 
-        {/* ─── Section 2: Business Documents (Optional) ────────────── */}
         <div className="border-t border-gray-100 pt-6">
           <h3 className="text-sm font-bold text-gray-800 mb-2 uppercase tracking-wider">
             Business Documents (Optional)
@@ -328,7 +316,6 @@ export default function OnboardingStage2() {
           </div>
         </div>
 
-        {/* ─── Actions ────────────────────────────────────────────────── */}
         <div className="border-t border-gray-200 pt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <button
             type="button"

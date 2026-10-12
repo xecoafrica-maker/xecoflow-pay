@@ -13,7 +13,7 @@ import {
   ArrowLeft,
   Edit,
 } from 'lucide-react';
-import { getStoredMerchant } from '@/lib/auth';
+import { useSession } from '@/hooks/useSession';
 
 interface Director {
   fullName: string;
@@ -52,33 +52,29 @@ interface ReviewData {
 
 export default function OnboardingStage5() {
   const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [data, setData] = useState<ReviewData | null>(null);
 
+  // ─── Load review data (after session resolves) ────────────────────
   useEffect(() => {
-    const fetchSummary = async () => {
-      // ✅ Same session helper used everywhere else
-      const cached = getStoredMerchant();
-      const merchantId = cached?.merchant_id || cached?.merchantId;
+    if (sessionLoading) return;
+    if (!user) return; // useSession handles the redirect
 
-      if (!cached || !merchantId) {
-        console.warn('No merchant found, redirecting to login');
-        router.push('/login?session=expired');
-        return;
-      }
+    let cancelled = false;
 
+    (async () => {
       try {
         const res = await fetch('/api/onboarding/review', {
           credentials: 'include',
+          cache: 'no-store',
         });
 
-        // ✅ Only logout on explicit 401
         if (res.status === 401) {
-          router.push('/login?session=expired');
-          return;
+          return; // useSession will redirect
         }
 
         const json = await res.json();
@@ -89,27 +85,23 @@ export default function OnboardingStage5() {
           );
         }
 
+        if (cancelled) return;
         setData(json);
       } catch (err: any) {
+        if (cancelled) return;
         console.error('Failed to load review:', err);
         setError(err.message || 'Failed to load onboarding information');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    };
+    })();
 
-    fetchSummary();
-  }, [router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionLoading, user]);
 
   const handleSubmit = async () => {
-    const cached = getStoredMerchant();
-    const merchantId = cached?.merchant_id || cached?.merchantId;
-
-    if (!cached || !merchantId) {
-      router.push('/login?session=expired');
-      return;
-    }
-
     setSubmitting(true);
     setError('');
 
@@ -121,8 +113,7 @@ export default function OnboardingStage5() {
       });
 
       if (res.status === 401) {
-        router.push('/login?session=expired');
-        return;
+        return; // useSession handles redirect
       }
 
       const json = await res.json();
@@ -142,13 +133,16 @@ export default function OnboardingStage5() {
     }
   };
 
-  if (loading) {
+  // ─── Loading gate ─────────────────────────────────────────────────
+  if (sessionLoading || loading) {
     return (
       <div className="min-h-[400px] flex items-center justify-center">
         <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
       </div>
     );
   }
+
+  if (!user) return null;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
